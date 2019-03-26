@@ -150,7 +150,7 @@ function Get-DbaEstimatedCompletionTime {
                     EstimatedCompletionTime = $row.EstimatedCompletionTime
                     Text                    = $row.Text
                 } | Select-DefaultView -ExcludeProperty Text
-            }
         }
     }
+}
 }

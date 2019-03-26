@@ -53,7 +53,7 @@ function Get-JobList {
         Website: https://dbatools.io
         Copyright: (c) 2018 by dbatools, licensed under MIT
         License: MIT https://opensource.org/licenses/MIT
-       #>
+    #>
     [cmdletbinding()]
     param(
         [Parameter(ValueFromPipeline)]
@@ -73,65 +73,65 @@ function Get-JobList {
             if ($JobFilter.Count -gt 1) {
                 if ($Not) {
                     $jobs | Where-Object Name -NotIn $JobFilter
-                } else {
-                    $jobs | Where-Object Name -In $JobFilter
-                }
             } else {
-                foreach ($job in $jobs) {
-                    if ($JobFilter -match '`*') {
-                        if ($Not) {
-                            $job | Where-Object Name -NotLike $JobFilter
-                        } else {
-                            $job | Where-Object Name -Like $JobFilter
-                        }
-                    } else {
-                        if ($Not) {
-                            $job | Where-Object Name -NE $JobFilter
-                        } else {
-                            $job | Where-Object Name -EQ $JobFilter
-                        }
-                    }
-                    if ($StepFilter -match '`*') {
-                        if ($Not) {
-                            $stepFound = $job.JobSteps | Where-Object Name -NotLike $StepFilter
-                            if ($stepFound.Count -gt 0) {
-                                $job
-                            }
-                        } else {
-                            $stepFound = $job.JobSteps | Where-Object Name -Like $StepFilter
-                            if ($stepFound.Count -gt 0) {
-                                $job
-                            }
-                        }
-                    } elseif ($StepName.Count -gt 1) {
-                        if ($Not) {
-                            $stepFound = $job.JobSteps | Where-Object Name -NotIn $StepName
-                            if ($stepFound.Count -gt 0) {
-                                $job
-                            }
-                        } else {
-                            $stepFound = $job.JobSteps | Where-Object Name -In $StepName
-                            if ($stepFound.Count -gt 0) {
-                                $job
-                            }
-                        }
-                    } else {
-                        if ($Not) {
-                            $stepFound = $job.JobSteps | Where-Object Name -NE $StepName
-                            if ($stepFound.Count -gt 0) {
-                                $job
-                            }
-                        } else {
-                            $stepFound = $job.JobSteps | Where-Object Name -EQ $StepName
-                            if ($stepFound.Count -gt 0) {
-                                $job
-                            }
-                        }
-                    }
-                }
-            }
-        } else {
-            $jobs
+                $jobs | Where-Object Name -In $JobFilter
         }
+    } else {
+        foreach ($job in $jobs) {
+            if ($JobFilter -match '`*') {
+                if ($Not) {
+                    $job | Where-Object Name -NotLike $JobFilter
+            } else {
+                $job | Where-Object Name -Like $JobFilter
+        }
+    } else {
+        if ($Not) {
+            $job | Where-Object Name -NE $JobFilter
+    } else {
+        $job | Where-Object Name -EQ $JobFilter
+}
+}
+if ($StepFilter -match '`*') {
+    if ($Not) {
+        $stepFound = $job.JobSteps | Where-Object Name -NotLike $StepFilter
+    if ($stepFound.Count -gt 0) {
+        $job
     }
+} else {
+    $stepFound = $job.JobSteps | Where-Object Name -Like $StepFilter
+if ($stepFound.Count -gt 0) {
+    $job
+}
+}
+} elseif ($StepName.Count -gt 1) {
+    if ($Not) {
+        $stepFound = $job.JobSteps | Where-Object Name -NotIn $StepName
+    if ($stepFound.Count -gt 0) {
+        $job
+    }
+} else {
+    $stepFound = $job.JobSteps | Where-Object Name -In $StepName
+if ($stepFound.Count -gt 0) {
+    $job
+}
+}
+} else {
+    if ($Not) {
+        $stepFound = $job.JobSteps | Where-Object Name -NE $StepName
+    if ($stepFound.Count -gt 0) {
+        $job
+    }
+} else {
+    $stepFound = $job.JobSteps | Where-Object Name -EQ $StepName
+if ($stepFound.Count -gt 0) {
+    $job
+}
+}
+}
+}
+}
+} else {
+    $jobs
+}
+}
 }

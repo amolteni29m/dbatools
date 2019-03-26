@@ -166,49 +166,49 @@ function Show-DbaServerFileSystem {
 
         $xaml.SelectNodes("//*[@Name]") | ForEach-Object { Set-Variable -Name ($_.Name) -Value $window.FindName($_.Name) -Scope Script }
 
-        try {
-            $drives = ($server.EnumAvailableMedia()).Name
-        } catch {
-            Stop-Function -Message "No access to remote SQL Server files." -Target $SqlInstance
-            return
-        }
+    try {
+        $drives = ($server.EnumAvailableMedia()).Name
+    } catch {
+        Stop-Function -Message "No access to remote SQL Server files." -Target $SqlInstance
+        return
+    }
 
-        foreach ($drive in $drives) {
-            $drive = $drive.Replace(":", "")
-            Add-TreeItem -Name $drive -Parent $treeview -Tag $drive
-        }
+    foreach ($drive in $drives) {
+        $drive = $drive.Replace(":", "")
+        Add-TreeItem -Name $drive -Parent $treeview -Tag $drive
+    }
 
-        $window.Add_SourceInitialized( {
-                [System.Windows.RoutedEventHandler]$Event = {
-                    if ($_.OriginalSource -is [System.Windows.Controls.TreeViewItem]) {
-                        $treeviewItem = $_.OriginalSource
-                        $treeviewItem.items.clear()
-                        Get-SubDirectory -NameSpace $treeviewItem.Tag -TreeViewItem $treeviewItem
-                    }
+    $window.Add_SourceInitialized( {
+            [System.Windows.RoutedEventHandler]$Event = {
+                if ($_.OriginalSource -is [System.Windows.Controls.TreeViewItem]) {
+                    $treeviewItem = $_.OriginalSource
+                    $treeviewItem.items.clear()
+                    Get-SubDirectory -NameSpace $treeviewItem.Tag -TreeViewItem $treeviewItem
                 }
-                $treeview.AddHandler([System.Windows.Controls.TreeViewItem]::ExpandedEvent, $Event)
-                $treeview.AddHandler([System.Windows.Controls.TreeViewItem]::SelectedEvent, $Event)
-            })
+            }
+            $treeview.AddHandler([System.Windows.Controls.TreeViewItem]::ExpandedEvent, $Event)
+            $treeview.AddHandler([System.Windows.Controls.TreeViewItem]::SelectedEvent, $Event)
+        })
 
-        $okbutton.Add_Click( {
-                $window.Close()
-            })
+    $okbutton.Add_Click( {
+            $window.Close()
+        })
 
-        $cancelbutton.Add_Click( {
-                $textbox.Text = $null
-                $window.Close()
-            })
+    $cancelbutton.Add_Click( {
+            $textbox.Text = $null
+            $window.Close()
+        })
 
-        $null = $window.ShowDialog()
+    $null = $window.ShowDialog()
+}
+
+end {
+
+    if ($textbox.Text.Length -gt 0) {
+        $drive = $textbox.Text + '\'
+        return $drive
     }
 
-    end {
-
-        if ($textbox.Text.Length -gt 0) {
-            $drive = $textbox.Text + '\'
-            return $drive
-        }
-
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Show-SqlServerFileSystem
-    }
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Show-SqlServerFileSystem
+}
 }

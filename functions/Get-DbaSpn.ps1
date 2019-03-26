@@ -132,19 +132,10 @@ function Get-DbaSpn {
             $spncount = $spns.count
             Write-Message -Message "Calculated $spncount SQL SPN entries that should exist for $computer" -Level Verbose
             foreach ($spn in $spns | Where-Object { $_.IsSet -eq $true }) {
-                $sqlspns++
+            $sqlspns++
 
-                if ($accountName) {
-                    if ($accountName -eq $spn.InstanceServiceAccount) {
-                        [pscustomobject] @{
-                            Input        = $computer
-                            AccountName  = $spn.InstanceServiceAccount
-                            ServiceClass = "MSSQLSvc"
-                            Port         = $spn.Port
-                            SPN          = $spn.RequiredSPN
-                        }
-                    }
-                } else {
+            if ($accountName) {
+                if ($accountName -eq $spn.InstanceServiceAccount) {
                     [pscustomobject] @{
                         Input        = $computer
                         AccountName  = $spn.InstanceServiceAccount
@@ -153,14 +144,23 @@ function Get-DbaSpn {
                         SPN          = $spn.RequiredSPN
                     }
                 }
+            } else {
+                [pscustomobject] @{
+                    Input        = $computer
+                    AccountName  = $spn.InstanceServiceAccount
+                    ServiceClass = "MSSQLSvc"
+                    Port         = $spn.Port
+                    SPN          = $spn.RequiredSPN
+                }
             }
-            Write-Message -Message "Found $sqlspns set SQL SPN entries for $computer" -Level Verbose
         }
+        Write-Message -Message "Found $sqlspns set SQL SPN entries for $computer" -Level Verbose
+    }
 
-        if ($AccountName) {
-            foreach ($account in $AccountName) {
-                Process-Account -AccountName $account
-            }
+    if ($AccountName) {
+        foreach ($account in $AccountName) {
+            Process-Account -AccountName $account
         }
     }
+}
 }

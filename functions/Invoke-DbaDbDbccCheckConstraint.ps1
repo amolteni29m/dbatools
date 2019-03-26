@@ -143,71 +143,71 @@ function Invoke-DbaDbDbccCheckConstraint {
 
             if ($Database) {
                 $dbs = $dbs | Where-Object Name -In $Database
+        }
+
+        foreach ($db in $dbs) {
+            Write-Message -Level Verbose -Message "Processing $db on $instance"
+
+            if ($db.IsAccessible -eq $false) {
+                Stop-Function -Message "The database $db is not accessible. Skipping." -Continue
             }
 
-            foreach ($db in $dbs) {
-                Write-Message -Level Verbose -Message "Processing $db on $instance"
-
-                if ($db.IsAccessible -eq $false) {
-                    Stop-Function -Message "The database $db is not accessible. Skipping." -Continue
-                }
-
-                try {
-                    $query = $StringBuilder.ToString()
-                    if (Test-Bound -ParameterName Object) {
-                        if ($object -match '^\d+$') {
-                            $query = $query.Replace('#options#', "$Object")
-                        } else {
-                            $query = $query.Replace('#options#', "'$Object'")
-                        }
+            try {
+                $query = $StringBuilder.ToString()
+                if (Test-Bound -ParameterName Object) {
+                    if ($object -match '^\d+$') {
+                        $query = $query.Replace('#options#', "$Object")
                     } else {
-                        $query = $query.Replace('(#options#)', "")
+                        $query = $query.Replace('#options#', "'$Object'")
                     }
-
-                    if ($Pscmdlet.ShouldProcess($server.Name, "Execute the command $query against $instance")) {
-                        Write-Message -Message "Query to run: $query" -Level Verbose
-                        $results = $server | Invoke-DbaQuery  -Query $query -Database $db.Name -MessagesToOutput
-                    }
-                } catch {
-                    Stop-Function -Message "Error capturing data on $db" -Target $instance -ErrorRecord $_ -Exception $_.Exception -Continue
+                } else {
+                    $query = $query.Replace('(#options#)', "")
                 }
 
-                if ($Pscmdlet.ShouldProcess("console", "Outputting object")) {
-                    $output = $null
-                    if (($null -eq $results) -or ($results.GetType().Name -eq 'String') ) {
+                if ($Pscmdlet.ShouldProcess($server.Name, "Execute the command $query against $instance")) {
+                    Write-Message -Message "Query to run: $query" -Level Verbose
+                    $results = $server | Invoke-DbaQuery  -Query $query -Database $db.Name -MessagesToOutput
+            }
+        } catch {
+            Stop-Function -Message "Error capturing data on $db" -Target $instance -ErrorRecord $_ -Exception $_.Exception -Continue
+        }
+
+        if ($Pscmdlet.ShouldProcess("console", "Outputting object")) {
+            $output = $null
+            if (($null -eq $results) -or ($results.GetType().Name -eq 'String') ) {
+                [PSCustomObject]@{
+                    ComputerName = $server.ComputerName
+                    InstanceName = $server.ServiceName
+                    SqlInstance  = $server.DomainInstanceName
+                    Database     = $db.Name
+                    Cmd          = $query.ToString()
+                    Output       = $results
+                    Table        = $null
+                    Constraint   = $null
+                    Where        = $null
+                }
+            } elseif (($results.GetType().Name -eq 'Object[]') -or ($results.GetType().Name -eq 'DataRow')) {
+                foreach ($row in $results) {
+                    if ($row.GetType().Name -eq 'String') {
+                        $output = $row.ToString()
+                    } else {
                         [PSCustomObject]@{
                             ComputerName = $server.ComputerName
                             InstanceName = $server.ServiceName
                             SqlInstance  = $server.DomainInstanceName
                             Database     = $db.Name
                             Cmd          = $query.ToString()
-                            Output       = $results
-                            Table        = $null
-                            Constraint   = $null
-                            Where        = $null
-                        }
-                    } elseif (($results.GetType().Name -eq 'Object[]') -or ($results.GetType().Name -eq 'DataRow')) {
-                        foreach ($row in $results) {
-                            if ($row.GetType().Name -eq 'String') {
-                                $output = $row.ToString()
-                            } else {
-                                [PSCustomObject]@{
-                                    ComputerName = $server.ComputerName
-                                    InstanceName = $server.ServiceName
-                                    SqlInstance  = $server.DomainInstanceName
-                                    Database     = $db.Name
-                                    Cmd          = $query.ToString()
-                                    Output       = $output
-                                    Table        = $row[0]
-                                    Constraint   = $row[1]
-                                    Where        = $row[2]
+                            Output       = $output
+                            Table        = $row[0]
+                            Constraint   = $row[1]
+                            Where        = $row[2]
 
-                                }
-                            }
                         }
                     }
                 }
             }
         }
     }
+}
+}
 }

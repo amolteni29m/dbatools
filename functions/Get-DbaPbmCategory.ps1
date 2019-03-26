@@ -69,19 +69,19 @@ function Get-DbaPbmCategory {
 
             if (-not $ExcludeSystemObject) {
                 $all = $all | Where-Object IsSystemObject -ne $true
-            }
-
-            if ($Category) {
-                $all = $all | Where-Object Name -in $Category
-            }
-
-            foreach ($current in $all) {
-                Write-Message -Level Verbose -Message "Processing $current"
-                Add-Member -Force -InputObject $current -MemberType NoteProperty ComputerName -value $store.ComputerName
-                Add-Member -Force -InputObject $current -MemberType NoteProperty InstanceName -value $store.InstanceName
-                Add-Member -Force -InputObject $current -MemberType NoteProperty SqlInstance -value $store.SqlInstance
-                Select-DefaultView -InputObject $current -Property ComputerName, InstanceName, SqlInstance, Id, Name, MandateDatabaseSubscriptions
-            }
         }
+
+        if ($Category) {
+            $all = $all | Where-Object Name -in $Category
     }
+
+    foreach ($current in $all) {
+        Write-Message -Level Verbose -Message "Processing $current"
+        Add-Member -Force -InputObject $current -MemberType NoteProperty ComputerName -value $store.ComputerName
+        Add-Member -Force -InputObject $current -MemberType NoteProperty InstanceName -value $store.InstanceName
+        Add-Member -Force -InputObject $current -MemberType NoteProperty SqlInstance -value $store.SqlInstance
+        Select-DefaultView -InputObject $current -Property ComputerName, InstanceName, SqlInstance, Id, Name, MandateDatabaseSubscriptions
+    }
+}
+}
 }

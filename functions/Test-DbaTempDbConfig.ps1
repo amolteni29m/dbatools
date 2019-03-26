@@ -98,112 +98,112 @@ function Test-DbaTempdbConfig {
             #get files and log files
             $tempdbFiles = Get-DbaDbFile -SqlInstance $server -Database tempdb
             [array]$dataFiles = $tempdbFiles | Where-Object Type -ne 1
-            $logFiles = $tempdbFiles | Where-Object Type -eq 1
-            Write-Message -Level Verbose -Message "TempDB file objects gathered"
+        $logFiles = $tempdbFiles | Where-Object Type -eq 1
+    Write-Message -Level Verbose -Message "TempDB file objects gathered"
 
-            [PSCustomObject]@{
-                ComputerName   = $server.ComputerName
-                InstanceName   = $server.ServiceName
-                SqlInstance    = $server.DomainInstanceName
-                Rule           = 'File Count'
-                Recommended    = [Math]::Min(8, $server.Processors)
-                CurrentSetting = $dataFiles.Count
-                IsBestPractice = $dataFiles.Count -eq [Math]::Min(8, $server.Processors)
-                Notes          = 'Microsoft recommends that the number of tempdb data files is equal to the number of logical cores up to 8.'
-            }
-
-            Write-Message -Level Verbose -Message "File counts evaluated."
-
-            #test file growth
-            $percData = $dataFiles | Where-Object GrowthType -ne 'KB' | Measure-Object
-            $percLog = $logFiles | Where-Object GrowthType -ne 'KB' | Measure-Object
-
-            $totalCount = $percData.Count + $percLog.Count
-            if ($totalCount -gt 0) {
-                $totalCount = $true
-            } else {
-                $totalCount = $false
-            }
-
-            [PSCustomObject]@{
-                ComputerName   = $server.ComputerName
-                InstanceName   = $server.ServiceName
-                SqlInstance    = $server.DomainInstanceName
-                Rule           = 'File Growth in Percent'
-                Recommended    = $false
-                CurrentSetting = $totalCount
-                IsBestPractice = $totalCount -eq $false
-                Notes          = 'Set file growth to explicit values, not by percent.'
-            }
-
-            Write-Message -Level Verbose -Message "File growth settings evaluated."
-            #test file Location
-
-            $cdata = ($dataFiles | Where-Object PhysicalName -like 'C:*' | Measure-Object).Count + ($logFiles | Where-Object PhysicalName -like 'C:*' | Measure-Object).Count
-            if ($cdata -gt 0) {
-                $cdata = $true
-            } else {
-                $cdata = $false
-            }
-
-            [PSCustomObject]@{
-                ComputerName   = $server.ComputerName
-                InstanceName   = $server.ServiceName
-                SqlInstance    = $server.DomainInstanceName
-                Rule           = 'File Location'
-                Recommended    = $false
-                CurrentSetting = $cdata
-                IsBestPractice = $cdata -eq $false
-                Notes          = "Do not place your tempdb files on C:\."
-            }
-
-            Write-Message -Level Verbose -Message "File locations evaluated."
-
-            #Test growth limits
-            $growthLimits = ($dataFiles | Where-Object MaxSize -gt 0 | Measure-Object).Count + ($logFiles | Where-Object MaxSize -gt 0 | Measure-Object).Count
-            if ($growthLimits -gt 0) {
-                $growthLimits = $true
-            } else {
-                $growthLimits = $false
-            }
-
-            [PSCustomObject]@{
-                ComputerName   = $server.ComputerName
-                InstanceName   = $server.ServiceName
-                SqlInstance    = $server.DomainInstanceName
-                Rule           = 'File MaxSize Set'
-                Recommended    = $false
-                CurrentSetting = $growthLimits
-                IsBestPractice = $growthLimits -eq $false
-                Notes          = "Consider setting your tempdb files to unlimited growth."
-            }
-
-            Write-Message -Level Verbose -Message "MaxSize values evaluated."
-
-            #Test Data File Size Equal
-            $distinctCountSizeDataFiles = ($dataFiles | Group-Object -Property Size | Measure-Object).Count
-
-            if ($distinctCountSizeDataFiles -eq 1) {
-                $equalSizeDataFiles = $true
-            } else {
-                $equalSizeDataFiles = $false
-            }
-
-            $value = [PSCustomObject]@{
-                ComputerName   = $server.ComputerName
-                InstanceName   = $server.ServiceName
-                SqlInstance    = $server.DomainInstanceName
-                Rule           = 'Data File Size Equal'
-                Recommended    = $true
-                CurrentSetting = $equalSizeDataFiles
-                IsBestPractice = $equalSizeDataFiles -eq $true
-                Notes          = "Consider creating equally sized data files."
-            }
-            Write-Message -Level Verbose -Message "Data File Size Equal evaluated."
-        }
+    [PSCustomObject]@{
+        ComputerName   = $server.ComputerName
+        InstanceName   = $server.ServiceName
+        SqlInstance    = $server.DomainInstanceName
+        Rule           = 'File Count'
+        Recommended    = [Math]::Min(8, $server.Processors)
+        CurrentSetting = $dataFiles.Count
+        IsBestPractice = $dataFiles.Count -eq [Math]::Min(8, $server.Processors)
+        Notes          = 'Microsoft recommends that the number of tempdb data files is equal to the number of logical cores up to 8.'
     }
-    end {
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Test-SqlTempDbConfiguration
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Test-DbaTempDbConfiguration
-    }
+
+    Write-Message -Level Verbose -Message "File counts evaluated."
+
+    #test file growth
+    $percData = $dataFiles | Where-Object GrowthType -ne 'KB' | Measure-Object
+$percLog = $logFiles | Where-Object GrowthType -ne 'KB' | Measure-Object
+
+$totalCount = $percData.Count + $percLog.Count
+if ($totalCount -gt 0) {
+    $totalCount = $true
+} else {
+    $totalCount = $false
+}
+
+[PSCustomObject]@{
+    ComputerName   = $server.ComputerName
+    InstanceName   = $server.ServiceName
+    SqlInstance    = $server.DomainInstanceName
+    Rule           = 'File Growth in Percent'
+    Recommended    = $false
+    CurrentSetting = $totalCount
+    IsBestPractice = $totalCount -eq $false
+    Notes          = 'Set file growth to explicit values, not by percent.'
+}
+
+Write-Message -Level Verbose -Message "File growth settings evaluated."
+#test file Location
+
+$cdata = ($dataFiles | Where-Object PhysicalName -like 'C:*' | Measure-Object).Count + ($logFiles | Where-Object PhysicalName -like 'C:*' | Measure-Object).Count
+if ($cdata -gt 0) {
+    $cdata = $true
+} else {
+    $cdata = $false
+}
+
+[PSCustomObject]@{
+    ComputerName   = $server.ComputerName
+    InstanceName   = $server.ServiceName
+    SqlInstance    = $server.DomainInstanceName
+    Rule           = 'File Location'
+    Recommended    = $false
+    CurrentSetting = $cdata
+    IsBestPractice = $cdata -eq $false
+    Notes          = "Do not place your tempdb files on C:\."
+}
+
+Write-Message -Level Verbose -Message "File locations evaluated."
+
+#Test growth limits
+$growthLimits = ($dataFiles | Where-Object MaxSize -gt 0 | Measure-Object).Count + ($logFiles | Where-Object MaxSize -gt 0 | Measure-Object).Count
+if ($growthLimits -gt 0) {
+    $growthLimits = $true
+} else {
+    $growthLimits = $false
+}
+
+[PSCustomObject]@{
+    ComputerName   = $server.ComputerName
+    InstanceName   = $server.ServiceName
+    SqlInstance    = $server.DomainInstanceName
+    Rule           = 'File MaxSize Set'
+    Recommended    = $false
+    CurrentSetting = $growthLimits
+    IsBestPractice = $growthLimits -eq $false
+    Notes          = "Consider setting your tempdb files to unlimited growth."
+}
+
+Write-Message -Level Verbose -Message "MaxSize values evaluated."
+
+#Test Data File Size Equal
+$distinctCountSizeDataFiles = ($dataFiles | Group-Object -Property Size | Measure-Object).Count
+
+if ($distinctCountSizeDataFiles -eq 1) {
+    $equalSizeDataFiles = $true
+} else {
+    $equalSizeDataFiles = $false
+}
+
+$value = [PSCustomObject]@{
+    ComputerName   = $server.ComputerName
+    InstanceName   = $server.ServiceName
+    SqlInstance    = $server.DomainInstanceName
+    Rule           = 'Data File Size Equal'
+    Recommended    = $true
+    CurrentSetting = $equalSizeDataFiles
+    IsBestPractice = $equalSizeDataFiles -eq $true
+    Notes          = "Consider creating equally sized data files."
+}
+Write-Message -Level Verbose -Message "Data File Size Equal evaluated."
+}
+}
+end {
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Test-SqlTempDbConfiguration
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Test-DbaTempDbConfiguration
+}
 }

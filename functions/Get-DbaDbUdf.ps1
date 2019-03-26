@@ -83,39 +83,39 @@ function Get-DbaDbUdf {
 
             $databases = $server.Databases | Where-Object IsAccessible
 
-            if ($Database) {
-                $databases = $databases | Where-Object Name -In $Database
-            }
-            if ($ExcludeDatabase) {
-                $databases = $databases | Where-Object Name -NotIn $ExcludeDatabase
-            }
-
-            foreach ($db in $databases) {
-
-                $UserDefinedFunctions = $db.UserDefinedFunctions
-
-                if (!$UserDefinedFunctions) {
-                    Write-Message -Message "No User Defined Functions exist in the $db database on $instance" -Target $db -Level Verbose
-                    continue
-                }
-                if (Test-Bound -ParameterName ExcludeSystemUdf) {
-                    $UserDefinedFunctions = $UserDefinedFunctions | Where-Object { $_.IsSystemObject -eq $false }
-                }
-
-                $UserDefinedFunctions | ForEach-Object {
-
-                    Add-Member -Force -InputObject $_ -MemberType NoteProperty -Name ComputerName -value $server.ComputerName
-                    Add-Member -Force -InputObject $_ -MemberType NoteProperty -Name InstanceName -value $server.ServiceName
-                    Add-Member -Force -InputObject $_ -MemberType NoteProperty -Name SqlInstance -value $server.DomainInstanceName
-                    Add-Member -Force -InputObject $_ -MemberType NoteProperty -Name Database -value $db.Name
-
-                    Select-DefaultView -InputObject $_ -Property ComputerName, InstanceName, SqlInstance, Database, Schema, CreateDate, DateLastModified, Name, DataType
-                }
-            }
-        }
+        if ($Database) {
+            $databases = $databases | Where-Object Name -In $Database
     }
+    if ($ExcludeDatabase) {
+        $databases = $databases | Where-Object Name -NotIn $ExcludeDatabase
+}
 
-    end {
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Get-DbaDatabaseUdf
+foreach ($db in $databases) {
+
+    $UserDefinedFunctions = $db.UserDefinedFunctions
+
+    if (!$UserDefinedFunctions) {
+        Write-Message -Message "No User Defined Functions exist in the $db database on $instance" -Target $db -Level Verbose
+        continue
     }
+    if (Test-Bound -ParameterName ExcludeSystemUdf) {
+        $UserDefinedFunctions = $UserDefinedFunctions | Where-Object { $_.IsSystemObject -eq $false }
+}
+
+$UserDefinedFunctions | ForEach-Object {
+
+    Add-Member -Force -InputObject $_ -MemberType NoteProperty -Name ComputerName -value $server.ComputerName
+    Add-Member -Force -InputObject $_ -MemberType NoteProperty -Name InstanceName -value $server.ServiceName
+    Add-Member -Force -InputObject $_ -MemberType NoteProperty -Name SqlInstance -value $server.DomainInstanceName
+    Add-Member -Force -InputObject $_ -MemberType NoteProperty -Name Database -value $db.Name
+
+    Select-DefaultView -InputObject $_ -Property ComputerName, InstanceName, SqlInstance, Database, Schema, CreateDate, DateLastModified, Name, DataType
+}
+}
+}
+}
+
+end {
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Get-DbaDatabaseUdf
+}
 }

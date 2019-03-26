@@ -78,27 +78,27 @@ function Get-DbaPbmPolicy {
 
             if (-not $IncludeSystemObject) {
                 $allpolicies = $allpolicies | Where-Object IsSystemObject -eq $false
-            }
-
-            if ($Category) {
-                $allpolicies = $allpolicies | Where-Object PolicyCategory -in $Category
-            }
-
-            if ($Policy) {
-                $allpolicies = $allpolicies | Where-Object Name -in $Policy
-            }
-
-            foreach ($currentpolicy in $allpolicies) {
-                Write-Message -Level Verbose -Message "Processing $currentpolicy"
-                Add-Member -Force -InputObject $currentpolicy -MemberType NoteProperty ComputerName -value $store.ComputerName
-                Add-Member -Force -InputObject $currentpolicy -MemberType NoteProperty InstanceName -value $store.InstanceName
-                Add-Member -Force -InputObject $currentpolicy -MemberType NoteProperty SqlInstance -value $store.SqlInstance
-
-                Select-DefaultView -InputObject $currentpolicy -ExcludeProperty HelpText, HelpLink, Urn, Properties, Metadata, Parent, IdentityKey, HasScript, PolicyEvaluationStarted, ConnectionProcessingStarted, TargetProcessed, ConnectionProcessingFinished, PolicyEvaluationFinished, PropertyMetadataChanged, PropertyChanged
-            }
         }
+
+        if ($Category) {
+            $allpolicies = $allpolicies | Where-Object PolicyCategory -in $Category
     }
-    end {
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Get-DbaPolicy
-    }
+
+    if ($Policy) {
+        $allpolicies = $allpolicies | Where-Object Name -in $Policy
+}
+
+foreach ($currentpolicy in $allpolicies) {
+    Write-Message -Level Verbose -Message "Processing $currentpolicy"
+    Add-Member -Force -InputObject $currentpolicy -MemberType NoteProperty ComputerName -value $store.ComputerName
+    Add-Member -Force -InputObject $currentpolicy -MemberType NoteProperty InstanceName -value $store.InstanceName
+    Add-Member -Force -InputObject $currentpolicy -MemberType NoteProperty SqlInstance -value $store.SqlInstance
+
+    Select-DefaultView -InputObject $currentpolicy -ExcludeProperty HelpText, HelpLink, Urn, Properties, Metadata, Parent, IdentityKey, HasScript, PolicyEvaluationStarted, ConnectionProcessingStarted, TargetProcessed, ConnectionProcessingFinished, PolicyEvaluationFinished, PropertyMetadataChanged, PropertyChanged
+}
+}
+}
+end {
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Get-DbaPolicy
+}
 }

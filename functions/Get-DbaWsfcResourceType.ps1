@@ -49,8 +49,8 @@ function Get-DbaWsfcResourceType {
             $cluster = Get-DbaWsfcCluster -ComputerName $computer -Credential $Credential
             $resource = Get-DbaCmObject -Computername $computer -Credential $Credential -Namespace root\MSCluster -ClassName MSCluster_ResourceType
             $resource | Add-Member -Force -NotePropertyName ClusterName -NotePropertyValue $cluster.Name
-            $resource | Add-Member -Force -NotePropertyName ClusterFqdn -NotePropertyValue $cluster.Fqdn
-            $resource | Select-DefaultView -Property ClusterName, ClusterFqdn, Name, DisplayName, DllName, RequiredDependencyTypes
-        }
-    }
+        $resource | Add-Member -Force -NotePropertyName ClusterFqdn -NotePropertyValue $cluster.Fqdn
+    $resource | Select-DefaultView -Property ClusterName, ClusterFqdn, Name, DisplayName, DllName, RequiredDependencyTypes
+}
+}
 }

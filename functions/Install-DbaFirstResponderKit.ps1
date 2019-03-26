@@ -128,103 +128,103 @@ function Install-DbaFirstResponderKit {
         if ($Force -or -not(Test-Path -Path $LocalCachedCopy -PathType Container) -or $LocalFile) {
             # Force was passed, or we don't have a local copy, or $LocalFile was passed
             if ($zipfile | Test-Path) {
-                Remove-Item -Path $zipfile -ErrorAction SilentlyContinue
-            }
-            if ($zipfolder | Test-Path) {
-                Remove-Item -Path $zipfolder -Recurse -ErrorAction SilentlyContinue
-            }
-
-            $null = New-Item -ItemType Directory -Path $zipfolder -ErrorAction SilentlyContinue
-            if ($LocalFile) {
-                Unblock-File $LocalFile -ErrorAction SilentlyContinue
-                Expand-Archive -Path $LocalFile -DestinationPath $zipfolder -Force
-            } else {
-                Write-Message -Level Verbose -Message "Downloading and unzipping the First Responder Kit zip file."
-
-                try {
-
-                    try {
-                        Invoke-TlsWebRequest $url -OutFile $zipfile -ErrorAction Stop -UseBasicParsing
-                    } catch {
-                        # Try with default proxy and usersettings
-                        (New-Object System.Net.WebClient).Proxy.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredentials
-                        Invoke-TlsWebRequest $url -OutFile $zipfile -ErrorAction Stop -UseBasicParsing
-                    }
-
-
-                    # Unblock if there's a block
-                    Unblock-File $zipfile -ErrorAction SilentlyContinue
-
-                    Expand-Archive -Path $zipfile -DestinationPath $zipfolder -Force
-
-                    Remove-Item -Path $zipfile
-                } catch {
-                    Stop-Function -Message "Couldn't download the First Responder Kit. Download and install manually from https://github.com/BrentOzarULTD/SQL-Server-First-Responder-Kit/archive/$Branch.zip." -ErrorRecord $_
-                    return
-                }
-            }
-
-            ## Copy it into local area
-            if (Test-Path -Path $LocalCachedCopy -PathType Container) {
-                Remove-Item -Path (Join-Path $LocalCachedCopy '*') -Recurse -ErrorAction SilentlyContinue
-            } else {
-                $null = New-Item -Path $LocalCachedCopy -ItemType Container
-            }
-            Copy-Item -Path $zipfolder -Destination $LocalCachedCopy -Recurse
+            Remove-Item -Path $zipfile -ErrorAction SilentlyContinue
         }
+        if ($zipfolder | Test-Path) {
+        Remove-Item -Path $zipfolder -Recurse -ErrorAction SilentlyContinue
     }
 
+    $null = New-Item -ItemType Directory -Path $zipfolder -ErrorAction SilentlyContinue
+    if ($LocalFile) {
+        Unblock-File $LocalFile -ErrorAction SilentlyContinue
+        Expand-Archive -Path $LocalFile -DestinationPath $zipfolder -Force
+    } else {
+        Write-Message -Level Verbose -Message "Downloading and unzipping the First Responder Kit zip file."
 
-    process {
-        if (Test-FunctionInterrupt) {
+        try {
+
+            try {
+                Invoke-TlsWebRequest $url -OutFile $zipfile -ErrorAction Stop -UseBasicParsing
+            } catch {
+                # Try with default proxy and usersettings
+                (New-Object System.Net.WebClient).Proxy.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredentials
+                Invoke-TlsWebRequest $url -OutFile $zipfile -ErrorAction Stop -UseBasicParsing
+            }
+
+
+            # Unblock if there's a block
+            Unblock-File $zipfile -ErrorAction SilentlyContinue
+
+            Expand-Archive -Path $zipfile -DestinationPath $zipfolder -Force
+
+            Remove-Item -Path $zipfile
+        } catch {
+            Stop-Function -Message "Couldn't download the First Responder Kit. Download and install manually from https://github.com/BrentOzarULTD/SQL-Server-First-Responder-Kit/archive/$Branch.zip." -ErrorRecord $_
             return
         }
+    }
 
-        foreach ($instance in $SqlInstance) {
-            try {
-                $server = Connect-SqlInstance -SqlInstance $instance -SqlCredential $sqlcredential
-            } catch {
-                Stop-Function -Message "Failure." -Category ConnectionError -ErrorRecord $_ -Target $instance -Continue
-            }
+    ## Copy it into local area
+    if (Test-Path -Path $LocalCachedCopy -PathType Container) {
+        Remove-Item -Path (Join-Path $LocalCachedCopy '*') -Recurse -ErrorAction SilentlyContinue
+    } else {
+        $null = New-Item -Path $LocalCachedCopy -ItemType Container
+    }
+    Copy-Item -Path $zipfolder -Destination $LocalCachedCopy -Recurse
+}
+}
 
-            Write-Message -Level Verbose -Message "Starting installing/updating the First Responder Kit stored procedures in $database on $instance."
-            $allprocedures_query = "select name from sys.procedures where is_ms_shipped = 0"
-            $allprocedures = ($server.Query($allprocedures_query, $Database)).Name
-            # Install/Update each FRK stored procedure
-            foreach ($script in (Get-ChildItem $LocalCachedCopy -Recurse -Filter "sp_*.sql")) {
-                $scriptname = $script.Name
-                $scriptError = $false
-                if ($scriptname -ne "sp_BlitzRS.sql") {
 
-                    if ($scriptname -eq "sp_BlitzQueryStore.sql") {
-                        if ($server.VersionMajor -lt 13) { continue }
+process {
+    if (Test-FunctionInterrupt) {
+        return
+    }
+
+    foreach ($instance in $SqlInstance) {
+        try {
+            $server = Connect-SqlInstance -SqlInstance $instance -SqlCredential $sqlcredential
+        } catch {
+            Stop-Function -Message "Failure." -Category ConnectionError -ErrorRecord $_ -Target $instance -Continue
+        }
+
+        Write-Message -Level Verbose -Message "Starting installing/updating the First Responder Kit stored procedures in $database on $instance."
+        $allprocedures_query = "select name from sys.procedures where is_ms_shipped = 0"
+        $allprocedures = ($server.Query($allprocedures_query, $Database)).Name
+        # Install/Update each FRK stored procedure
+        foreach ($script in (Get-ChildItem $LocalCachedCopy -Recurse -Filter "sp_*.sql")) {
+            $scriptname = $script.Name
+            $scriptError = $false
+            if ($scriptname -ne "sp_BlitzRS.sql") {
+
+                if ($scriptname -eq "sp_BlitzQueryStore.sql") {
+                    if ($server.VersionMajor -lt 13) { continue }
+                }
+                if ($Pscmdlet.ShouldProcess($instance, "installing/updating $scriptname in $database.")) {
+                    try {
+                        Invoke-DbaQuery -SqlInstance $server -Database $Database -File $script.FullName -EnableException -Verbose:$false
+                    } catch {
+                        Write-Message -Level Warning -Message "Could not execute at least one portion of $scriptname in $Database on $instance." -ErrorRecord $_
+                        $scriptError = $true
                     }
-                    if ($Pscmdlet.ShouldProcess($instance, "installing/updating $scriptname in $database.")) {
-                        try {
-                            Invoke-DbaQuery -SqlInstance $server -Database $Database -File $script.FullName -EnableException -Verbose:$false
-                        } catch {
-                            Write-Message -Level Warning -Message "Could not execute at least one portion of $scriptname in $Database on $instance." -ErrorRecord $_
-                            $scriptError = $true
-                        }
-                        $baseres = @{
-                            ComputerName = $server.ComputerName
-                            InstanceName = $server.ServiceName
-                            SqlInstance  = $server.DomainInstanceName
-                            Database     = $Database
-                            Name         = $script.BaseName
-                        }
-                        if ($scriptError) {
-                            $baseres['Status'] = 'Error'
-                        } elseif ($script.BaseName -in $allprocedures) {
-                            $baseres['Status'] = 'Updated'
-                        } else {
-                            $baseres['Status'] = 'Installed'
-                        }
-                        [PSCustomObject]$baseres
+                    $baseres = @{
+                        ComputerName = $server.ComputerName
+                        InstanceName = $server.ServiceName
+                        SqlInstance  = $server.DomainInstanceName
+                        Database     = $Database
+                        Name         = $script.BaseName
                     }
+                    if ($scriptError) {
+                        $baseres['Status'] = 'Error'
+                    } elseif ($script.BaseName -in $allprocedures) {
+                        $baseres['Status'] = 'Updated'
+                    } else {
+                        $baseres['Status'] = 'Installed'
+                    }
+                    [PSCustomObject]$baseres
                 }
             }
-            Write-Message -Level Verbose -Message "Finished installing/updating the First Responder Kit stored procedures in $database on $instance."
         }
+        Write-Message -Level Verbose -Message "Finished installing/updating the First Responder Kit stored procedures in $database on $instance."
     }
+}
 }

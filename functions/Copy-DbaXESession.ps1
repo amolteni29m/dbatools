@@ -102,94 +102,94 @@ function Copy-DbaXESession {
         $sourceSqlStoreConnection = New-Object Microsoft.SqlServer.Management.Sdk.Sfc.SqlStoreConnection $sourceSqlConn
         $sourceStore = New-Object  Microsoft.SqlServer.Management.XEvent.XEStore $sourceSqlStoreConnection
         $storeSessions = $sourceStore.Sessions | Where-Object { $_.Name -notin 'AlwaysOn_health', 'system_health' }
-        if ($XeSession) {
-            $storeSessions = $storeSessions | Where-Object Name -In $XeSession
+    if ($XeSession) {
+        $storeSessions = $storeSessions | Where-Object Name -In $XeSession
+}
+if ($ExcludeXeSession) {
+    $storeSessions = $storeSessions | Where-Object Name -NotIn $ExcludeXeSession
+}
+}
+process {
+    if (Test-FunctionInterrupt) { return }
+    foreach ($destinstance in $Destination) {
+        try {
+            $destServer = Connect-SqlInstance -SqlInstance $destinstance -SqlCredential $DestinationSqlCredential -MinimumVersion 11
+        } catch {
+            Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $destinstance -Continue
         }
-        if ($ExcludeXeSession) {
-            $storeSessions = $storeSessions | Where-Object Name -NotIn $ExcludeXeSession
-        }
-    }
-    process {
-        if (Test-FunctionInterrupt) { return }
-        foreach ($destinstance in $Destination) {
-            try {
-                $destServer = Connect-SqlInstance -SqlInstance $destinstance -SqlCredential $DestinationSqlCredential -MinimumVersion 11
-            } catch {
-                Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $destinstance -Continue
+
+        $destSqlConn = $destServer.ConnectionContext.SqlConnectionObject
+        $destSqlStoreConnection = New-Object Microsoft.SqlServer.Management.Sdk.Sfc.SqlStoreConnection $destSqlConn
+        $destStore = New-Object  Microsoft.SqlServer.Management.XEvent.XEStore $destSqlStoreConnection
+
+        Write-Message -Level Verbose -Message "Migrating sessions."
+        foreach ($session in $storeSessions) {
+            $sessionName = $session.Name
+
+            $copyXeSessionStatus = [pscustomobject]@{
+                SourceServer      = $sourceServer.Name
+                DestinationServer = $destServer.Name
+                Name              = $sessionName
+                Type              = "Extended Event"
+                Status            = $null
+                Notes             = $null
+                DateTime          = [DbaDateTime](Get-Date)
             }
 
-            $destSqlConn = $destServer.ConnectionContext.SqlConnectionObject
-            $destSqlStoreConnection = New-Object Microsoft.SqlServer.Management.Sdk.Sfc.SqlStoreConnection $destSqlConn
-            $destStore = New-Object  Microsoft.SqlServer.Management.XEvent.XEStore $destSqlStoreConnection
-
-            Write-Message -Level Verbose -Message "Migrating sessions."
-            foreach ($session in $storeSessions) {
-                $sessionName = $session.Name
-
-                $copyXeSessionStatus = [pscustomobject]@{
-                    SourceServer      = $sourceServer.Name
-                    DestinationServer = $destServer.Name
-                    Name              = $sessionName
-                    Type              = "Extended Event"
-                    Status            = $null
-                    Notes             = $null
-                    DateTime          = [DbaDateTime](Get-Date)
-                }
-
-                if ($null -ne $destStore.Sessions[$sessionName]) {
-                    if ($force -eq $false) {
-                        if ($Pscmdlet.ShouldProcess($destinstance, "Extended Event Session '$sessionName' was skipped because it already exists on $destinstance.")) {
-                            $copyXeSessionStatus.Status = "Skipped"
-                            $copyXeSessionStatus.Notes = "Already exists on destination"
-                            $copyXeSessionStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-
-                            Write-Message -Level Verbose -Message "Extended Event Session '$sessionName' was skipped because it already exists on $destinstance."
-                            Write-Message -Level Verbose -Message "Use -Force to drop and recreate."
-                        }
-                        continue
-                    } else {
-                        if ($Pscmdlet.ShouldProcess($destinstance, "Attempting to drop $sessionName")) {
-                            Write-Message -Level Verbose -Message "Extended Event Session '$sessionName' exists on $destinstance."
-                            Write-Message -Level Verbose -Message "Force specified. Dropping $sessionName."
-
-                            try {
-                                $destStore.Sessions[$sessionName].Drop()
-                            } catch {
-                                $copyXeSessionStatus.Status = "Failed"
-                                $copyXeSessionStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-
-                                Stop-Function -Message "Unable to drop session. Moving on." -Target $sessionName -ErrorRecord $_ -Continue
-                            }
-                        }
-                    }
-                }
-
-                if ($Pscmdlet.ShouldProcess($destinstance, "Migrating session $sessionName")) {
-                    try {
-                        $sql = $session.ScriptCreate().GetScript() | Out-String
-
-                        Write-Message -Level Debug -Message $sql
-                        Write-Message -Level Verbose -Message "Migrating session $sessionName."
-                        $null = $destServer.Query($sql)
-
-                        if ($session.IsRunning -eq $true) {
-                            $destStore.Sessions.Refresh()
-                            $destStore.Sessions[$sessionName].Start()
-                        }
-
-                        $copyXeSessionStatus.Status = "Successful"
+            if ($null -ne $destStore.Sessions[$sessionName]) {
+                if ($force -eq $false) {
+                    if ($Pscmdlet.ShouldProcess($destinstance, "Extended Event Session '$sessionName' was skipped because it already exists on $destinstance.")) {
+                        $copyXeSessionStatus.Status = "Skipped"
+                        $copyXeSessionStatus.Notes = "Already exists on destination"
                         $copyXeSessionStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+
+                    Write-Message -Level Verbose -Message "Extended Event Session '$sessionName' was skipped because it already exists on $destinstance."
+                    Write-Message -Level Verbose -Message "Use -Force to drop and recreate."
+                }
+                continue
+            } else {
+                if ($Pscmdlet.ShouldProcess($destinstance, "Attempting to drop $sessionName")) {
+                    Write-Message -Level Verbose -Message "Extended Event Session '$sessionName' exists on $destinstance."
+                    Write-Message -Level Verbose -Message "Force specified. Dropping $sessionName."
+
+                    try {
+                        $destStore.Sessions[$sessionName].Drop()
                     } catch {
                         $copyXeSessionStatus.Status = "Failed"
                         $copyXeSessionStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
 
-                        Stop-Function -Message "Unable to create session." -Target $sessionName -ErrorRecord $_
-                    }
+                    Stop-Function -Message "Unable to drop session. Moving on." -Target $sessionName -ErrorRecord $_ -Continue
                 }
             }
         }
     }
-    end {
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Copy-SqlExtendedEvent
-    }
+
+    if ($Pscmdlet.ShouldProcess($destinstance, "Migrating session $sessionName")) {
+        try {
+            $sql = $session.ScriptCreate().GetScript() | Out-String
+
+        Write-Message -Level Debug -Message $sql
+        Write-Message -Level Verbose -Message "Migrating session $sessionName."
+        $null = $destServer.Query($sql)
+
+        if ($session.IsRunning -eq $true) {
+            $destStore.Sessions.Refresh()
+            $destStore.Sessions[$sessionName].Start()
+        }
+
+        $copyXeSessionStatus.Status = "Successful"
+        $copyXeSessionStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+} catch {
+    $copyXeSessionStatus.Status = "Failed"
+    $copyXeSessionStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+
+Stop-Function -Message "Unable to create session." -Target $sessionName -ErrorRecord $_
+}
+}
+}
+}
+}
+end {
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Copy-SqlExtendedEvent
+}
 }

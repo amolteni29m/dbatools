@@ -109,20 +109,20 @@ function Remove-DbaDbBackupRestoreHistory {
                 }
             } else {
                 $InputObject += $server.Databases | Where-Object { $_.Name -in $Database }
-            }
-        }
-
-        foreach ($db in $InputObject) {
-            try {
-                $servername = $db.Parent.Name
-                if ($Pscmdlet.ShouldProcess("$db on $servername", "Remove complete backup/restore history")) {
-                    # While this method is named DeleteBackupHistory, it also removes restore history
-                    $db.DropBackupHistory()
-                    $db.Refresh()
-                }
-            } catch {
-                Stop-Function -Message "Could not remove backup/restore history for database $db on $servername" -Continue
-            }
         }
     }
+
+    foreach ($db in $InputObject) {
+        try {
+            $servername = $db.Parent.Name
+            if ($Pscmdlet.ShouldProcess("$db on $servername", "Remove complete backup/restore history")) {
+                # While this method is named DeleteBackupHistory, it also removes restore history
+                $db.DropBackupHistory()
+                $db.Refresh()
+            }
+        } catch {
+            Stop-Function -Message "Could not remove backup/restore history for database $db on $servername" -Continue
+        }
+    }
+}
 }

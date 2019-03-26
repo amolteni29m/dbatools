@@ -115,23 +115,23 @@ function Get-DbaDbPageInfo {
 
             if ($Database) {
                 $InputObject += $server.Databases | Where-Object { $_.Name -in $Database }
-            } else {
-                $InputObject += $server.Databases
-            }
-        }
-
-        # Loop through each of databases
-        foreach ($db in $InputObject) {
-            # Revalidate the version of the server in case db is piped in
-            try {
-                if ($db.Parent.VersionMajor -ge 11) {
-                    $db.Query($sql)
-                } else {
-                    Stop-Function -Message "Unsupported SQL Server version" -Target $db -Continue
-                }
-            } catch {
-                Stop-Function -Message "Something went wrong executing the query" -ErrorRecord $_ -Target $instance -Continue
-            }
+        } else {
+            $InputObject += $server.Databases
         }
     }
+
+    # Loop through each of databases
+    foreach ($db in $InputObject) {
+        # Revalidate the version of the server in case db is piped in
+        try {
+            if ($db.Parent.VersionMajor -ge 11) {
+                $db.Query($sql)
+            } else {
+                Stop-Function -Message "Unsupported SQL Server version" -Target $db -Continue
+            }
+        } catch {
+            Stop-Function -Message "Something went wrong executing the query" -ErrorRecord $_ -Target $instance -Continue
+        }
+    }
+}
 }

@@ -83,21 +83,21 @@ function Get-DbaSuspectPage {
 
             if ($Database) {
                 $results = $results | Where-Object DBName -EQ $Database
-            }
-
         }
-        foreach ($row in $results) {
-            [PSCustomObject]@{
-                ComputerName   = $server.ComputerName
-                InstanceName   = $server.ServiceName
-                SqlInstance    = $server.DomainInstanceName
-                Database       = $row.DBName
-                FileId         = $row.file_id
-                PageId         = $row.page_id
-                EventType      = $row.EventType
-                ErrorCount     = $row.error_count
-                LastUpdateDate = $row.last_update_date
-            }
+
+    }
+    foreach ($row in $results) {
+        [PSCustomObject]@{
+            ComputerName   = $server.ComputerName
+            InstanceName   = $server.ServiceName
+            SqlInstance    = $server.DomainInstanceName
+            Database       = $row.DBName
+            FileId         = $row.file_id
+            PageId         = $row.page_id
+            EventType      = $row.EventType
+            ErrorCount     = $row.error_count
+            LastUpdateDate = $row.last_update_date
         }
     }
+}
 }

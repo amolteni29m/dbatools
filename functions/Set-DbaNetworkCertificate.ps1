@@ -71,10 +71,10 @@ function Set-DbaNetworkCertificate {
         [string]$Thumbprint,
         [switch]$EnableException
     )
-    
+
     process {
         # Registry access
-        
+
         if (Test-FunctionInterrupt) { return }
 
         if (-not $Certificate -and -not $Thumbprint) {
@@ -104,101 +104,101 @@ function Set-DbaNetworkCertificate {
 
             try {
                 $sqlwmi = Invoke-ManagedComputerCommand -ComputerName $resolved.FQDN -ScriptBlock { $wmi.Services } -Credential $Credential -ErrorAction Stop | Where-Object DisplayName -eq "SQL Server ($instancename)"
-            } catch {
-                Stop-Function -Message "Failed to access $instance" -Target $instance -Continue -ErrorRecord $_
-            }
-
-            if (-not $sqlwmi) {
-                Stop-Function -Message "Cannot find $instancename on $computerName" -Continue -Category ObjectNotFound -Target $instance
-            }
-
-            $regroot = ($sqlwmi.AdvancedProperties | Where-Object Name -eq REGROOT).Value
-            $vsname = ($sqlwmi.AdvancedProperties | Where-Object Name -eq VSNAME).Value
-            $instancename = $sqlwmi.DisplayName.Replace('SQL Server (', '').Replace(')', '') # Don't clown, I don't know regex :(
-            $serviceaccount = $sqlwmi.ServiceAccount
-
-            if ([System.String]::IsNullOrEmpty($regroot)) {
-                $regroot = $sqlwmi.AdvancedProperties | Where-Object { $_ -match 'REGROOT' }
-                $vsname = $sqlwmi.AdvancedProperties | Where-Object { $_ -match 'VSNAME' }
-
-                if (![System.String]::IsNullOrEmpty($regroot)) {
-                    $regroot = ($regroot -Split 'Value\=')[1]
-                    $vsname = ($vsname -Split 'Value\=')[1]
-                } else {
-                    Stop-Function -Message "Can't find instance $vsname on $instance" -Continue -Category ObjectNotFound -Target $instance
-                }
-            }
-
-            if ([System.String]::IsNullOrEmpty($vsname)) { $vsname = $instance }
-
-            Write-Message -Level Output -Message "Regroot: $regroot" -Target $instance
-            Write-Message -Level Output -Message "ServiceAcct: $serviceaccount" -Target $instance
-            Write-Message -Level Output -Message "InstanceName: $instancename" -Target $instance
-            Write-Message -Level Output -Message "VSNAME: $vsname" -Target $instance
-
-            $scriptblock = {
-                $regroot = $args[0]
-                $serviceaccount = $args[1]
-                $instancename = $args[2]
-                $vsname = $args[3]
-                $Thumbprint = $args[4]
-
-                $regpath = "Registry::HKEY_LOCAL_MACHINE\$regroot\MSSQLServer\SuperSocketNetLib"
-
-                $oldthumbprint = (Get-ItemProperty -Path $regpath -Name Certificate).Certificate
-
-                $cert = Get-ChildItem Cert:\LocalMachine -Recurse -ErrorAction Stop | Where-Object { $_.Thumbprint -eq $Thumbprint }
-
-                if ($null -eq $cert) {
-                    <# DO NOT use Write-Message as this is inside of a script block #>
-                    Write-Warning "Certificate does not exist on $env:COMPUTERNAME"
-                    return
-                }
-
-                $permission = $serviceaccount, "Read", "Allow"
-                $accessRule = New-Object -TypeName System.Security.AccessControl.FileSystemAccessRule -ArgumentList $permission
-
-                $keyPath = $env:ProgramData + "\Microsoft\Crypto\RSA\MachineKeys\"
-                $keyName = $cert.PrivateKey.CspKeyContainerInfo.UniqueKeyContainerName
-                $keyFullPath = $keyPath + $keyName
-
-                $acl = Get-Acl -Path $keyFullPath
-                $null = $acl.AddAccessRule($accessRule)
-                Set-Acl -Path $keyFullPath -AclObject $acl
-
-                if ($acl) {
-                    Set-ItemProperty -Path $regpath -Name Certificate -Value $Thumbprint.ToString().ToLower() # to make it compat with SQL config
-                } else {
-                    <# DO NOT use Write-Message as this is inside of a script block #>
-                    Write-Warning "Read-only permissions could not be granted to certificate"
-                    return
-                }
-
-                if (![System.String]::IsNullOrEmpty($oldthumbprint)) {
-                    $notes = "Granted $serviceaccount read access to certificate private key. Replaced thumbprint: $oldthumbprint."
-                } else {
-                    $notes = "Granted $serviceaccount read access to certificate private key"
-                }
-
-                $newthumbprint = (Get-ItemProperty -Path $regpath -Name Certificate).Certificate
-
-                [pscustomobject]@{
-                    ComputerName          = $env:COMPUTERNAME
-                    InstanceName          = $instancename
-                    SqlInstance           = $vsname
-                    ServiceAccount        = $serviceaccount
-                    CertificateThumbprint = $newthumbprint
-                    Notes                 = $notes
-                }
-            }
-
-            if ($PScmdlet.ShouldProcess("local", "Connecting to $instanceName to import new cert")) {
-                try {
-                    Invoke-Command2 -Raw -ComputerName $resolved.fqdn -Credential $Credential -ArgumentList $regroot, $serviceaccount, $instancename, $vsname, $Thumbprint -ScriptBlock $scriptblock -ErrorAction Stop
-                } catch {
-                    Stop-Function -Message "Failed to connect to $($resolved.fqdn) using PowerShell remoting!" -ErrorRecord $_ -Target $instance -Continue
-                }
-            }
+        } catch {
+            Stop-Function -Message "Failed to access $instance" -Target $instance -Continue -ErrorRecord $_
         }
+
+        if (-not $sqlwmi) {
+            Stop-Function -Message "Cannot find $instancename on $computerName" -Continue -Category ObjectNotFound -Target $instance
+        }
+
+        $regroot = ($sqlwmi.AdvancedProperties | Where-Object Name -eq REGROOT).Value
+    $vsname = ($sqlwmi.AdvancedProperties | Where-Object Name -eq VSNAME).Value
+$instancename = $sqlwmi.DisplayName.Replace('SQL Server (', '').Replace(')', '') # Don't clown, I don't know regex :(
+$serviceaccount = $sqlwmi.ServiceAccount
+
+if ([System.String]::IsNullOrEmpty($regroot)) {
+    $regroot = $sqlwmi.AdvancedProperties | Where-Object { $_ -match 'REGROOT' }
+$vsname = $sqlwmi.AdvancedProperties | Where-Object { $_ -match 'VSNAME' }
+
+if (![System.String]::IsNullOrEmpty($regroot)) {
+    $regroot = ($regroot -Split 'Value\=')[1]
+    $vsname = ($vsname -Split 'Value\=')[1]
+} else {
+    Stop-Function -Message "Can't find instance $vsname on $instance" -Continue -Category ObjectNotFound -Target $instance
+}
+}
+
+if ([System.String]::IsNullOrEmpty($vsname)) { $vsname = $instance }
+
+Write-Message -Level Output -Message "Regroot: $regroot" -Target $instance
+Write-Message -Level Output -Message "ServiceAcct: $serviceaccount" -Target $instance
+Write-Message -Level Output -Message "InstanceName: $instancename" -Target $instance
+Write-Message -Level Output -Message "VSNAME: $vsname" -Target $instance
+
+$scriptblock = {
+    $regroot = $args[0]
+    $serviceaccount = $args[1]
+    $instancename = $args[2]
+    $vsname = $args[3]
+    $Thumbprint = $args[4]
+
+    $regpath = "Registry::HKEY_LOCAL_MACHINE\$regroot\MSSQLServer\SuperSocketNetLib"
+
+    $oldthumbprint = (Get-ItemProperty -Path $regpath -Name Certificate).Certificate
+
+    $cert = Get-ChildItem Cert:\LocalMachine -Recurse -ErrorAction Stop | Where-Object { $_.Thumbprint -eq $Thumbprint }
+
+if ($null -eq $cert) {
+    <# DO NOT use Write-Message as this is inside of a script block #>
+    Write-Warning "Certificate does not exist on $env:COMPUTERNAME"
+    return
+}
+
+$permission = $serviceaccount, "Read", "Allow"
+$accessRule = New-Object -TypeName System.Security.AccessControl.FileSystemAccessRule -ArgumentList $permission
+
+$keyPath = $env:ProgramData + "\Microsoft\Crypto\RSA\MachineKeys\"
+$keyName = $cert.PrivateKey.CspKeyContainerInfo.UniqueKeyContainerName
+$keyFullPath = $keyPath + $keyName
+
+$acl = Get-Acl -Path $keyFullPath
+$null = $acl.AddAccessRule($accessRule)
+Set-Acl -Path $keyFullPath -AclObject $acl
+
+if ($acl) {
+    Set-ItemProperty -Path $regpath -Name Certificate -Value $Thumbprint.ToString().ToLower() # to make it compat with SQL config
+} else {
+    <# DO NOT use Write-Message as this is inside of a script block #>
+    Write-Warning "Read-only permissions could not be granted to certificate"
+    return
+}
+
+if (![System.String]::IsNullOrEmpty($oldthumbprint)) {
+    $notes = "Granted $serviceaccount read access to certificate private key. Replaced thumbprint: $oldthumbprint."
+} else {
+    $notes = "Granted $serviceaccount read access to certificate private key"
+}
+
+$newthumbprint = (Get-ItemProperty -Path $regpath -Name Certificate).Certificate
+
+[pscustomobject]@{
+    ComputerName          = $env:COMPUTERNAME
+    InstanceName          = $instancename
+    SqlInstance           = $vsname
+    ServiceAccount        = $serviceaccount
+    CertificateThumbprint = $newthumbprint
+    Notes                 = $notes
+}
+}
+
+if ($PScmdlet.ShouldProcess("local", "Connecting to $instanceName to import new cert")) {
+    try {
+        Invoke-Command2 -Raw -ComputerName $resolved.fqdn -Credential $Credential -ArgumentList $regroot, $serviceaccount, $instancename, $vsname, $Thumbprint -ScriptBlock $scriptblock -ErrorAction Stop
+    } catch {
+        Stop-Function -Message "Failed to connect to $($resolved.fqdn) using PowerShell remoting!" -ErrorRecord $_ -Target $instance -Continue
     }
+}
+}
+}
 }

@@ -89,22 +89,22 @@ function Get-DbaAvailabilityGroup {
 
             if ($AvailabilityGroup) {
                 $ags = $ags | Where-Object Name -in $AvailabilityGroup
-            }
+        }
 
-            foreach ($ag in $ags) {
-                Add-Member -Force -InputObject $ag -MemberType NoteProperty -Name ComputerName -value $server.ComputerName
-                Add-Member -Force -InputObject $ag -MemberType NoteProperty -Name InstanceName -value $server.ServiceName
-                Add-Member -Force -InputObject $ag -MemberType NoteProperty -Name SqlInstance -value $server.DomainInstanceName
+        foreach ($ag in $ags) {
+            Add-Member -Force -InputObject $ag -MemberType NoteProperty -Name ComputerName -value $server.ComputerName
+            Add-Member -Force -InputObject $ag -MemberType NoteProperty -Name InstanceName -value $server.ServiceName
+            Add-Member -Force -InputObject $ag -MemberType NoteProperty -Name SqlInstance -value $server.DomainInstanceName
 
-                if ($IsPrimary) {
-                    $defaults = 'ComputerName', 'InstanceName', 'SqlInstance', 'Name as AvailabilityGroup', 'IsPrimary'
-                    Add-Member -Force -InputObject $ag -MemberType NoteProperty -Name IsPrimary -Value ($ag.PrimaryReplicaServerName -eq $server.Name)
-                    Select-DefaultView -InputObject $ag -Property $defaults
-                } else {
-                    $defaults = 'ComputerName', 'InstanceName', 'SqlInstance', 'LocalReplicaRole', 'Name as AvailabilityGroup', 'PrimaryReplicaServerName as PrimaryReplica', 'ClusterType', 'DtcSupportEnabled', 'AutomatedBackupPreference', 'AvailabilityReplicas', 'AvailabilityDatabases', 'AvailabilityGroupListeners'
-                    Select-DefaultView -InputObject $ag -Property $defaults
-                }
+            if ($IsPrimary) {
+                $defaults = 'ComputerName', 'InstanceName', 'SqlInstance', 'Name as AvailabilityGroup', 'IsPrimary'
+                Add-Member -Force -InputObject $ag -MemberType NoteProperty -Name IsPrimary -Value ($ag.PrimaryReplicaServerName -eq $server.Name)
+                Select-DefaultView -InputObject $ag -Property $defaults
+            } else {
+                $defaults = 'ComputerName', 'InstanceName', 'SqlInstance', 'LocalReplicaRole', 'Name as AvailabilityGroup', 'PrimaryReplicaServerName as PrimaryReplica', 'ClusterType', 'DtcSupportEnabled', 'AutomatedBackupPreference', 'AvailabilityReplicas', 'AvailabilityDatabases', 'AvailabilityGroupListeners'
+                Select-DefaultView -InputObject $ag -Property $defaults
             }
         }
     }
+}
 }

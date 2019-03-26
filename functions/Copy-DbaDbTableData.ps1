@@ -302,126 +302,126 @@ function Copy-DbaDbTableData {
                 }
 
                 $desttable = Get-DbaDbTable -SqlInstance $destServer -Table $DestinationTable -Database $DestinationDatabase -Verbose:$false | Select-Object -First 1
-                if (-not $desttable -and $AutoCreateTable) {
-                    try {
-                        $tablescript = $sqltable | Export-DbaScript -Passthru | Out-String
-                        #replacing table name
-                        if ($newTableParts.Table) {
-                            $rX = "(CREATE TABLE \[$([regex]::Escape($sqltable.Schema))\]\.\[)$([regex]::Escape($sqltable.Name))(\]\()"
-                            $tablescript = $tablescript -replace $rX, "`$1$($newTableParts.Table)`$2"
-                        }
-                        #replacing table schema
-                        if ($newTableParts.Schema) {
-                            $rX = "(CREATE TABLE \[)$([regex]::Escape($sqltable.Schema))(\]\.\[$([regex]::Escape($newTableParts.Table))\]\()"
-                            $tablescript = $tablescript -replace $rX, "`$1$($newTableParts.Schema)`$2"
-                        }
-
-                        if ($PSCmdlet.ShouldProcess($destServer, "Creating new table: $DestinationTable")) {
-                            Write-Message -Message "New table script: $tablescript" -Level VeryVerbose
-                            Invoke-DbaQuery -SqlInstance $destServer -Database $DestinationDatabase -Query "$tablescript" -EnableException # add some string assurance there
-                            #table list was updated, let's grab a fresh one
-                            $destServer.Databases[$DestinationDatabase].Tables.Refresh()
-                            $desttable = Get-DbaDbTable -SqlInstance $destServer -Table $DestinationTable -Database $DestinationDatabase -Verbose:$false
-                            Write-Message -Message "New table created: $desttable" -Level Verbose
-                        }
-                    } catch {
-                        Stop-Function -Message "Unable to determine destination table: $DestinationTable" -ErrorRecord $_
-                        return
-                    }
-                }
-                if (-not $desttable) {
-                    Stop-Function -Message "Table $DestinationTable cannot be found in $DestinationDatabase. Use -AutoCreateTable to automatically create the table on the destination." -Continue
-                }
-
-                $connstring = $destServer.ConnectionContext.ConnectionString
-
-                if ($server.DatabaseEngineType -eq "SqlAzureDatabase") {
-                    $fqtnfrom = "$sqltable"
-                } else {
-                    $fqtnfrom = "$($server.Databases[$Database]).$sqltable"
-                }
-
-                if ($destServer.DatabaseEngineType -eq "SqlAzureDatabase") {
-                    $fqtndest = "$desttable"
-                } else {
-                    $fqtndest = "$($destServer.Databases[$DestinationDatabase]).$desttable"
-                }
-
-                if ($fqtndest -eq $fqtnfrom -and $server.Name -eq $destServer.Name) {
-                    Stop-Function -Message "Cannot copy $fqtnfrom on $($server.Name) into $fqtndest on ($destServer.Name). Source and Destination must be different " -Target $Table
-                    return
-                }
-
-
-                if (Test-Bound -ParameterName Query -Not) {
-                    $Query = "SELECT * FROM $fqtnfrom"
-                }
+            if (-not $desttable -and $AutoCreateTable) {
                 try {
-                    if ($Truncate -eq $true) {
-                        if ($Pscmdlet.ShouldProcess($destServer, "Truncating table $fqtndest")) {
-                            $null = $destServer.Databases[$DestinationDatabase].ExecuteNonQuery("TRUNCATE TABLE $fqtndest")
-                        }
-                    }
-                    if ($Pscmdlet.ShouldProcess($server, "Copy data from $fqtnfrom")) {
-                        $cmd = $server.ConnectionContext.SqlConnectionObject.CreateCommand()
-                        $cmd.CommandText = $Query
-                        if ($server.ConnectionContext.IsOpen -eq $false) {
-                            $server.ConnectionContext.SqlConnectionObject.Open()
-                        }
-                        $bulkCopy = New-Object Data.SqlClient.SqlBulkCopy("$connstring;Database=$DestinationDatabase", $bulkCopyOptions)
-                        $bulkCopy.DestinationTableName = $fqtndest
-                        $bulkCopy.EnableStreaming = $true
-                        $bulkCopy.BatchSize = $BatchSize
-                        $bulkCopy.NotifyAfter = $NotifyAfter
-                        $bulkCopy.BulkCopyTimeOut = $BulkCopyTimeOut
-
-                        $elapsed = [System.Diagnostics.Stopwatch]::StartNew()
-                        # Add RowCount output
-                        $bulkCopy.Add_SqlRowsCopied( {
-                                $RowsPerSec = [math]::Round($args[1].RowsCopied / $elapsed.ElapsedMilliseconds * 1000.0, 1)
-                                Write-Progress -id 1 -activity "Inserting rows" -Status ([System.String]::Format("{0} rows ({1} rows/sec)", $args[1].RowsCopied, $RowsPerSec))
-                            })
-                    }
-
-                    if ($Pscmdlet.ShouldProcess($destServer, "Writing rows to $fqtndest")) {
-                        $reader = $cmd.ExecuteReader()
-                        $bulkCopy.WriteToServer($reader)
-                        if ($script:core) {
-                            $RowsTotal = "Unsupported in Core"
-                        } else {
-                            $RowsTotal = [System.Data.SqlClient.SqlBulkCopyExtension]::RowsCopiedCount($bulkCopy)
-                        }
-                        $TotalTime = [math]::Round($elapsed.Elapsed.TotalSeconds, 1)
-                        Write-Message -Level Verbose -Message "$RowsTotal rows inserted in $TotalTime sec"
-                        if ($rowCount -is [int]) {
-                            Write-Progress -id 1 -activity "Inserting rows" -status "Complete" -Completed
-                        }
-
-                        $server.ConnectionContext.SqlConnectionObject.Close()
-                        $bulkCopy.Close()
-                        $bulkCopy.Dispose()
-                        $reader.Close()
-
-                        [pscustomobject]@{
-                            SourceInstance      = $server.Name
-                            SourceDatabase      = $Database
-                            SourceSchema        = $sqltable.Schema
-                            SourceTable         = $sqltable.Name
-                            DestinationInstance = $destServer.name
-                            DestinationDatabase = $DestinationDatabase
-                            DestinationSchema   = $desttable.Schema
-                            DestinationTable    = $desttable.Name
-                            RowsCopied          = $rowstotal
-                            Elapsed             = [prettytimespan]$elapsed.Elapsed
-                        }
-                    }
-                } catch {
-                    Stop-Function -Message "Something went wrong" -ErrorRecord $_ -Target $server -continue
-                }
+                    $tablescript = $sqltable | Export-DbaScript -Passthru | Out-String
+            #replacing table name
+            if ($newTableParts.Table) {
+                $rX = "(CREATE TABLE \[$([regex]::Escape($sqltable.Schema))\]\.\[)$([regex]::Escape($sqltable.Name))(\]\()"
+                $tablescript = $tablescript -replace $rX, "`$1$($newTableParts.Table)`$2"
             }
+            #replacing table schema
+            if ($newTableParts.Schema) {
+                $rX = "(CREATE TABLE \[)$([regex]::Escape($sqltable.Schema))(\]\.\[$([regex]::Escape($newTableParts.Table))\]\()"
+                $tablescript = $tablescript -replace $rX, "`$1$($newTableParts.Schema)`$2"
+            }
+
+            if ($PSCmdlet.ShouldProcess($destServer, "Creating new table: $DestinationTable")) {
+                Write-Message -Message "New table script: $tablescript" -Level VeryVerbose
+                Invoke-DbaQuery -SqlInstance $destServer -Database $DestinationDatabase -Query "$tablescript" -EnableException # add some string assurance there
+                #table list was updated, let's grab a fresh one
+                $destServer.Databases[$DestinationDatabase].Tables.Refresh()
+                $desttable = Get-DbaDbTable -SqlInstance $destServer -Table $DestinationTable -Database $DestinationDatabase -Verbose:$false
+                Write-Message -Message "New table created: $desttable" -Level Verbose
+            }
+        } catch {
+            Stop-Function -Message "Unable to determine destination table: $DestinationTable" -ErrorRecord $_
+            return
         }
     }
-    end {
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Copy-DbaTableData
+    if (-not $desttable) {
+        Stop-Function -Message "Table $DestinationTable cannot be found in $DestinationDatabase. Use -AutoCreateTable to automatically create the table on the destination." -Continue
     }
+
+    $connstring = $destServer.ConnectionContext.ConnectionString
+
+    if ($server.DatabaseEngineType -eq "SqlAzureDatabase") {
+        $fqtnfrom = "$sqltable"
+    } else {
+        $fqtnfrom = "$($server.Databases[$Database]).$sqltable"
+    }
+
+    if ($destServer.DatabaseEngineType -eq "SqlAzureDatabase") {
+        $fqtndest = "$desttable"
+    } else {
+        $fqtndest = "$($destServer.Databases[$DestinationDatabase]).$desttable"
+    }
+
+    if ($fqtndest -eq $fqtnfrom -and $server.Name -eq $destServer.Name) {
+        Stop-Function -Message "Cannot copy $fqtnfrom on $($server.Name) into $fqtndest on ($destServer.Name). Source and Destination must be different " -Target $Table
+        return
+    }
+
+
+    if (Test-Bound -ParameterName Query -Not) {
+        $Query = "SELECT * FROM $fqtnfrom"
+    }
+    try {
+        if ($Truncate -eq $true) {
+            if ($Pscmdlet.ShouldProcess($destServer, "Truncating table $fqtndest")) {
+                $null = $destServer.Databases[$DestinationDatabase].ExecuteNonQuery("TRUNCATE TABLE $fqtndest")
+            }
+        }
+        if ($Pscmdlet.ShouldProcess($server, "Copy data from $fqtnfrom")) {
+            $cmd = $server.ConnectionContext.SqlConnectionObject.CreateCommand()
+            $cmd.CommandText = $Query
+            if ($server.ConnectionContext.IsOpen -eq $false) {
+                $server.ConnectionContext.SqlConnectionObject.Open()
+            }
+            $bulkCopy = New-Object Data.SqlClient.SqlBulkCopy("$connstring;Database=$DestinationDatabase", $bulkCopyOptions)
+            $bulkCopy.DestinationTableName = $fqtndest
+            $bulkCopy.EnableStreaming = $true
+            $bulkCopy.BatchSize = $BatchSize
+            $bulkCopy.NotifyAfter = $NotifyAfter
+            $bulkCopy.BulkCopyTimeOut = $BulkCopyTimeOut
+
+            $elapsed = [System.Diagnostics.Stopwatch]::StartNew()
+            # Add RowCount output
+            $bulkCopy.Add_SqlRowsCopied( {
+                    $RowsPerSec = [math]::Round($args[1].RowsCopied / $elapsed.ElapsedMilliseconds * 1000.0, 1)
+                    Write-Progress -id 1 -activity "Inserting rows" -Status ([System.String]::Format("{0} rows ({1} rows/sec)", $args[1].RowsCopied, $RowsPerSec))
+                })
+        }
+
+        if ($Pscmdlet.ShouldProcess($destServer, "Writing rows to $fqtndest")) {
+            $reader = $cmd.ExecuteReader()
+            $bulkCopy.WriteToServer($reader)
+            if ($script:core) {
+                $RowsTotal = "Unsupported in Core"
+            } else {
+                $RowsTotal = [System.Data.SqlClient.SqlBulkCopyExtension]::RowsCopiedCount($bulkCopy)
+            }
+            $TotalTime = [math]::Round($elapsed.Elapsed.TotalSeconds, 1)
+            Write-Message -Level Verbose -Message "$RowsTotal rows inserted in $TotalTime sec"
+            if ($rowCount -is [int]) {
+                Write-Progress -id 1 -activity "Inserting rows" -status "Complete" -Completed
+            }
+
+            $server.ConnectionContext.SqlConnectionObject.Close()
+            $bulkCopy.Close()
+            $bulkCopy.Dispose()
+            $reader.Close()
+
+            [pscustomobject]@{
+                SourceInstance      = $server.Name
+                SourceDatabase      = $Database
+                SourceSchema        = $sqltable.Schema
+                SourceTable         = $sqltable.Name
+                DestinationInstance = $destServer.name
+                DestinationDatabase = $DestinationDatabase
+                DestinationSchema   = $desttable.Schema
+                DestinationTable    = $desttable.Name
+                RowsCopied          = $rowstotal
+                Elapsed             = [prettytimespan]$elapsed.Elapsed
+            }
+        }
+    } catch {
+        Stop-Function -Message "Something went wrong" -ErrorRecord $_ -Target $server -continue
+    }
+}
+}
+}
+end {
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Copy-DbaTableData
+}
 }

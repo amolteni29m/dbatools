@@ -140,63 +140,63 @@ function Show-DbaDbList {
 
         $xaml.SelectNodes("//*[@Name]") | ForEach-Object { Set-Variable -Name ($_.Name) -Value $window.FindName($_.Name) -Scope Script }
 
-        $childitem = New-Object System.Windows.Controls.TreeViewItem
-        $textblock = New-Object System.Windows.Controls.TextBlock
-        $textblock.Margin = "5,0"
-        $stackpanel = New-Object System.Windows.Controls.StackPanel
-        $stackpanel.Orientation = "Horizontal"
-        $image = New-Object System.Windows.Controls.Image
-        $image.Height = 20
-        $image.Width = 20
-        $image.Stretch = "Fill"
-        $image.Source = $foldericon
-        $textblock.Text = "Databases"
-        $childitem.Tag = "Databases"
-        $childitem.isExpanded = $true
-        [void]$stackpanel.Children.Add($image)
-        [void]$stackpanel.Children.Add($textblock)
-        $childitem.Header = $stackpanel
-        #Variable marked as unused by PSScriptAnalyzer
-        #$databaseParent = $treeview.Items.Add($childitem)
+    $childitem = New-Object System.Windows.Controls.TreeViewItem
+    $textblock = New-Object System.Windows.Controls.TextBlock
+    $textblock.Margin = "5,0"
+    $stackpanel = New-Object System.Windows.Controls.StackPanel
+    $stackpanel.Orientation = "Horizontal"
+    $image = New-Object System.Windows.Controls.Image
+    $image.Height = 20
+    $image.Width = 20
+    $image.Stretch = "Fill"
+    $image.Source = $foldericon
+    $textblock.Text = "Databases"
+    $childitem.Tag = "Databases"
+    $childitem.isExpanded = $true
+    [void]$stackpanel.Children.Add($image)
+    [void]$stackpanel.Children.Add($textblock)
+    $childitem.Header = $stackpanel
+    #Variable marked as unused by PSScriptAnalyzer
+    #$databaseParent = $treeview.Items.Add($childitem)
 
-        try {
-            $databases = $sourceserver.databases.name
-        } catch {
-            return
-        }
+    try {
+        $databases = $sourceserver.databases.name
+    } catch {
+        return
+    }
 
-        foreach ($database in $databases) {
-            Add-TreeItem -Name $database -Parent $childitem -Tag $nameSpace
-        }
+    foreach ($database in $databases) {
+        Add-TreeItem -Name $database -Parent $childitem -Tag $nameSpace
+    }
 
-        $okbutton.Add_Click( {
-                $window.Close()
-                $script:okay = $true
-            })
+    $okbutton.Add_Click( {
+            $window.Close()
+            $script:okay = $true
+        })
 
-        $cancelbutton.Add_Click( {
-                $script:selected = $null
-                $window.Close()
-            })
+    $cancelbutton.Add_Click( {
+            $script:selected = $null
+            $window.Close()
+        })
 
-        $window.Add_SourceInitialized( {
-                [System.Windows.RoutedEventHandler]$Event = {
-                    if ($_.OriginalSource -is [System.Windows.Controls.TreeViewItem]) {
-                        $script:selected = $_.OriginalSource.Tag
-                    }
+    $window.Add_SourceInitialized( {
+            [System.Windows.RoutedEventHandler]$Event = {
+                if ($_.OriginalSource -is [System.Windows.Controls.TreeViewItem]) {
+                    $script:selected = $_.OriginalSource.Tag
                 }
-                $treeview.AddHandler([System.Windows.Controls.TreeViewItem]::SelectedEvent, $Event)
-            })
+            }
+            $treeview.AddHandler([System.Windows.Controls.TreeViewItem]::SelectedEvent, $Event)
+        })
 
-        $null = $window.ShowDialog()
+    $null = $window.ShowDialog()
+}
+
+end {
+    if ($script:selected.length -gt 0 -and $script:okay -eq $true) {
+        return $script:selected
     }
 
-    end {
-        if ($script:selected.length -gt 0 -and $script:okay -eq $true) {
-            return $script:selected
-        }
-
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Show-SqlDatabaseList
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Show-DbaDatabaseList
-    }
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Show-SqlDatabaseList
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Show-DbaDatabaseList
+}
 }

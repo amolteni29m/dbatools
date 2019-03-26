@@ -70,26 +70,26 @@ function Get-DbaServerAudit {
 
             if (Test-Bound -ParameterName Audit) {
                 $audits = $audits | Where-Object Name -in $Audit
-            }
-            if (Test-Bound -ParameterName ExcludeAudit) {
-                $audits = $audits | Where-Object Name -notin $ExcludeAudit
-            }
-
-            foreach ($currentaudit in $audits) {
-                $directory = $currentaudit.FilePath.TrimEnd("\")
-                $filename = $currentaudit.FileName
-                $fullname = "$directory\$filename"
-                $remote = $fullname.Replace(":", "$")
-                $remote = "\\$($currentaudit.Parent.ComputerName)\$remote"
-
-                Add-Member -Force -InputObject $currentaudit -MemberType NoteProperty -Name ComputerName -value $currentaudit.Parent.ComputerName
-                Add-Member -Force -InputObject $currentaudit -MemberType NoteProperty -Name InstanceName -value $currentaudit.Parent.ServiceName
-                Add-Member -Force -InputObject $currentaudit -MemberType NoteProperty -Name SqlInstance -value $currentaudit.Parent.DomainInstanceName
-                Add-Member -Force -InputObject $currentaudit -MemberType NoteProperty -Name FullName -value $fullname
-                Add-Member -Force -InputObject $currentaudit -MemberType NoteProperty -Name RemoteFullName -value $remote
-
-                Select-DefaultView -InputObject $currentaudit -Property ComputerName, InstanceName, SqlInstance, Name, 'Enabled as IsEnabled', FullName
-            }
         }
+        if (Test-Bound -ParameterName ExcludeAudit) {
+            $audits = $audits | Where-Object Name -notin $ExcludeAudit
     }
+
+    foreach ($currentaudit in $audits) {
+        $directory = $currentaudit.FilePath.TrimEnd("\")
+        $filename = $currentaudit.FileName
+        $fullname = "$directory\$filename"
+        $remote = $fullname.Replace(":", "$")
+        $remote = "\\$($currentaudit.Parent.ComputerName)\$remote"
+
+        Add-Member -Force -InputObject $currentaudit -MemberType NoteProperty -Name ComputerName -value $currentaudit.Parent.ComputerName
+        Add-Member -Force -InputObject $currentaudit -MemberType NoteProperty -Name InstanceName -value $currentaudit.Parent.ServiceName
+        Add-Member -Force -InputObject $currentaudit -MemberType NoteProperty -Name SqlInstance -value $currentaudit.Parent.DomainInstanceName
+        Add-Member -Force -InputObject $currentaudit -MemberType NoteProperty -Name FullName -value $fullname
+        Add-Member -Force -InputObject $currentaudit -MemberType NoteProperty -Name RemoteFullName -value $remote
+
+        Select-DefaultView -InputObject $currentaudit -Property ComputerName, InstanceName, SqlInstance, Name, 'Enabled as IsEnabled', FullName
+    }
+}
+}
 }

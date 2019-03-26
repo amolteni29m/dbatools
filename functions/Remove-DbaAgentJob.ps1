@@ -109,46 +109,46 @@ function Remove-DbaAgentJob {
                     }
                 }
                 $InputObject += ($Server.JobServer.Jobs | Where-Object Name -eq $j)
-            }
         }
-        foreach ($currentJob in $InputObject) {
-            $j = $currentJob.Name
-            $server = $currentJob.Parent.Parent
+    }
+    foreach ($currentJob in $InputObject) {
+        $j = $currentJob.Name
+        $server = $currentJob.Parent.Parent
 
-            if ($PSCmdlet.ShouldProcess($instance, "Removing the job $j from $server")) {
-                try {
-                    $dropHistory = $dropSchedule = 1
+        if ($PSCmdlet.ShouldProcess($instance, "Removing the job $j from $server")) {
+            try {
+                $dropHistory = $dropSchedule = 1
 
-                    if (Test-Bound -ParameterName KeepHistory) {
-                        Write-Message -Level SomewhatVerbose -Message "Job history will be kept"
-                        $dropHistory = 0
-                    }
-                    if (Test-Bound -ParameterName KeepUnusedSchedule) {
-                        Write-Message -Level SomewhatVerbose -Message "Unused job schedules will be kept"
-                        $dropSchedule = 0
-                    }
-                    Write-Message -Level SomewhatVerbose -Message "Removing job"
-                    $dropJobQuery = ("EXEC dbo.sp_delete_job @job_name = '{0}', @delete_history = {1}, @delete_unused_schedule = {2}" -f $currentJob.Name.Replace("'", "''"), $dropHistory, $dropSchedule)
-                    $server.Databases['msdb'].ExecuteNonQuery($dropJobQuery)
-                    [pscustomobject]@{
-                        ComputerName = $server.ComputerName
-                        InstanceName = $server.ServiceName
-                        SqlInstance  = $server.DomainInstanceName
-                        Name         = $currentJob.Name
-                        Status       = 'Dropped'
-                    }
-                } catch {
-                    Write-Message -Level Verbose -Message "Could not drop job $job on $server"
+                if (Test-Bound -ParameterName KeepHistory) {
+                    Write-Message -Level SomewhatVerbose -Message "Job history will be kept"
+                    $dropHistory = 0
+                }
+                if (Test-Bound -ParameterName KeepUnusedSchedule) {
+                    Write-Message -Level SomewhatVerbose -Message "Unused job schedules will be kept"
+                    $dropSchedule = 0
+                }
+                Write-Message -Level SomewhatVerbose -Message "Removing job"
+                $dropJobQuery = ("EXEC dbo.sp_delete_job @job_name = '{0}', @delete_history = {1}, @delete_unused_schedule = {2}" -f $currentJob.Name.Replace("'", "''"), $dropHistory, $dropSchedule)
+                $server.Databases['msdb'].ExecuteNonQuery($dropJobQuery)
+                [pscustomobject]@{
+                    ComputerName = $server.ComputerName
+                    InstanceName = $server.ServiceName
+                    SqlInstance  = $server.DomainInstanceName
+                    Name         = $currentJob.Name
+                    Status       = 'Dropped'
+                }
+            } catch {
+                Write-Message -Level Verbose -Message "Could not drop job $job on $server"
 
-                    [pscustomobject]@{
-                        ComputerName = $server.ComputerName
-                        InstanceName = $server.ServiceName
-                        SqlInstance  = $server.DomainInstanceName
-                        Name         = $currentJob.Name
-                        Status       = "Failed. $(Get-ErrorMessage -Record $_)"
-                    }
+                [pscustomobject]@{
+                    ComputerName = $server.ComputerName
+                    InstanceName = $server.ServiceName
+                    SqlInstance  = $server.DomainInstanceName
+                    Name         = $currentJob.Name
+                    Status       = "Failed. $(Get-ErrorMessage -Record $_)"
                 }
             }
         }
     }
+}
 }

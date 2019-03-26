@@ -113,66 +113,66 @@ function Copy-DbaDbQueryStoreOption {
 
                 if ($DestinationDatabase.count -gt 0) {
                     $dbs = $dbs | Where-Object { $DestinationDatabase -contains $_.Name }
-                }
-
-                if ($Exclude.count -gt 0) {
-                    $dbs = $dbs | Where-Object { $exclude -notcontains $_.Name }
-                }
-
-                if ($dbs.count -eq 0) {
-                    Stop-Function -Message "No matching databases found. Check the spelling and try again." -Continue
-                }
-
-                foreach ($db in $dbs) {
-                    # skipping the database if the source and destination are the same instance
-                    if (($sourceServer.Name -eq $destinationServer) -and ($SourceDatabase -eq $db.Name)) {
-                        continue
-                    }
-                    Write-Message -Message "Processing destination database: $db on $destinationServer." -Level Verbose
-                    $copyQueryStoreStatus = [pscustomobject]@{
-                        SourceServer      = $sourceServer.name
-                        SourceDatabase    = $SourceDatabase
-                        DestinationServer = $destinationServer
-                        Name              = $db.name
-                        Type              = "QueryStore Configuration"
-                        Status            = $null
-                        DateTime          = [Sqlcollaborative.Dbatools.Utility.DbaDateTime](Get-Date)
-                    }
-
-                    if ($db.IsAccessible -eq $false) {
-                        $copyQueryStoreStatus.Status = "Skipped"
-                        Stop-Function -Message "The database $db on server $destinationServer is not accessible. Skipping database." -Continue
-                    }
-
-                    Write-Message -Message "Executing Set-DbaQueryStoreConfig." -Level Verbose
-                    # Set the Query Store configuration through the Set-DbaQueryStoreConfig function
-                    if ($PSCmdlet.ShouldProcess("$db", "Copying QueryStoreConfig")) {
-                        try {
-
-                            $setDbaDbQueryStoreOptionParameters = @{
-
-                                SqlInstance         = $destinationServer;
-                                SqlCredential       = $DestinationSqlCredential;
-                                Database            = $db.name;
-                                State               = $SourceQSConfig.ActualState;
-                                FlushInterval       = $SourceQSConfig.DataFlushIntervalInSeconds;
-                                CollectionInterval  = $SourceQSConfig.StatisticsCollectionIntervalInMinutes;
-                                MaxSize             = $SourceQSConfig.MaxStorageSizeInMB;
-                                CaptureMode         = $SourceQSConfig.QueryCaptureMode;
-                                CleanupMode         = $SourceQSConfig.SizeBasedCleanupMode;
-                                StaleQueryThreshold = $SourceQSConfig.StaleQueryThresholdInDays;
-                            }
-
-                            $null = Set-DbaDbQueryStoreOption @setDbaDbQueryStoreOptionParameters;
-                            $copyQueryStoreStatus.Status = "Successful"
-                        } catch {
-                            $copyQueryStoreStatus.Status = "Failed"
-                            Stop-Function -Message "Issue setting Query Store on $db." -Target $db -ErrorRecord $_ -Continue
-                        }
-                        $copyQueryStoreStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-                    }
-                }
             }
+
+            if ($Exclude.count -gt 0) {
+                $dbs = $dbs | Where-Object { $exclude -notcontains $_.Name }
+        }
+
+        if ($dbs.count -eq 0) {
+            Stop-Function -Message "No matching databases found. Check the spelling and try again." -Continue
+        }
+
+        foreach ($db in $dbs) {
+            # skipping the database if the source and destination are the same instance
+            if (($sourceServer.Name -eq $destinationServer) -and ($SourceDatabase -eq $db.Name)) {
+                continue
+            }
+            Write-Message -Message "Processing destination database: $db on $destinationServer." -Level Verbose
+            $copyQueryStoreStatus = [pscustomobject]@{
+                SourceServer      = $sourceServer.name
+                SourceDatabase    = $SourceDatabase
+                DestinationServer = $destinationServer
+                Name              = $db.name
+                Type              = "QueryStore Configuration"
+                Status            = $null
+                DateTime          = [Sqlcollaborative.Dbatools.Utility.DbaDateTime](Get-Date)
+            }
+
+            if ($db.IsAccessible -eq $false) {
+                $copyQueryStoreStatus.Status = "Skipped"
+                Stop-Function -Message "The database $db on server $destinationServer is not accessible. Skipping database." -Continue
+            }
+
+            Write-Message -Message "Executing Set-DbaQueryStoreConfig." -Level Verbose
+            # Set the Query Store configuration through the Set-DbaQueryStoreConfig function
+            if ($PSCmdlet.ShouldProcess("$db", "Copying QueryStoreConfig")) {
+                try {
+
+                    $setDbaDbQueryStoreOptionParameters = @{
+
+                        SqlInstance         = $destinationServer;
+                        SqlCredential       = $DestinationSqlCredential;
+                        Database            = $db.name;
+                        State               = $SourceQSConfig.ActualState;
+                        FlushInterval       = $SourceQSConfig.DataFlushIntervalInSeconds;
+                        CollectionInterval  = $SourceQSConfig.StatisticsCollectionIntervalInMinutes;
+                        MaxSize             = $SourceQSConfig.MaxStorageSizeInMB;
+                        CaptureMode         = $SourceQSConfig.QueryCaptureMode;
+                        CleanupMode         = $SourceQSConfig.SizeBasedCleanupMode;
+                        StaleQueryThreshold = $SourceQSConfig.StaleQueryThresholdInDays;
+                    }
+
+                    $null = Set-DbaDbQueryStoreOption @setDbaDbQueryStoreOptionParameters;
+                    $copyQueryStoreStatus.Status = "Successful"
+                } catch {
+                    $copyQueryStoreStatus.Status = "Failed"
+                    Stop-Function -Message "Issue setting Query Store on $db." -Target $db -ErrorRecord $_ -Continue
+                }
+                $copyQueryStoreStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
         }
     }
+}
+}
+}
 }

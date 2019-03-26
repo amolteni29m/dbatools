@@ -87,98 +87,98 @@ function Get-DbaDbEncryption {
             try {
                 if ($Database) {
                     $dbs = $server.Databases | Where-Object Name -In $Database
-                } elseif ($IncludeSystemDBs) {
-                    $dbs = $server.Databases | Where-Object IsAccessible
-                } else {
-                    $dbs = $server.Databases | Where-Object { $_.IsAccessible -and $_.IsSystemObject -eq 0 }
-                }
+            } elseif ($IncludeSystemDBs) {
+                $dbs = $server.Databases | Where-Object IsAccessible
+        } else {
+            $dbs = $server.Databases | Where-Object { $_.IsAccessible -and $_.IsSystemObject -eq 0 }
+    }
 
-                if ($ExcludeDatabase) {
-                    $dbs = $dbs | Where-Object Name -NotIn $ExcludeDatabase
-                }
-            } catch {
-                Stop-Function -Message "Unable to gather dbs for $instance" -Target $instance -Continue
-            }
+    if ($ExcludeDatabase) {
+        $dbs = $dbs | Where-Object Name -NotIn $ExcludeDatabase
+}
+} catch {
+    Stop-Function -Message "Unable to gather dbs for $instance" -Target $instance -Continue
+}
 
-            foreach ($db in $dbs) {
-                Write-Message -Level Verbose -Message "Processing $db"
+foreach ($db in $dbs) {
+    Write-Message -Level Verbose -Message "Processing $db"
 
-                if ($db.EncryptionEnabled -eq $true) {
-                    [PSCustomObject]@{
-                        ComputerName             = $server.ComputerName
-                        InstanceName             = $server.ServiceName
-                        SqlInstance              = $server.DomainInstanceName
-                        Database                 = $db.Name
-                        Encryption               = "EncryptionEnabled (TDE)"
-                        Name                     = $null
-                        LastBackup               = $null
-                        PrivateKeyEncryptionType = $null
-                        EncryptionAlgorithm      = $null
-                        KeyLength                = $null
-                        Owner                    = $null
-                        Object                   = $null
-                        ExpirationDate           = $null
-                    }
+    if ($db.EncryptionEnabled -eq $true) {
+        [PSCustomObject]@{
+            ComputerName             = $server.ComputerName
+            InstanceName             = $server.ServiceName
+            SqlInstance              = $server.DomainInstanceName
+            Database                 = $db.Name
+            Encryption               = "EncryptionEnabled (TDE)"
+            Name                     = $null
+            LastBackup               = $null
+            PrivateKeyEncryptionType = $null
+            EncryptionAlgorithm      = $null
+            KeyLength                = $null
+            Owner                    = $null
+            Object                   = $null
+            ExpirationDate           = $null
+        }
 
-                }
+    }
 
-                foreach ($cert in $db.Certificates) {
-                    [PSCustomObject]@{
-                        ComputerName             = $server.ComputerName
-                        InstanceName             = $server.ServiceName
-                        SqlInstance              = $server.DomainInstanceName
-                        Database                 = $db.Name
-                        Encryption               = "Certificate"
-                        Name                     = $cert.Name
-                        LastBackup               = $cert.LastBackupDate
-                        PrivateKeyEncryptionType = $cert.PrivateKeyEncryptionType
-                        EncryptionAlgorithm      = $null
-                        KeyLength                = $null
-                        Owner                    = $cert.Owner
-                        Object                   = $cert
-                        ExpirationDate           = $cert.ExpirationDate
-                    }
+    foreach ($cert in $db.Certificates) {
+        [PSCustomObject]@{
+            ComputerName             = $server.ComputerName
+            InstanceName             = $server.ServiceName
+            SqlInstance              = $server.DomainInstanceName
+            Database                 = $db.Name
+            Encryption               = "Certificate"
+            Name                     = $cert.Name
+            LastBackup               = $cert.LastBackupDate
+            PrivateKeyEncryptionType = $cert.PrivateKeyEncryptionType
+            EncryptionAlgorithm      = $null
+            KeyLength                = $null
+            Owner                    = $cert.Owner
+            Object                   = $cert
+            ExpirationDate           = $cert.ExpirationDate
+        }
 
-                }
+    }
 
-                foreach ($ak in $db.AsymmetricKeys) {
-                    [PSCustomObject]@{
-                        ComputerName             = $server.ComputerName
-                        InstanceName             = $server.ServiceName
-                        SqlInstance              = $server.DomainInstanceName
-                        Database                 = $db.Name
-                        Encryption               = "Asymmetric key"
-                        Name                     = $ak.Name
-                        LastBackup               = $null
-                        PrivateKeyEncryptionType = $ak.PrivateKeyEncryptionType
-                        EncryptionAlgorithm      = $ak.KeyEncryptionAlgorithm
-                        KeyLength                = $ak.KeyLength
-                        Owner                    = $ak.Owner
-                        Object                   = $ak
-                        ExpirationDate           = $null
-                    }
+    foreach ($ak in $db.AsymmetricKeys) {
+        [PSCustomObject]@{
+            ComputerName             = $server.ComputerName
+            InstanceName             = $server.ServiceName
+            SqlInstance              = $server.DomainInstanceName
+            Database                 = $db.Name
+            Encryption               = "Asymmetric key"
+            Name                     = $ak.Name
+            LastBackup               = $null
+            PrivateKeyEncryptionType = $ak.PrivateKeyEncryptionType
+            EncryptionAlgorithm      = $ak.KeyEncryptionAlgorithm
+            KeyLength                = $ak.KeyLength
+            Owner                    = $ak.Owner
+            Object                   = $ak
+            ExpirationDate           = $null
+        }
 
-                }
-                foreach ($sk in $db.SymmetricKeys) {
-                    [PSCustomObject]@{
-                        Server                   = $server.name
-                        Instance                 = $server.InstanceName
-                        Database                 = $db.Name
-                        Encryption               = "Symmetric key"
-                        Name                     = $sk.Name
-                        LastBackup               = $null
-                        PrivateKeyEncryptionType = $sk.PrivateKeyEncryptionType
-                        EncryptionAlgorithm      = $ak.EncryptionAlgorithm
-                        KeyLength                = $sk.KeyLength
-                        Owner                    = $sk.Owner
-                        Object                   = $sk
-                        ExpirationDate           = $null
-                    }
-                }
-            }
+    }
+    foreach ($sk in $db.SymmetricKeys) {
+        [PSCustomObject]@{
+            Server                   = $server.name
+            Instance                 = $server.InstanceName
+            Database                 = $db.Name
+            Encryption               = "Symmetric key"
+            Name                     = $sk.Name
+            LastBackup               = $null
+            PrivateKeyEncryptionType = $sk.PrivateKeyEncryptionType
+            EncryptionAlgorithm      = $ak.EncryptionAlgorithm
+            KeyLength                = $sk.KeyLength
+            Owner                    = $sk.Owner
+            Object                   = $sk
+            ExpirationDate           = $null
         }
     }
-    end {
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Get-DbaDatabaseEncryption
-    }
+}
+}
+}
+end {
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Get-DbaDatabaseEncryption
+}
 }

@@ -102,7 +102,7 @@ function Read-DbaXEFile {
             }
 
             $accessible = Test-Path -Path $currentfile
-            $whoami = whoami
+            $whoami = whoami.exe
 
             if (-not $accessible) {
                 if ($file.Status -eq "Stopped") { continue }
@@ -116,33 +116,33 @@ function Read-DbaXEFile {
             $enum = New-Object Microsoft.SqlServer.XEvent.Linq.QueryableXEventData($currentfile)
             $newcolumns = ($enum.Fields.Name | Select-Object -Unique)
 
-            $actions = ($enum.Actions.Name | Select-Object -Unique)
-            foreach ($action in $actions) {
-                $newcolumns += ($action -Split '\.')[-1]
-            }
-
-            $newcolumns = $newcolumns | Sort-Object
-            $columns = ($columns += $newcolumns) | Select-Object -Unique
-
-            # Make it selectable, otherwise it's a weird enumeration
-            foreach ($event in $enum) {
-                $hash = [ordered]@{ }
-
-                foreach ($column in $columns) {
-                    $null = $hash.Add($column, $event.$column)
-                }
-
-                foreach ($action in $event.Actions) {
-                    $hash[$action.Name] = $action.Value
-                }
-
-                foreach ($field in $event.Fields) {
-                    $hash[$field.Name] = $field.Value
-                }
-
-                [pscustomobject]$hash
-            }
-            $enum.Dispose()
-        }
+        $actions = ($enum.Actions.Name | Select-Object -Unique)
+    foreach ($action in $actions) {
+        $newcolumns += ($action -Split '\.')[-1]
     }
+
+    $newcolumns = $newcolumns | Sort-Object
+$columns = ($columns += $newcolumns) | Select-Object -Unique
+
+# Make it selectable, otherwise it's a weird enumeration
+foreach ($event in $enum) {
+    $hash = [ordered]@{ }
+
+    foreach ($column in $columns) {
+        $null = $hash.Add($column, $event.$column)
+    }
+
+    foreach ($action in $event.Actions) {
+        $hash[$action.Name] = $action.Value
+    }
+
+    foreach ($field in $event.Fields) {
+        $hash[$field.Name] = $field.Value
+    }
+
+    [pscustomobject]$hash
+}
+$enum.Dispose()
+}
+}
 }

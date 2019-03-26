@@ -76,65 +76,65 @@ function Disable-DbaForceNetworkEncryption {
 
             try {
                 $sqlwmi = Invoke-ManagedComputerCommand -ComputerName $resolved.FullComputerName -ScriptBlock { $wmi.Services } -Credential $Credential -ErrorAction Stop | Where-Object DisplayName -eq "SQL Server ($($instance.InstanceName))"
-            } catch {
-                Stop-Function -Message "Failed to access $instance." -Target $instance -Continue -ErrorRecord $_
-            }
-
-            $regroot = ($sqlwmi.AdvancedProperties | Where-Object Name -eq REGROOT).Value
-            $vsname = ($sqlwmi.AdvancedProperties | Where-Object Name -eq VSNAME).Value
-            try {
-                $instancename = $sqlwmi.DisplayName.Replace('SQL Server (', '').Replace(')', '') # Don't clown, I don't know regex :(
-            } catch {
-                # Probably because the instance name has been aliased or does not exist or something
-                # here to avoid an empty catch
-                $null = 1
-            }
-            $serviceaccount = $sqlwmi.ServiceAccount
-
-            if ([System.String]::IsNullOrEmpty($regroot)) {
-                $regroot = $sqlwmi.AdvancedProperties | Where-Object { $_ -match 'REGROOT' }
-                $vsname = $sqlwmi.AdvancedProperties | Where-Object { $_ -match 'VSNAME' }
-
-                if (![System.String]::IsNullOrEmpty($regroot)) {
-                    $regroot = ($regroot -Split 'Value\=')[1]
-                    $vsname = ($vsname -Split 'Value\=')[1]
-                } else {
-                    Stop-Function -Message "Can't find instance $vsname on $instance." -Continue -Category ObjectNotFound -Target $instance
-                }
-            }
-
-            if ([System.String]::IsNullOrEmpty($vsname)) { $vsname = $instance }
-
-            Write-Message -Level Output -Message "Regroot: $regroot" -Target $instance
-            Write-Message -Level Output -Message "ServiceAcct: $serviceaccount" -Target $instance
-            Write-Message -Level Output -Message "InstanceName: $instancename" -Target $instance
-            Write-Message -Level Output -Message "VSNAME: $vsname" -Target $instance
-
-            $scriptblock = {
-                $regpath = "Registry::HKEY_LOCAL_MACHINE\$($args[0])\MSSQLServer\SuperSocketNetLib"
-                $cert = (Get-ItemProperty -Path $regpath -Name Certificate).Certificate
-                #Variable marked as unused by PSScriptAnalyzer
-                #$oldvalue = (Get-ItemProperty -Path $regpath -Name ForceEncryption).ForceEncryption
-                Set-ItemProperty -Path $regpath -Name ForceEncryption -Value $false
-                $forceencryption = (Get-ItemProperty -Path $regpath -Name ForceEncryption).ForceEncryption
-
-                [pscustomobject]@{
-                    ComputerName          = $env:COMPUTERNAME
-                    InstanceName          = $args[2]
-                    SqlInstance           = $args[1]
-                    ForceEncryption       = ($forceencryption -eq $true)
-                    CertificateThumbprint = $cert
-                }
-            }
-
-            if ($PScmdlet.ShouldProcess("local", "Connecting to $instance to modify the ForceEncryption value in $regroot for $($instance.InstanceName)")) {
-                try {
-                    Invoke-Command2 -ComputerName $resolved.FullComputerName -Credential $Credential -ArgumentList $regroot, $vsname, $instancename -ScriptBlock $scriptblock -ErrorAction Stop
-                    Write-Message -Level Critical -Message "Force encryption was successfully set on $($resolved.FullComputerName) for the $instancename instance. You must now restart the SQL Server for changes to take effect." -Target $instance
-                } catch {
-                    Stop-Function -Message "Failed to connect to $($resolved.FullComputerName) using PowerShell remoting!" -ErrorRecord $_ -Target $instance -Continue
-                }
-            }
+        } catch {
+            Stop-Function -Message "Failed to access $instance." -Target $instance -Continue -ErrorRecord $_
         }
+
+        $regroot = ($sqlwmi.AdvancedProperties | Where-Object Name -eq REGROOT).Value
+    $vsname = ($sqlwmi.AdvancedProperties | Where-Object Name -eq VSNAME).Value
+try {
+    $instancename = $sqlwmi.DisplayName.Replace('SQL Server (', '').Replace(')', '') # Don't clown, I don't know regex :(
+} catch {
+    # Probably because the instance name has been aliased or does not exist or something
+    # here to avoid an empty catch
+    $null = 1
+}
+$serviceaccount = $sqlwmi.ServiceAccount
+
+if ([System.String]::IsNullOrEmpty($regroot)) {
+    $regroot = $sqlwmi.AdvancedProperties | Where-Object { $_ -match 'REGROOT' }
+$vsname = $sqlwmi.AdvancedProperties | Where-Object { $_ -match 'VSNAME' }
+
+if (![System.String]::IsNullOrEmpty($regroot)) {
+    $regroot = ($regroot -Split 'Value\=')[1]
+    $vsname = ($vsname -Split 'Value\=')[1]
+} else {
+    Stop-Function -Message "Can't find instance $vsname on $instance." -Continue -Category ObjectNotFound -Target $instance
+}
+}
+
+if ([System.String]::IsNullOrEmpty($vsname)) { $vsname = $instance }
+
+Write-Message -Level Output -Message "Regroot: $regroot" -Target $instance
+Write-Message -Level Output -Message "ServiceAcct: $serviceaccount" -Target $instance
+Write-Message -Level Output -Message "InstanceName: $instancename" -Target $instance
+Write-Message -Level Output -Message "VSNAME: $vsname" -Target $instance
+
+$scriptblock = {
+    $regpath = "Registry::HKEY_LOCAL_MACHINE\$($args[0])\MSSQLServer\SuperSocketNetLib"
+    $cert = (Get-ItemProperty -Path $regpath -Name Certificate).Certificate
+    #Variable marked as unused by PSScriptAnalyzer
+    #$oldvalue = (Get-ItemProperty -Path $regpath -Name ForceEncryption).ForceEncryption
+    Set-ItemProperty -Path $regpath -Name ForceEncryption -Value $false
+    $forceencryption = (Get-ItemProperty -Path $regpath -Name ForceEncryption).ForceEncryption
+
+    [pscustomobject]@{
+        ComputerName          = $env:COMPUTERNAME
+        InstanceName          = $args[2]
+        SqlInstance           = $args[1]
+        ForceEncryption       = ($forceencryption -eq $true)
+        CertificateThumbprint = $cert
     }
+}
+
+if ($PScmdlet.ShouldProcess("local", "Connecting to $instance to modify the ForceEncryption value in $regroot for $($instance.InstanceName)")) {
+    try {
+        Invoke-Command2 -ComputerName $resolved.FullComputerName -Credential $Credential -ArgumentList $regroot, $vsname, $instancename -ScriptBlock $scriptblock -ErrorAction Stop
+        Write-Message -Level Critical -Message "Force encryption was successfully set on $($resolved.FullComputerName) for the $instancename instance. You must now restart the SQL Server for changes to take effect." -Target $instance
+    } catch {
+        Stop-Function -Message "Failed to connect to $($resolved.FullComputerName) using PowerShell remoting!" -ErrorRecord $_ -Target $instance -Continue
+    }
+}
+}
+}
 }

@@ -109,36 +109,36 @@ function Find-DbaDbGrowthEvent {
         $eventClass = New-Object System.Collections.ArrayList
         92..95 | ForEach-Object { $null = $eventClass.Add($_) }
 
-        if (Test-Bound 'EventType', 'FileType') {
-            switch ($FileType) {
-                'Data' {
-                    <# should only contain events for data: 92 (grow), 94 (shrink) #>
-                    $eventClass.Remove(93)
-                    $eventClass.Remove(95)
-                }
-                'Log' {
-                    <# should only contain events for log: 93 (grow), 95 (shrink) #>
-                    $eventClass.Remove(92)
-                    $eventClass.Remove(94)
-                }
+    if (Test-Bound 'EventType', 'FileType') {
+        switch ($FileType) {
+            'Data' {
+                <# should only contain events for data: 92 (grow), 94 (shrink) #>
+                $eventClass.Remove(93)
+                $eventClass.Remove(95)
             }
-            switch ($EventType) {
-                'Growth' {
-                    <# should only contain events for growth: 92 (data), 93 (log) #>
-                    $eventClass.Remove(94)
-                    $eventClass.Remove(95)
-                }
-                'Shrink' {
-                    <# should only contain events for shrink: 94 (data), 95 (log) #>
-                    $eventClass.Remove(92)
-                    $eventClass.Remove(93)
-                }
+            'Log' {
+                <# should only contain events for log: 93 (grow), 95 (shrink) #>
+                $eventClass.Remove(92)
+                $eventClass.Remove(94)
             }
         }
+        switch ($EventType) {
+            'Growth' {
+                <# should only contain events for growth: 92 (data), 93 (log) #>
+                $eventClass.Remove(94)
+                $eventClass.Remove(95)
+            }
+            'Shrink' {
+                <# should only contain events for shrink: 94 (data), 95 (log) #>
+                $eventClass.Remove(92)
+                $eventClass.Remove(93)
+            }
+        }
+    }
 
-        $eventClassFilter = $eventClass -join ","
+    $eventClassFilter = $eventClass -join ","
 
-        $sqlTemplate = "
+    $sqlTemplate = "
             BEGIN TRY
                 IF (SELECT CONVERT(INT,[value_in_use]) FROM sys.configurations WHERE [name] = 'default trace enabled' ) = 1
                     BEGIN
@@ -223,40 +223,40 @@ function Find-DbaDbGrowthEvent {
                     1 AS [SPID]
             END CATCH"
 
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -Alias Find-DbaDatabaseGrowthEvent
-    }
-    process {
-        foreach ($instance in $SqlInstance) {
-            try {
-                $server = Connect-SqlInstance -SqlInstance $instance -SqlCredential $SqlCredential
-            } catch {
-                Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $instance -Continue
-            }
-
-            $dbs = $server.Databases
-
-            if ($Database) {
-                $dbs = $dbs | Where-Object Name -In $Database
-            }
-
-            if ($ExcludeDatabase) {
-                $dbs = $dbs | Where-Object Name -NotIn $ExcludeDatabase
-            }
-
-            #Create dblist name in 'db1', 'db2' format
-            $dbsList = "'$($($dbs | ForEach-Object {$_.Name}) -join "','")'"
-            Write-Message -Level Verbose -Message "Executing query against $dbsList on $instance"
-
-            $sql = $sqlTemplate -replace '_DatabaseList_', $dbsList
-            Write-Message -Level Debug -Message "Executing SQL Statement:`n $sql"
-
-            $defaults = 'ComputerName', 'InstanceName', 'SqlInstance', 'EventClass', 'DatabaseName', 'Filename', 'Duration', 'StartTime', 'EndTime', 'ChangeInSize', 'ApplicationName', 'HostName'
-
-            try {
-                Select-DefaultView -InputObject $server.Query($sql) -Property $defaults
-            } catch {
-                Stop-Function -Message "Issue collecting data on $server" -Target $server -ErrorRecord $_ -Exception $_.Exception.InnerException.InnerException.InnerException -Continue
-            }
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -Alias Find-DbaDatabaseGrowthEvent
+}
+process {
+    foreach ($instance in $SqlInstance) {
+        try {
+            $server = Connect-SqlInstance -SqlInstance $instance -SqlCredential $SqlCredential
+        } catch {
+            Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $instance -Continue
         }
+
+        $dbs = $server.Databases
+
+        if ($Database) {
+            $dbs = $dbs | Where-Object Name -In $Database
     }
+
+    if ($ExcludeDatabase) {
+        $dbs = $dbs | Where-Object Name -NotIn $ExcludeDatabase
+}
+
+#Create dblist name in 'db1', 'db2' format
+$dbsList = "'$($($dbs | ForEach-Object {$_.Name}) -join "','")'"
+Write-Message -Level Verbose -Message "Executing query against $dbsList on $instance"
+
+$sql = $sqlTemplate -replace '_DatabaseList_', $dbsList
+Write-Message -Level Debug -Message "Executing SQL Statement:`n $sql"
+
+$defaults = 'ComputerName', 'InstanceName', 'SqlInstance', 'EventClass', 'DatabaseName', 'Filename', 'Duration', 'StartTime', 'EndTime', 'ChangeInSize', 'ApplicationName', 'HostName'
+
+try {
+    Select-DefaultView -InputObject $server.Query($sql) -Property $defaults
+} catch {
+    Stop-Function -Message "Issue collecting data on $server" -Target $server -ErrorRecord $_ -Exception $_.Exception.InnerException.InnerException.InnerException -Continue
+}
+}
+}
 }

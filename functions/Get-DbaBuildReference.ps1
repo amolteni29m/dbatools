@@ -143,326 +143,326 @@ function Get-DbaBuildReference {
             if (-not (Test-Path $writable_idxfile)) {
                 Copy-Item -Path $orig_idxfile -Destination $writable_idxfile -Force -ErrorAction Stop
                 $result = Get-Content $orig_idxfile -Raw | ConvertFrom-Json
-            }
-
-            # Else, if both exist, update the writeable if necessary and return the current version
-            elseif (Test-Path $orig_idxfile) {
-                $module_content = Get-Content $orig_idxfile -Raw | ConvertFrom-Json
-                $data_content = Get-Content $writable_idxfile -Raw | ConvertFrom-Json
-
-                $module_time = Get-Date $module_content.LastUpdated
-                $data_time = Get-Date $data_content.LastUpdated
-
-                $offline_time = $module_time
-                if ($module_time -gt $data_time) {
-                    Copy-Item -Path $orig_idxfile -Destination $writable_idxfile -Force -ErrorAction Stop
-                    $result = $module_content
-                } else {
-                    $result = $data_content
-                    $offline_time = $data_time
-                }
-                # If Update is passed, try to fetch from online resource and store into the writeable
-                if ($Update) {
-                    $WebContent = Get-DbaBuildReferenceIndexOnline -EnableException $EnableException
-                    if ($null -ne $WebContent) {
-                        $webdata_content = $WebContent.Content | ConvertFrom-Json
-                        $webdata_time = Get-Date $webdata_content.LastUpdated
-                        if ($webdata_time -gt $offline_time) {
-                            Write-Message -Level Output -Message "Index updated correctly, last update on: $(Get-Date -Date $webdata_time -Format s), was $(Get-Date -Date $offline_time -Format s)"
-                            $WebContent.Content | Out-File $writable_idxfile -Encoding utf8 -ErrorAction Stop
-                            $result = Get-Content $writable_idxfile -Raw | ConvertFrom-Json
-                        }
-                    }
-                }
-            }
-
-            # Else if the module version of the file no longer exists, but the writable version exists, return the writable version
-            else {
-                $result = Get-Content $writable_idxfile -Raw | ConvertFrom-Json
-            }
-
-            $LastUpdated = Get-Date -Date $result.LastUpdated
-            if ($LastUpdated -lt (Get-Date).AddDays(-45)) {
-                Write-Message -Level Warning -Message "Index is stale, last update on: $(Get-Date -Date $LastUpdated -Format s), try the -Update parameter to fetch the most up to date index"
-            }
-
-            $result.Data | Select-Object @{ Name = "VersionObject"; Expression = { [version]$_.Version } }, *
         }
 
-        function Get-DbaBuildReferenceIndexOnline {
-            [CmdletBinding()]
-            param (
-                [bool]
-                $EnableException
-            )
-            $url = Get-DbatoolsConfigValue -Name 'assets.sqlbuildreference'
-            try {
-                $WebContent = Invoke-TlsWebRequest $url -ErrorAction Stop
-            } catch {
-                try {
-                    Write-Message -Level Verbose -Message "Probably using a proxy for internet access, trying default proxy settings"
-                    (New-Object System.Net.WebClient).Proxy.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredentials
-                    $WebContent = Invoke-TlsWebRequest $url -ErrorAction Stop
-                } catch {
-                    Write-Message -Level Warning -Message "Couldn't download updated index from $url"
-                    return
-                }
-            }
-            return $WebContent
+        # Else, if both exist, update the writeable if necessary and return the current version
+        elseif (Test-Path $orig_idxfile) {
+            $module_content = Get-Content $orig_idxfile -Raw | ConvertFrom-Json
+        $data_content = Get-Content $writable_idxfile -Raw | ConvertFrom-Json
+
+    $module_time = Get-Date $module_content.LastUpdated
+    $data_time = Get-Date $data_content.LastUpdated
+
+    $offline_time = $module_time
+    if ($module_time -gt $data_time) {
+        Copy-Item -Path $orig_idxfile -Destination $writable_idxfile -Force -ErrorAction Stop
+        $result = $module_content
+    } else {
+        $result = $data_content
+        $offline_time = $data_time
+    }
+    # If Update is passed, try to fetch from online resource and store into the writeable
+    if ($Update) {
+        $WebContent = Get-DbaBuildReferenceIndexOnline -EnableException $EnableException
+        if ($null -ne $WebContent) {
+            $webdata_content = $WebContent.Content | ConvertFrom-Json
+        $webdata_time = Get-Date $webdata_content.LastUpdated
+        if ($webdata_time -gt $offline_time) {
+            Write-Message -Level Output -Message "Index updated correctly, last update on: $(Get-Date -Date $webdata_time -Format s), was $(Get-Date -Date $offline_time -Format s)"
+            $WebContent.Content | Out-File $writable_idxfile -Encoding utf8 -ErrorAction Stop
+        $result = Get-Content $writable_idxfile -Raw | ConvertFrom-Json
+}
+}
+}
+}
+
+# Else if the module version of the file no longer exists, but the writable version exists, return the writable version
+else {
+    $result = Get-Content $writable_idxfile -Raw | ConvertFrom-Json
+}
+
+$LastUpdated = Get-Date -Date $result.LastUpdated
+if ($LastUpdated -lt (Get-Date).AddDays(-45)) {
+    Write-Message -Level Warning -Message "Index is stale, last update on: $(Get-Date -Date $LastUpdated -Format s), try the -Update parameter to fetch the most up to date index"
+}
+
+$result.Data | Select-Object @{ Name = "VersionObject"; Expression = { [version]$_.Version } }, *
+}
+
+function Get-DbaBuildReferenceIndexOnline {
+    [CmdletBinding()]
+    param (
+        [bool]
+        $EnableException
+    )
+    $url = Get-DbatoolsConfigValue -Name 'assets.sqlbuildreference'
+    try {
+        $WebContent = Invoke-TlsWebRequest $url -ErrorAction Stop
+    } catch {
+        try {
+            Write-Message -Level Verbose -Message "Probably using a proxy for internet access, trying default proxy settings"
+            (New-Object System.Net.WebClient).Proxy.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredentials
+            $WebContent = Invoke-TlsWebRequest $url -ErrorAction Stop
+        } catch {
+            Write-Message -Level Warning -Message "Couldn't download updated index from $url"
+            return
         }
+    }
+    return $WebContent
+}
 
-        function Resolve-DbaBuild {
-            [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseShouldProcessForStateChangingFunctions", "")]
-            [CmdletBinding()]
-            [OutputType([System.Collections.Hashtable])]
-            param (
-                [Parameter(Mandatory, ParameterSetName = 'Build')]
-                [version]
-                $Build,
+function Resolve-DbaBuild {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSUseShouldProcessForStateChangingFunctions", "")]
+    [CmdletBinding()]
+    [OutputType([System.Collections.Hashtable])]
+    param (
+        [Parameter(Mandatory, ParameterSetName = 'Build')]
+        [version]
+        $Build,
 
-                [Parameter(Mandatory, ParameterSetName = 'KB')]
-                [string]
-                $Kb,
+        [Parameter(Mandatory, ParameterSetName = 'KB')]
+        [string]
+        $Kb,
 
-                [Parameter(Mandatory, ParameterSetName = 'HFLevel')]
-                [string]
-                $MajorVersion,
+        [Parameter(Mandatory, ParameterSetName = 'HFLevel')]
+        [string]
+        $MajorVersion,
 
-                [Parameter(ParameterSetName = 'HFLevel')]
-                [string]
-                [Alias('SP')]
-                $ServicePack = 'RTM',
+        [Parameter(ParameterSetName = 'HFLevel')]
+        [string]
+        [Alias('SP')]
+        $ServicePack = 'RTM',
 
-                [Parameter(ParameterSetName = 'HFLevel')]
-                [string]
-                [Alias('CU')]
-                $CumulativeUpdate,
+        [Parameter(ParameterSetName = 'HFLevel')]
+        [string]
+        [Alias('CU')]
+        $CumulativeUpdate,
 
-                $Data,
+        $Data,
 
-                [bool]
-                $EnableException
-            )
+        [bool]
+        $EnableException
+    )
 
-            if ($Build) {
-                Write-Message -Level Verbose -Message "Looking for $Build"
+    if ($Build) {
+        Write-Message -Level Verbose -Message "Looking for $Build"
 
-                $IdxVersion = $Data | Where-Object Version -like "$($Build.Major).$($Build.Minor).*"
-            } elseif ($Kb) {
-                Write-Message -Level Verbose -Message "Looking for KB $Kb"
-                if ($Kb -match '^(KB)?(\d+)$') {
-                    $currentKb = $Matches[2]
-                    $kbVersion = $Data | Where-Object KBList -contains $currentKb
-                    $IdxVersion = $Data | Where-Object Version -like "$($kbVersion.VersionObject.Major).$($kbVersion.VersionObject.Minor).*"
-                } else {
-                    Stop-Function -Message "Wrong KB name $kb"
-                    return
-                }
-            } elseif ($MajorVersion) {
-                Write-Message -Level Verbose -Message "Looking for SQL $MajorVersion SP $ServicePack CU $CumulativeUpdate"
-                $kbVersion = $Data | Where-Object Name -eq $MajorVersion
-                $IdxVersion = $Data | Where-Object Version -like "$($kbVersion.VersionObject.Major).$($kbVersion.VersionObject.Minor).*"
+        $IdxVersion = $Data | Where-Object Version -like "$($Build.Major).$($Build.Minor).*"
+} elseif ($Kb) {
+    Write-Message -Level Verbose -Message "Looking for KB $Kb"
+    if ($Kb -match '^(KB)?(\d+)$') {
+        $currentKb = $Matches[2]
+        $kbVersion = $Data | Where-Object KBList -contains $currentKb
+    $IdxVersion = $Data | Where-Object Version -like "$($kbVersion.VersionObject.Major).$($kbVersion.VersionObject.Minor).*"
+} else {
+    Stop-Function -Message "Wrong KB name $kb"
+    return
+}
+} elseif ($MajorVersion) {
+    Write-Message -Level Verbose -Message "Looking for SQL $MajorVersion SP $ServicePack CU $CumulativeUpdate"
+    $kbVersion = $Data | Where-Object Name -eq $MajorVersion
+$IdxVersion = $Data | Where-Object Version -like "$($kbVersion.VersionObject.Major).$($kbVersion.VersionObject.Minor).*"
+}
+
+$Detected = @{ }
+$Detected.MatchType = 'Approximate'
+$idxCount = $IdxVersion | Measure-Object | Select-Object -ExpandProperty Count
+Write-Message -Level Verbose -Message "We have $idxCount builds in store for this Release"
+If ($idxCount -eq 0) {
+    Write-Message -Level Warning -Message "No info in store for this Release"
+    $Detected.Warning = "No info in store for this Release"
+} else {
+    $LastVer = $IdxVersion[0]
+}
+foreach ($el in $IdxVersion) {
+    if ($null -ne $el.Name) {
+        $Detected.Name = $el.Name
+    }
+    if ($Build -and $el.VersionObject -gt $Build) {
+        $Detected.MatchType = 'Approximate'
+        $Detected.Warning = "$Build not found, closest build we have is $($LastVer.Version)"
+        break
+    }
+    $LastVer = $el
+    $Detected.BuildLevel = $el.VersionObject
+    if ($null -ne $el.SP) {
+        $Detected.SP = $el.SP
+        $Detected.CU = $null
+    }
+    if ($null -ne $el.CU) {
+        $Detected.CU = $el.CU
+    }
+    if ($null -ne $el.SupportedUntil) {
+        $Detected.SupportedUntil = (Get-Date -date $el.SupportedUntil)
+    }
+    $Detected.Build = $el.Version
+    $Detected.KB = $el.KBList
+    if (($Build -and $el.Version -eq $Build) -or ($Kb -and $el.KBList -eq $currentKb)) {
+        $Detected.MatchType = 'Exact'
+        break
+    } elseif ($MajorVersion -and $Detected.SP -contains $ServicePack -and (!$CumulativeUpdate -or ($el.CU -and $el.CU -eq $CumulativeUpdate))) {
+        $Detected.MatchType = 'Exact'
+        break
+    }
+}
+return $Detected
+}
+#endregion Helper functions
+
+$moduledirectory = $MyInvocation.MyCommand.Module.ModuleBase
+
+try {
+    $IdxRef = Get-DbaBuildReferenceIndex -Moduledirectory $moduledirectory -Update $Update -EnableException $EnableException
+} catch {
+    Stop-Function -Message "Error loading SQL build reference" -ErrorRecord $_
+    return
+}
+}
+process {
+    if (Test-FunctionInterrupt) { return }
+
+    #region verifying parameters
+    $ComplianceSpec = @()
+    $ComplianceSpecExclusiveParams = @('Build', 'Kb', @( 'MajorVersion', 'ServicePack', 'CumulativeUpdate'), 'SqlInstance')
+    foreach ($exclParamGroup in $ComplianceSpecExclusiveParams) {
+        foreach ($exclParam in $exclParamGroup) {
+            if (Test-Bound -Parameter $exclParam) {
+                $ComplianceSpec += $exclParam
+                break
             }
-
-            $Detected = @{ }
-            $Detected.MatchType = 'Approximate'
-            $idxCount = $IdxVersion | Measure-Object | Select-Object -ExpandProperty Count
-            Write-Message -Level Verbose -Message "We have $idxCount builds in store for this Release"
-            If ($idxCount -eq 0) {
-                Write-Message -Level Warning -Message "No info in store for this Release"
-                $Detected.Warning = "No info in store for this Release"
+        }
+    }
+    if ($ComplianceSpec.Length -gt 1) {
+        Stop-Function -Category InvalidArgument -Message "$($ComplianceSpec -join ', ') are mutually exclusive. Please choose one or the other. Quitting."
+        return
+    }
+    if ($ComplianceSpec.Length -eq 0) {
+        Stop-Function -Category InvalidArgument -Message "You need to choose at least one parameter."
+        return
+    }
+    if (((Test-Bound -Parameter ServicePack) -or (Test-Bound -Parameter CumulativeUpdate)) -and (Test-Bound -Not -Parameter MajorVersion)) {
+        Stop-Function -Category InvalidArgument -Message "-MajorVersion is required when specifying SP or CU."
+        return
+    }
+    if ($MajorVersion) {
+        if ($MajorVersion -match '^(SQL)?(\d{4}(R2)?)$') {
+            $MajorVersion = $Matches[2]
+        } else {
+            Stop-Function -Message "Incorrect SQL Server version format: use SQL2XXX or just 2XXXX - SQL2012, SQL2008R2"
+            return
+        }
+        if (!$ServicePack) {
+            $ServicePack = 'RTM'
+        }
+        if ($ServicePack -match '^(SP)?\s*(\d+)$') {
+            if ($Matches[2] -eq '0') {
+                $ServicePack = 'RTM'
             } else {
-                $LastVer = $IdxVersion[0]
+                $ServicePack = 'SP' + $Matches[2]
             }
-            foreach ($el in $IdxVersion) {
-                if ($null -ne $el.Name) {
-                    $Detected.Name = $el.Name
-                }
-                if ($Build -and $el.VersionObject -gt $Build) {
-                    $Detected.MatchType = 'Approximate'
-                    $Detected.Warning = "$Build not found, closest build we have is $($LastVer.Version)"
-                    break
-                }
-                $LastVer = $el
-                $Detected.BuildLevel = $el.VersionObject
-                if ($null -ne $el.SP) {
-                    $Detected.SP = $el.SP
-                    $Detected.CU = $null
-                }
-                if ($null -ne $el.CU) {
-                    $Detected.CU = $el.CU
-                }
-                if ($null -ne $el.SupportedUntil) {
-                    $Detected.SupportedUntil = (Get-Date -date $el.SupportedUntil)
-                }
-                $Detected.Build = $el.Version
-                $Detected.KB = $el.KBList
-                if (($Build -and $el.Version -eq $Build) -or ($Kb -and $el.KBList -eq $currentKb)) {
-                    $Detected.MatchType = 'Exact'
-                    break
-                } elseif ($MajorVersion -and $Detected.SP -contains $ServicePack -and (!$CumulativeUpdate -or ($el.CU -and $el.CU -eq $CumulativeUpdate))) {
-                    $Detected.MatchType = 'Exact'
-                    break
-                }
-            }
-            return $Detected
+        } elseif ($ServicePack -notmatch '^RTM$') {
+            Stop-Function -Message "Incorrect SQL Server service pack format: use SPX, X or RTM, where X is a service pack number"
+            return
         }
-        #endregion Helper functions
+        if ($CumulativeUpdate) {
+            if ($CumulativeUpdate -match '^(CU)?\s*(\d+)$') {
+                if ($Matches[2] -eq '0') {
+                    $CumulativeUpdate = ''
+                } else {
+                    $CumulativeUpdate = 'CU' + $Matches[2]
+                }
+            } else {
+                Stop-Function -Message "Incorrect SQL Server cumulative update format: use CUX or X, where X is a cumulative update number"
+                return
+            }
+        }
+    }
+    #endregion verifying parameters
 
-        $moduledirectory = $MyInvocation.MyCommand.Module.ModuleBase
+
+    foreach ($instance in $SqlInstance) {
+        #region Ensure the connection is established
+        try {
+            $server = Connect-SqlInstance -SqlInstance $instance -SqlCredential $SqlCredential
+        } catch {
+            Stop-Function -Message "Failed to process Instance $Instance" -ErrorRecord $_ -Target $instance -Continue
+        }
 
         try {
-            $IdxRef = Get-DbaBuildReferenceIndex -Moduledirectory $moduledirectory -Update $Update -EnableException $EnableException
+            $null = $server.Version.ToString()
         } catch {
-            Stop-Function -Message "Error loading SQL build reference" -ErrorRecord $_
-            return
+            Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $instance -Continue
+        }
+        #endregion Ensure the connection is established
+
+        $Detected = Resolve-DbaBuild -Build $server.Version -Data $IdxRef -EnableException $EnableException
+
+        [PSCustomObject]@{
+            SqlInstance    = $server.DomainInstanceName
+            Build          = $server.Version
+            NameLevel      = $Detected.Name
+            SPLevel        = $Detected.SP
+            CULevel        = $Detected.CU
+            KBLevel        = $Detected.KB
+            BuildLevel     = $Detected.BuildLevel
+            SupportedUntil = $Detected.SupportedUntil
+            MatchType      = $Detected.MatchType
+            Warning        = $Detected.Warning
         }
     }
-    process {
-        if (Test-FunctionInterrupt) { return }
 
-        #region verifying parameters
-        $ComplianceSpec = @()
-        $ComplianceSpecExclusiveParams = @('Build', 'Kb', @( 'MajorVersion', 'ServicePack', 'CumulativeUpdate'), 'SqlInstance')
-        foreach ($exclParamGroup in $ComplianceSpecExclusiveParams) {
-            foreach ($exclParam in $exclParamGroup) {
-                if (Test-Bound -Parameter $exclParam) {
-                    $ComplianceSpec += $exclParam
-                    break
-                }
-            }
-        }
-        if ($ComplianceSpec.Length -gt 1) {
-            Stop-Function -Category InvalidArgument -Message "$($ComplianceSpec -join ', ') are mutually exclusive. Please choose one or the other. Quitting."
-            return
-        }
-        if ($ComplianceSpec.Length -eq 0) {
-            Stop-Function -Category InvalidArgument -Message "You need to choose at least one parameter."
-            return
-        }
-        if (((Test-Bound -Parameter ServicePack) -or (Test-Bound -Parameter CumulativeUpdate)) -and (Test-Bound -Not -Parameter MajorVersion)) {
-            Stop-Function -Category InvalidArgument -Message "-MajorVersion is required when specifying SP or CU."
-            return
-        }
-        if ($MajorVersion) {
-            if ($MajorVersion -match '^(SQL)?(\d{4}(R2)?)$') {
-                $MajorVersion = $Matches[2]
-            } else {
-                Stop-Function -Message "Incorrect SQL Server version format: use SQL2XXX or just 2XXXX - SQL2012, SQL2008R2"
-                return
-            }
-            if (!$ServicePack) {
-                $ServicePack = 'RTM'
-            }
-            if ($ServicePack -match '^(SP)?\s*(\d+)$') {
-                if ($Matches[2] -eq '0') {
-                    $ServicePack = 'RTM'
-                } else {
-                    $ServicePack = 'SP' + $Matches[2]
-                }
-            } elseif ($ServicePack -notmatch '^RTM$') {
-                Stop-Function -Message "Incorrect SQL Server service pack format: use SPX, X or RTM, where X is a service pack number"
-                return
-            }
-            if ($CumulativeUpdate) {
-                if ($CumulativeUpdate -match '^(CU)?\s*(\d+)$') {
-                    if ($Matches[2] -eq '0') {
-                        $CumulativeUpdate = ''
-                    } else {
-                        $CumulativeUpdate = 'CU' + $Matches[2]
-                    }
-                } else {
-                    Stop-Function -Message "Incorrect SQL Server cumulative update format: use CUX or X, where X is a cumulative update number"
-                    return
-                }
-            }
-        }
-        #endregion verifying parameters
+    foreach ($buildstr in $Build) {
+        $Detected = Resolve-DbaBuild -Build $buildstr -Data $IdxRef -EnableException $EnableException
 
+        [PSCustomObject]@{
+            SqlInstance    = $null
+            Build          = $buildstr
+            NameLevel      = $Detected.Name
+            SPLevel        = $Detected.SP
+            CULevel        = $Detected.CU
+            KBLevel        = $Detected.KB
+            BuildLevel     = $Detected.BuildLevel
+            SupportedUntil = $Detected.SupportedUntil
+            MatchType      = $Detected.MatchType
+            Warning        = $Detected.Warning
+        } | Select-DefaultView -ExcludeProperty SqlInstance
+}
 
-        foreach ($instance in $SqlInstance) {
-            #region Ensure the connection is established
-            try {
-                $server = Connect-SqlInstance -SqlInstance $instance -SqlCredential $SqlCredential
-            } catch {
-                Stop-Function -Message "Failed to process Instance $Instance" -ErrorRecord $_ -Target $instance -Continue
-            }
+foreach ($kbItem in $Kb) {
+    $Detected = Resolve-DbaBuild -Kb $kbItem -Data $IdxRef -EnableException $EnableException
 
-            try {
-                $null = $server.Version.ToString()
-            } catch {
-                Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $instance -Continue
-            }
-            #endregion Ensure the connection is established
+    [PSCustomObject]@{
+        SqlInstance    = $null
+        Build          = $Detected.Build
+        NameLevel      = $Detected.Name
+        SPLevel        = $Detected.SP
+        CULevel        = $Detected.CU
+        KBLevel        = $Detected.KB
+        BuildLevel     = $Detected.BuildLevel
+        SupportedUntil = $Detected.SupportedUntil
+        MatchType      = $Detected.MatchType
+        Warning        = $Detected.Warning
+    } | Select-DefaultView -ExcludeProperty SqlInstance
+}
 
-            $Detected = Resolve-DbaBuild -Build $server.Version -Data $IdxRef -EnableException $EnableException
+if ($MajorVersion) {
+    $Detected = Resolve-DbaBuild -MajorVersion $MajorVersion -ServicePack $ServicePack -CumulativeUpdate $CumulativeUpdate -Data $IdxRef -EnableException $EnableException
 
-            [PSCustomObject]@{
-                SqlInstance    = $server.DomainInstanceName
-                Build          = $server.Version
-                NameLevel      = $Detected.Name
-                SPLevel        = $Detected.SP
-                CULevel        = $Detected.CU
-                KBLevel        = $Detected.KB
-                BuildLevel     = $Detected.BuildLevel
-                SupportedUntil = $Detected.SupportedUntil
-                MatchType      = $Detected.MatchType
-                Warning        = $Detected.Warning
-            }
-        }
-
-        foreach ($buildstr in $Build) {
-            $Detected = Resolve-DbaBuild -Build $buildstr -Data $IdxRef -EnableException $EnableException
-
-            [PSCustomObject]@{
-                SqlInstance    = $null
-                Build          = $buildstr
-                NameLevel      = $Detected.Name
-                SPLevel        = $Detected.SP
-                CULevel        = $Detected.CU
-                KBLevel        = $Detected.KB
-                BuildLevel     = $Detected.BuildLevel
-                SupportedUntil = $Detected.SupportedUntil
-                MatchType      = $Detected.MatchType
-                Warning        = $Detected.Warning
-            } | Select-DefaultView -ExcludeProperty SqlInstance
-        }
-
-        foreach ($kbItem in $Kb) {
-            $Detected = Resolve-DbaBuild -Kb $kbItem -Data $IdxRef -EnableException $EnableException
-
-            [PSCustomObject]@{
-                SqlInstance    = $null
-                Build          = $Detected.Build
-                NameLevel      = $Detected.Name
-                SPLevel        = $Detected.SP
-                CULevel        = $Detected.CU
-                KBLevel        = $Detected.KB
-                BuildLevel     = $Detected.BuildLevel
-                SupportedUntil = $Detected.SupportedUntil
-                MatchType      = $Detected.MatchType
-                Warning        = $Detected.Warning
-            } | Select-DefaultView -ExcludeProperty SqlInstance
-        }
-
-        if ($MajorVersion) {
-            $Detected = Resolve-DbaBuild -MajorVersion $MajorVersion -ServicePack $ServicePack -CumulativeUpdate $CumulativeUpdate -Data $IdxRef -EnableException $EnableException
-
-            [PSCustomObject]@{
-                SqlInstance    = $null
-                Build          = $Detected.Build
-                NameLevel      = $Detected.Name
-                SPLevel        = $Detected.SP
-                CULevel        = $Detected.CU
-                KBLevel        = $Detected.KB
-                BuildLevel     = $Detected.BuildLevel
-                SupportedUntil = $Detected.SupportedUntil
-                MatchType      = $Detected.MatchType
-                Warning        = $Detected.Warning
-            } | Select-DefaultView -ExcludeProperty SqlInstance
-        }
-    }
-    end {
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Get-DbaSqlBuildReference
-    }
+    [PSCustomObject]@{
+        SqlInstance    = $null
+        Build          = $Detected.Build
+        NameLevel      = $Detected.Name
+        SPLevel        = $Detected.SP
+        CULevel        = $Detected.CU
+        KBLevel        = $Detected.KB
+        BuildLevel     = $Detected.BuildLevel
+        SupportedUntil = $Detected.SupportedUntil
+        MatchType      = $Detected.MatchType
+        Warning        = $Detected.Warning
+    } | Select-DefaultView -ExcludeProperty SqlInstance
+}
+}
+end {
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Get-DbaSqlBuildReference
+}
 }

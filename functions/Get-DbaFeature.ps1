@@ -72,49 +72,49 @@ function Get-DbaFeature {
         $scriptblock = {
             $setup = Get-ChildItem -Recurse -Include setup.exe -Path "$env:ProgramFiles\Microsoft SQL Server" -ErrorAction SilentlyContinue |
                 Where-Object { $_.FullName -match 'Setup Bootstrap\\SQL' -or $_.FullName -match 'Bootstrap\\Release\\Setup.exe' -or $_.FullName -match 'Bootstrap\\Setup.exe' } |
-                Sort-Object FullName -Descending | Select-Object -First 1
-            if ($setup) {
-                $null = Start-Process -FilePath $setup.FullName -ArgumentList "/Action=RunDiscovery /q" -Wait
-                $parent = Split-Path (Split-Path $setup.Fullname)
-                $xmlfile = Get-ChildItem -Recurse -Include SqlDiscoveryReport.xml -Path $parent | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+                    Sort-Object FullName -Descending | Select-Object -First 1
+        if ($setup) {
+            $null = Start-Process -FilePath $setup.FullName -ArgumentList "/Action=RunDiscovery /q" -Wait
+            $parent = Split-Path (Split-Path $setup.Fullname)
+            $xmlfile = Get-ChildItem -Recurse -Include SqlDiscoveryReport.xml -Path $parent | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 
-                if ($xmlfile) {
-                    $xml = [xml](Get-Content -Path $xmlfile)
-                    $xml.ArrayOfDiscoveryInformation.DiscoveryInformation
+    if ($xmlfile) {
+        $xml = [xml](Get-Content -Path $xmlfile)
+        $xml.ArrayOfDiscoveryInformation.DiscoveryInformation
+    }
+}
+}
+}
+
+process {
+    foreach ($computer in $ComputerName) {
+        try {
+            $results = Invoke-Command2 -ComputerName $Computer -ScriptBlock $scriptblock -Credential $Credential -Raw
+
+            if (-not $results) {
+                Write-Message -Level Verbose -Message "No features found on $computer"
+            }
+
+            foreach ($result in $results) {
+                [pscustomobject]@{
+                    ComputerName = $computer
+                    Product      = $result.Product
+                    Instance     = $result.Instance
+                    InstanceID   = $result.InstanceID
+                    Feature      = $result.Feature
+                    Language     = $result.Language
+                    Edition      = $result.Edition
+                    Version      = $result.Version
+                    Clustered    = $result.Clustered
+                    Configured   = $result.Configured
                 }
             }
+        } catch {
+            Stop-Function -Continue -ErrorRecord $_ -Message "Failure"
         }
     }
-
-    process {
-        foreach ($computer in $ComputerName) {
-            try {
-                $results = Invoke-Command2 -ComputerName $Computer -ScriptBlock $scriptblock -Credential $Credential -Raw
-
-                if (-not $results) {
-                    Write-Message -Level Verbose -Message "No features found on $computer"
-                }
-
-                foreach ($result in $results) {
-                    [pscustomobject]@{
-                        ComputerName = $computer
-                        Product      = $result.Product
-                        Instance     = $result.Instance
-                        InstanceID   = $result.InstanceID
-                        Feature      = $result.Feature
-                        Language     = $result.Language
-                        Edition      = $result.Edition
-                        Version      = $result.Version
-                        Clustered    = $result.Clustered
-                        Configured   = $result.Configured
-                    }
-                }
-            } catch {
-                Stop-Function -Continue -ErrorRecord $_ -Message "Failure"
-            }
-        }
-    }
-    end {
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Get-DbaSqlFeature
-    }
+}
+end {
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Get-DbaSqlFeature
+}
 }

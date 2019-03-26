@@ -42,7 +42,7 @@ Function Uninstall-DbaSqlWatch {
         Uninstall-DbaSqlWatch -SqlInstance server1
 
         Deletes all user objects, agent jobs, and historical data associated with SqlWatch from the master database.
-       #>
+    #>
     [CmdletBinding(SupportsShouldProcess, ConfirmImpact = "Low")]
     param (
         [Parameter(Mandatory, ValueFromPipeline)]
@@ -85,84 +85,84 @@ Function Uninstall-DbaSqlWatch {
             }
 
             # get SqlWatch objects
-            $tables = Get-DbaDbTable -SqlInstance $server -Database $Database | Where-Object {$PSItem.Name -like "sql_perf_mon_*" -or $PSItem.Name -like "logger_*" }
-            $views = Get-DbaDbView -SqlInstance $server -Database $Database | Where-Object {$PSItem.Name -like "vw_sql_perf_mon_*" }
-            $sprocs = Get-DbaDbStoredProcedure -SqlInstance $server -Database $Database | Where-Object {$PSItem.Name -like "sp_sql_perf_mon_*" -or $PSItem.Name -like "usp_logger_*" }
-            $agentJobs = Get-DbaAgentJob -SqlInstance $server | Where-Object { ($PSItem.Name -like "SqlWatch-*") -or ($PSItem.Name -like "DBA-PERF-*") }
+            $tables = Get-DbaDbTable -SqlInstance $server -Database $Database | Where-Object { $PSItem.Name -like "sql_perf_mon_*" -or $PSItem.Name -like "logger_*" }
+        $views = Get-DbaDbView -SqlInstance $server -Database $Database | Where-Object { $PSItem.Name -like "vw_sql_perf_mon_*" }
+    $sprocs = Get-DbaDbStoredProcedure -SqlInstance $server -Database $Database | Where-Object { $PSItem.Name -like "sp_sql_perf_mon_*" -or $PSItem.Name -like "usp_logger_*" }
+$agentJobs = Get-DbaAgentJob -SqlInstance $server | Where-Object { ($PSItem.Name -like "SqlWatch-*") -or ($PSItem.Name -like "DBA-PERF-*") }
 
-            if ($PSCmdlet.ShouldProcess($server, "Removing SqlWatch SQL Agent jobs")) {
-                try {
-                    Write-Message -Level Verbose -Message "Removing SQL Agent jobs from $server."
-                    $agentJobs | Remove-DbaAgentJob | Out-Null
-                } catch {
-                    Stop-Function -Message "Could not remove all SqlWatch Agent Jobs on $server." -ErrorRecord $_ -Target $server -Continue
-                }
-            }
+if ($PSCmdlet.ShouldProcess($server, "Removing SqlWatch SQL Agent jobs")) {
+    try {
+        Write-Message -Level Verbose -Message "Removing SQL Agent jobs from $server."
+        $agentJobs | Remove-DbaAgentJob | Out-Null
+} catch {
+    Stop-Function -Message "Could not remove all SqlWatch Agent Jobs on $server." -ErrorRecord $_ -Target $server -Continue
+}
+}
 
-            if ($PSCmdlet.ShouldProcess($server, "Removing SqlWatch stored procedures")) {
-                try {
-                    Write-Message -Level Verbose -Message "Removing SqlWatch stored procedures from $database on $server."
-                    $dropScript = ""
-                    $sprocs | ForEach-Object {
-                        $dropScript += "DROP PROCEDURE $($PSItem.Name);`n"
-                    }
-                    if ($dropScript) {
-                        Invoke-DbaQuery -SqlInstance $server -Database $Database -Query $dropScript
-                    }
-                } catch {
-                    Stop-Function -Message "Could not remove all SqlWatch stored procedures from $database on $server." -ErrorRecord $_ -Target $server -Continue
-                }
-            }
-
-            if ($PSCmdlet.ShouldProcess($server, "Removing SqlWatch views")) {
-                try {
-                    Write-Message -Level Verbose -Message "Removing SqlWatch views from $database on $server."
-                    $dropScript = ""
-                    $views | ForEach-Object {
-                        $dropScript += "DROP VIEW $($PSItem.Name);`n"
-                    }
-                    if ($dropScript) {
-                        Invoke-DbaQuery -SqlInstance $server -Database $Database -Query $dropScript
-                    }
-                } catch {
-                    Stop-Function -Message "Could not remove all SqlWatch views from $database on $server." -ErrorRecord $_ -Target $server -Continue
-                }
-            }
-
-            if ($PSCmdlet.ShouldProcess($server, "Removing SqlWatch tables")) {
-                try {
-                    Write-Message -Level Verbose -Message "Removing foreign keys from SqlWatch tables in $database on $server."
-                    if ($tables.ForeignKeys) {
-                        $tables.ForeignKeys | ForEach-Object { $PSItem.Drop() }
-                    }
-                } catch {
-                    Stop-Function -Message "Could not remove all foreign keys from SqlWatch tables in $database on $server." -ErrorRecord $_ -Target $server -Continue
-                }
-
-                try {
-                    Write-Message -Level Verbose -Message "Removing SqlWatch tables from $database on $server."
-                    $dropScript = ""
-                    $tables | ForEach-Object {
-                        $dropScript += "DROP TABLE $($PSItem.Name);`n"
-                    }
-                    if ($dropScript) {
-                        Invoke-DbaQuery -SqlInstance $server -Database $Database -Query $dropScript
-                    }
-                } catch {
-                    Stop-Function -Message "Could not remove all SqlWatch tables from $database on $server." -ErrorRecord $_ -Target $server -Continue
-                }
-            }
-
-            if ($PSCmdlet.ShouldProcess($server, "Unpublishing DACPAC")) {
-                try {
-                    Write-Message -Level Verbose -Message "Unpublishing SqlWatch DACPAC from $database on $server."
-                    $connectionString = $server | Select-Object -ExpandProperty ConnectionContext
-                    $dacServices = New-Object Microsoft.SqlServer.Dac.DacServices $connectionString
-                    $dacServices.Unregister($Database)
-                } catch {
-                    Stop-Function -Message "Failed to unpublish SqlWatch DACPAC from $database on $server." -ErrorRecord $_
-                }
-            }
+if ($PSCmdlet.ShouldProcess($server, "Removing SqlWatch stored procedures")) {
+    try {
+        Write-Message -Level Verbose -Message "Removing SqlWatch stored procedures from $database on $server."
+        $dropScript = ""
+        $sprocs | ForEach-Object {
+            $dropScript += "DROP PROCEDURE $($PSItem.Name);`n"
         }
+    if ($dropScript) {
+        Invoke-DbaQuery -SqlInstance $server -Database $Database -Query $dropScript
     }
+} catch {
+    Stop-Function -Message "Could not remove all SqlWatch stored procedures from $database on $server." -ErrorRecord $_ -Target $server -Continue
+}
+}
+
+if ($PSCmdlet.ShouldProcess($server, "Removing SqlWatch views")) {
+    try {
+        Write-Message -Level Verbose -Message "Removing SqlWatch views from $database on $server."
+        $dropScript = ""
+        $views | ForEach-Object {
+            $dropScript += "DROP VIEW $($PSItem.Name);`n"
+        }
+    if ($dropScript) {
+        Invoke-DbaQuery -SqlInstance $server -Database $Database -Query $dropScript
+    }
+} catch {
+    Stop-Function -Message "Could not remove all SqlWatch views from $database on $server." -ErrorRecord $_ -Target $server -Continue
+}
+}
+
+if ($PSCmdlet.ShouldProcess($server, "Removing SqlWatch tables")) {
+    try {
+        Write-Message -Level Verbose -Message "Removing foreign keys from SqlWatch tables in $database on $server."
+        if ($tables.ForeignKeys) {
+            $tables.ForeignKeys | ForEach-Object { $PSItem.Drop() }
+    }
+} catch {
+    Stop-Function -Message "Could not remove all foreign keys from SqlWatch tables in $database on $server." -ErrorRecord $_ -Target $server -Continue
+}
+
+try {
+    Write-Message -Level Verbose -Message "Removing SqlWatch tables from $database on $server."
+    $dropScript = ""
+    $tables | ForEach-Object {
+        $dropScript += "DROP TABLE $($PSItem.Name);`n"
+    }
+if ($dropScript) {
+    Invoke-DbaQuery -SqlInstance $server -Database $Database -Query $dropScript
+}
+} catch {
+    Stop-Function -Message "Could not remove all SqlWatch tables from $database on $server." -ErrorRecord $_ -Target $server -Continue
+}
+}
+
+if ($PSCmdlet.ShouldProcess($server, "Unpublishing DACPAC")) {
+    try {
+        Write-Message -Level Verbose -Message "Unpublishing SqlWatch DACPAC from $database on $server."
+        $connectionString = $server | Select-Object -ExpandProperty ConnectionContext
+    $dacServices = New-Object Microsoft.SqlServer.Dac.DacServices $connectionString
+    $dacServices.Unregister($Database)
+} catch {
+    Stop-Function -Message "Failed to unpublish SqlWatch DACPAC from $database on $server." -ErrorRecord $_
+}
+}
+}
+}
 }

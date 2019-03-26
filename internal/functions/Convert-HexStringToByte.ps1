@@ -33,5 +33,5 @@ function Convert-HexStringToByte {
     $hexString = $InputObject.TrimStart("0x")
     if ($hexString.Length % 2 -eq 1) { $hexString = '0' + $hexString }
     [byte[]]$outByte = $null; $outByte += 0 .. (($hexString.Length) / 2 - 1) | ForEach-Object { [Int16]::Parse($hexString.Substring($_ * 2, 2), 'HexNumber') }
-    Return $outByte
+Return $outByte
 }

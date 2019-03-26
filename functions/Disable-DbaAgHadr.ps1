@@ -102,40 +102,40 @@ function Disable-DbaAgHadr {
             $scriptblock = {
                 $instance = $args[0]
                 $sqlService = $wmi.Services | Where-Object DisplayName -eq "SQL Server ($instance)"
-                $sqlService.ChangeHadrServiceSetting(0)
+            $sqlService.ChangeHadrServiceSetting(0)
+        }
+
+        if ($noChange -eq $false) {
+            if ($PSCmdlet.ShouldProcess($instance, "Changing Hadr from $isHadrEnabled to 0 for $instance")) {
+                try {
+                    Invoke-ManagedComputerCommand -ComputerName $computerFullName -Credential $Credential -ScriptBlock $scriptblock -ArgumentList $instancename
+                } catch {
+                    Stop-Function -Continue -Message "Failure on $($instance.FullName) | This may be because AlwaysOn Availability Groups feature requires the x86(non-WOW) or x64 Enterprise Edition of SQL Server 2012 (or later version) running on Windows Server 2008 (or later version) with WSFC hotfix KB 2494036 installed."
+                }
+            }
+            if (Test-Bound 'Force') {
+                if ($PSCmdlet.ShouldProcess($instance, "Force provided, restarting Engine and Agent service for $instance on $computerFullName")) {
+                    try {
+                        $null = Stop-DbaService -ComputerName $computerFullName -InstanceName $instanceName -Type Agent, Engine
+                        $null = Start-DbaService -ComputerName $computerFullName -InstanceName $instanceName -Type Agent, Engine
+                    } catch {
+                        Stop-Function -Message "Issue restarting $instance" -Target $instance -Continue
+                    }
+                }
+            }
+            $newState = Get-WmiHadr -SqlInstance $instance -Credential $Credential
+
+            if (Test-Bound -Not -ParameterName Force) {
+                Write-Message -Level Warning -Message "You must restart the SQL Server for it to take effect."
             }
 
-            if ($noChange -eq $false) {
-                if ($PSCmdlet.ShouldProcess($instance, "Changing Hadr from $isHadrEnabled to 0 for $instance")) {
-                    try {
-                        Invoke-ManagedComputerCommand -ComputerName $computerFullName -Credential $Credential -ScriptBlock $scriptblock -ArgumentList $instancename
-                    } catch {
-                        Stop-Function -Continue -Message "Failure on $($instance.FullName) | This may be because AlwaysOn Availability Groups feature requires the x86(non-WOW) or x64 Enterprise Edition of SQL Server 2012 (or later version) running on Windows Server 2008 (or later version) with WSFC hotfix KB 2494036 installed."
-                    }
-                }
-                if (Test-Bound 'Force') {
-                    if ($PSCmdlet.ShouldProcess($instance, "Force provided, restarting Engine and Agent service for $instance on $computerFullName")) {
-                        try {
-                            $null = Stop-DbaService -ComputerName $computerFullName -InstanceName $instanceName -Type Agent, Engine
-                            $null = Start-DbaService -ComputerName $computerFullName -InstanceName $instanceName -Type Agent, Engine
-                        } catch {
-                            Stop-Function -Message "Issue restarting $instance" -Target $instance -Continue
-                        }
-                    }
-                }
-                $newState = Get-WmiHadr -SqlInstance $instance -Credential $Credential
-
-                if (Test-Bound -Not -ParameterName Force) {
-                    Write-Message -Level Warning -Message "You must restart the SQL Server for it to take effect."
-                }
-
-                [PSCustomObject]@{
-                    ComputerName  = $newState.ComputerName
-                    InstanceName  = $newState.InstanceName
-                    SqlInstance   = $newState.SqlInstance
-                    IsHadrEnabled = $false
-                }
+            [PSCustomObject]@{
+                ComputerName  = $newState.ComputerName
+                InstanceName  = $newState.InstanceName
+                SqlInstance   = $newState.SqlInstance
+                IsHadrEnabled = $false
             }
         }
     }
+}
 }

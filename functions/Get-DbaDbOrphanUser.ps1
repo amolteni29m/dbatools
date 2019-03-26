@@ -79,52 +79,52 @@ function Get-DbaDbOrphanUser {
             }
             $DatabaseCollection = $server.Databases | Where-Object IsAccessible
 
-            if ($Database) {
-                $DatabaseCollection = $DatabaseCollection | Where-Object Name -In $Database
-            }
-            if ($ExcludeDatabase) {
-                $DatabaseCollection = $DatabaseCollection | Where-Object Name -NotIn $ExcludeDatabase
-            }
+        if ($Database) {
+            $DatabaseCollection = $DatabaseCollection | Where-Object Name -In $Database
+    }
+    if ($ExcludeDatabase) {
+        $DatabaseCollection = $DatabaseCollection | Where-Object Name -NotIn $ExcludeDatabase
+}
 
-            if ($DatabaseCollection.Count -gt 0) {
-                foreach ($db in $DatabaseCollection) {
-                    try {
-                        #if SQL 2012 or higher only validate databases with ContainmentType = NONE
-                        if ($server.versionMajor -gt 10) {
-                            if ($db.ContainmentType -ne [Microsoft.SqlServer.Management.Smo.ContainmentType]::None) {
-                                Write-Message -Level Warning -Message "Database '$db' is a contained database. Contained databases can't have orphaned users. Skipping validation."
-                                Continue
-                            }
-                        }
-                        Write-Message -Level Verbose -Message "Validating users on database '$db'."
-                        $UsersToWork = $db.Users | Where-Object { $_.Login -eq "" -and ($_.ID -gt 4) -and (($_.Sid.Length -gt 16 -and $_.LoginType -in @([Microsoft.SqlServer.Management.Smo.LoginType]::SqlLogin, [Microsoft.SqlServer.Management.Smo.LoginType]::Certificate)) -eq $false) }
-
-                        if ($UsersToWork.Count -gt 0) {
-                            Write-Message -Level Verbose -Message "Orphan users found"
-                            foreach ($user in $UsersToWork) {
-                                [PSCustomObject]@{
-                                    ComputerName = $server.ComputerName
-                                    InstanceName = $server.ServiceName
-                                    SqlInstance  = $server.DomainInstanceName
-                                    DatabaseName = $db.Name
-                                    User         = $user.Name
-                                }
-                            }
-                        } else {
-                            Write-Message -Level Verbose -Message "No orphan users found on database '$db'."
-                        }
-                        #reset collection
-                        $UsersToWork = $null
-                    } catch {
-                        Stop-Function -Message $_ -Continue
-                    }
+if ($DatabaseCollection.Count -gt 0) {
+    foreach ($db in $DatabaseCollection) {
+        try {
+            #if SQL 2012 or higher only validate databases with ContainmentType = NONE
+            if ($server.versionMajor -gt 10) {
+                if ($db.ContainmentType -ne [Microsoft.SqlServer.Management.Smo.ContainmentType]::None) {
+                    Write-Message -Level Warning -Message "Database '$db' is a contained database. Contained databases can't have orphaned users. Skipping validation."
+                    Continue
                 }
-            } else {
-                Write-Message -Level VeryVerbose -Message "There are no databases to analyse."
             }
+            Write-Message -Level Verbose -Message "Validating users on database '$db'."
+            $UsersToWork = $db.Users | Where-Object { $_.Login -eq "" -and ($_.ID -gt 4) -and (($_.Sid.Length -gt 16 -and $_.LoginType -in @([Microsoft.SqlServer.Management.Smo.LoginType]::SqlLogin, [Microsoft.SqlServer.Management.Smo.LoginType]::Certificate)) -eq $false) }
+
+        if ($UsersToWork.Count -gt 0) {
+            Write-Message -Level Verbose -Message "Orphan users found"
+            foreach ($user in $UsersToWork) {
+                [PSCustomObject]@{
+                    ComputerName = $server.ComputerName
+                    InstanceName = $server.ServiceName
+                    SqlInstance  = $server.DomainInstanceName
+                    DatabaseName = $db.Name
+                    User         = $user.Name
+                }
+            }
+        } else {
+            Write-Message -Level Verbose -Message "No orphan users found on database '$db'."
         }
+        #reset collection
+        $UsersToWork = $null
+    } catch {
+        Stop-Function -Message $_ -Continue
     }
-    end {
-        Test-DbaDeprecation -DeprecatedOn 1.0.0 -Alias Get-DbaOrphanUser
-    }
+}
+} else {
+    Write-Message -Level VeryVerbose -Message "There are no databases to analyse."
+}
+}
+}
+end {
+    Test-DbaDeprecation -DeprecatedOn 1.0.0 -Alias Get-DbaOrphanUser
+}
 }

@@ -64,7 +64,7 @@ function Test-DbaDbRecoveryModel {
 
         Shows all of the properties for the databases that have Full Recovery Model
 
-       #>
+    #>
     [CmdletBinding()]
     [OutputType("System.Collections.ArrayList")]
     param (
@@ -90,9 +90,9 @@ function Test-DbaDbRecoveryModel {
         }
 
         switch ($RecoveryModel) {
-            "Full" {$recoveryCode = 1}
-            "Bulk_Logged" {$recoveryCode = 2}
-            "Simple" {$recoveryCode = 3}
+            "Full" { $recoveryCode = 1 }
+            "Bulk_Logged" { $recoveryCode = 2 }
+            "Simple" { $recoveryCode = 3 }
         }
 
         $sqlRecoveryModel = "SELECT  SERVERPROPERTY('MachineName') AS ComputerName,
@@ -153,13 +153,13 @@ function Test-DbaDbRecoveryModel {
                         ConfiguredRecoveryModel = $row.RecoveryModelDesc
                         ActualRecoveryModel     = $ActualRecoveryModel
                     } | Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, Database, ConfiguredRecoveryModel, ActualRecoveryModel
-                }
-            } catch {
-                Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $instance -Continue
             }
+        } catch {
+            Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $instance -Continue
         }
     }
-    end {
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -Alias Test-DbaRecoveryModel
-    }
+}
+end {
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -Alias Test-DbaRecoveryModel
+}
 }

@@ -106,8 +106,8 @@ function Get-DbaPfDataCollectorCounterSample {
         [switch]$EnableException
     )
     process {
-        
-        
+
+
         if ($InputObject.Credential -and (Test-Bound -ParameterName Credential -Not)) {
             $Credential = $InputObject.Credential
         }
@@ -191,9 +191,9 @@ function Get-DbaPfDataCollectorCounterSample {
                             Sample                 = $pscounter.CounterSamples
                             CounterSampleObject    = $true
                         } | Select-DefaultView -ExcludeProperty Sample, CounterSampleObject
-                    }
                 }
             }
         }
     }
+}
 }

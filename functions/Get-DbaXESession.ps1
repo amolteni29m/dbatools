@@ -81,36 +81,36 @@ function Get-DbaXESession {
 
             if ($Session) {
                 $xesessions = $xesessions | Where-Object { $_.Name -in $Session }
+        }
+
+        foreach ($x in $xesessions) {
+            $status = switch ($x.IsRunning) { $true { "Running" } $false { "Stopped" } }
+            $files = $x.Targets.TargetFields | Where-Object Name -eq Filename | Select-Object -ExpandProperty Value
+
+    $filecollection = $remotefile = @()
+
+    if ($files) {
+        foreach ($file in $files) {
+            if ($file -notmatch ':\\' -and $file -notmatch '\\\\') {
+                $directory = $server.ErrorLogPath.TrimEnd("\")
+                $file = "$directory\$file"
             }
-
-            foreach ($x in $xesessions) {
-                $status = switch ($x.IsRunning) { $true { "Running" } $false { "Stopped" } }
-                $files = $x.Targets.TargetFields | Where-Object Name -eq Filename | Select-Object -ExpandProperty Value
-
-                $filecollection = $remotefile = @()
-
-                if ($files) {
-                    foreach ($file in $files) {
-                        if ($file -notmatch ':\\' -and $file -notmatch '\\\\') {
-                            $directory = $server.ErrorLogPath.TrimEnd("\")
-                            $file = "$directory\$file"
-                        }
-                        $filecollection += $file
-                        $remotefile += Join-AdminUnc -servername $server.ComputerName -filepath $file
-                    }
-                }
-
-                Add-Member -Force -InputObject $x -MemberType NoteProperty -Name ComputerName -Value $server.ComputerName
-                Add-Member -Force -InputObject $x -MemberType NoteProperty -Name InstanceName -Value $server.ServiceName
-                Add-Member -Force -InputObject $x -MemberType NoteProperty -Name SqlInstance -Value $server.DomainInstanceName
-                Add-Member -Force -InputObject $x -MemberType NoteProperty -Name Status -Value $status
-                Add-Member -Force -InputObject $x -MemberType NoteProperty -Name Session -Value $x.Name
-                Add-Member -Force -InputObject $x -MemberType NoteProperty -Name TargetFile -Value $filecollection
-                Add-Member -Force -InputObject $x -MemberType NoteProperty -Name RemoteTargetFile -Value $remotefile
-                Add-Member -Force -InputObject $x -MemberType NoteProperty -Name Parent -Value $server
-                Add-Member -Force -InputObject $x -MemberType NoteProperty -Name Store -Value $XEStore
-                Select-DefaultView -InputObject $x -Property ComputerName, InstanceName, SqlInstance, Name, Status, StartTime, AutoStart, State, Targets, TargetFile, Events, MaxMemory, MaxEventSize
-            }
+            $filecollection += $file
+            $remotefile += Join-AdminUnc -servername $server.ComputerName -filepath $file
         }
     }
+
+    Add-Member -Force -InputObject $x -MemberType NoteProperty -Name ComputerName -Value $server.ComputerName
+    Add-Member -Force -InputObject $x -MemberType NoteProperty -Name InstanceName -Value $server.ServiceName
+    Add-Member -Force -InputObject $x -MemberType NoteProperty -Name SqlInstance -Value $server.DomainInstanceName
+    Add-Member -Force -InputObject $x -MemberType NoteProperty -Name Status -Value $status
+    Add-Member -Force -InputObject $x -MemberType NoteProperty -Name Session -Value $x.Name
+    Add-Member -Force -InputObject $x -MemberType NoteProperty -Name TargetFile -Value $filecollection
+    Add-Member -Force -InputObject $x -MemberType NoteProperty -Name RemoteTargetFile -Value $remotefile
+    Add-Member -Force -InputObject $x -MemberType NoteProperty -Name Parent -Value $server
+    Add-Member -Force -InputObject $x -MemberType NoteProperty -Name Store -Value $XEStore
+    Select-DefaultView -InputObject $x -Property ComputerName, InstanceName, SqlInstance, Name, Status, StartTime, AutoStart, State, Targets, TargetFile, Events, MaxMemory, MaxEventSize
+}
+}
+}
 }

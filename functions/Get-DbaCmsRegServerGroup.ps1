@@ -134,28 +134,28 @@ function Get-DbaCmsRegServerGroup {
                 $excluded = Get-DbaCmsRegServer -SqlInstance $serverstore.ParentServer -Group $ExcludeGroup
                 Write-Message -Level Verbose -Message "Excluding $ExcludeGroup"
                 $groups = $groups | Where-Object { $_.Urn.Value -notin $excluded.Urn.Value }
-            }
-
-            if ($Id) {
-                Write-Message -Level Verbose -Message "Filtering for id $Id. Id 1 = default."
-                if ($Id -eq 1) {
-                    $groups = $serverstore.DatabaseEngineServerGroup | Where-Object Id -in $Id
-                } else {
-                    $groups = $serverstore.DatabaseEngineServerGroup.GetDescendantRegisteredServers().Parent | Where-Object Id -in $Id
-                }
-            }
-            $serverstore.ServerConnection.Disconnect()
-            foreach ($groupobject in $groups) {
-                Add-Member -Force -InputObject $groupobject -MemberType NoteProperty -Name ComputerName -value $serverstore.ComputerName
-                Add-Member -Force -InputObject $groupobject -MemberType NoteProperty -Name InstanceName -value $serverstore.InstanceName
-                Add-Member -Force -InputObject $groupobject -MemberType NoteProperty -Name SqlInstance -value $serverstore.SqlInstance
-                Add-Member -Force -InputObject $groupobject -MemberType NoteProperty -Name ParentServer -value $serverstore.ParentServer
-
-                Select-DefaultView -InputObject $groupobject -Property ComputerName, InstanceName, SqlInstance, Name, DisplayName, Description, ServerGroups, RegisteredServers
-            }
         }
+
+        if ($Id) {
+            Write-Message -Level Verbose -Message "Filtering for id $Id. Id 1 = default."
+            if ($Id -eq 1) {
+                $groups = $serverstore.DatabaseEngineServerGroup | Where-Object Id -in $Id
+        } else {
+            $groups = $serverstore.DatabaseEngineServerGroup.GetDescendantRegisteredServers().Parent | Where-Object Id -in $Id
     }
-    end {
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -Alias Get-DbaRegisteredServerGroup
-    }
+}
+$serverstore.ServerConnection.Disconnect()
+foreach ($groupobject in $groups) {
+    Add-Member -Force -InputObject $groupobject -MemberType NoteProperty -Name ComputerName -value $serverstore.ComputerName
+    Add-Member -Force -InputObject $groupobject -MemberType NoteProperty -Name InstanceName -value $serverstore.InstanceName
+    Add-Member -Force -InputObject $groupobject -MemberType NoteProperty -Name SqlInstance -value $serverstore.SqlInstance
+    Add-Member -Force -InputObject $groupobject -MemberType NoteProperty -Name ParentServer -value $serverstore.ParentServer
+
+    Select-DefaultView -InputObject $groupobject -Property ComputerName, InstanceName, SqlInstance, Name, DisplayName, Description, ServerGroups, RegisteredServers
+}
+}
+}
+end {
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -Alias Get-DbaRegisteredServerGroup
+}
 }

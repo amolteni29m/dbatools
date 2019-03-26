@@ -81,7 +81,7 @@ function Set-DbaDbRecoveryModel {
 
         Sets the Recovery Model to BulkLogged for [TestDB1] and [TestDB2] databases on SQL Server instance sql2014. Runs without asking for confirmation.
 
-       #>
+    #>
     [CmdletBinding(DefaultParameterSetName = "Default", SupportsShouldProcess, ConfirmImpact = 'High')]
     param (
         [parameter(Mandatory, ParameterSetName = "Instance")]
@@ -115,34 +115,34 @@ function Set-DbaDbRecoveryModel {
             $systemdbs = @("tempdb")
             $databases = $server.Databases | Where-Object { $systemdbs -notcontains $_.Name -and $_.IsAccessible }
 
-            # filter collection based on -Database/-Exclude parameters
-            if ($Database) {
-                $databases = $databases | Where-Object Name -In $Database
-            }
+        # filter collection based on -Database/-Exclude parameters
+        if ($Database) {
+            $databases = $databases | Where-Object Name -In $Database
+    }
 
-            if ($ExcludeDatabase) {
-                $databases = $databases | Where-Object Name -NotIn $ExcludeDatabase
-            }
+    if ($ExcludeDatabase) {
+        $databases = $databases | Where-Object Name -NotIn $ExcludeDatabase
+}
 
-            if (!$databases) {
-                Stop-Function -Message "The database(s) you specified do not exist on the instance $instance."
-                return
-            }
+if (!$databases) {
+    Stop-Function -Message "The database(s) you specified do not exist on the instance $instance."
+    return
+}
 
-            $InputObject += $databases
-        }
+$InputObject += $databases
+}
 
-        foreach ($db in $InputObject) {
-            if ($db.RecoveryModel -eq $RecoveryModel) {
-                Stop-Function -Message "Recovery Model for database $db is already set to $RecoveryModel" -Category ConnectionError -Target $instance -Continue
-            } else {
-                if ($Pscmdlet.ShouldProcess("$db on $instance", "ALTER DATABASE $db SET RECOVERY $RecoveryModel")) {
-                    $db.RecoveryModel = $RecoveryModel
-                    $db.Alter()
-                    Write-Message -Level Verbose -Message "Recovery Model set to $RecoveryModel for database $db"
-                }
-            }
-            Get-DbaDbRecoveryModel -SqlInstance $db.Parent -Database $db.name
+foreach ($db in $InputObject) {
+    if ($db.RecoveryModel -eq $RecoveryModel) {
+        Stop-Function -Message "Recovery Model for database $db is already set to $RecoveryModel" -Category ConnectionError -Target $instance -Continue
+    } else {
+        if ($Pscmdlet.ShouldProcess("$db on $instance", "ALTER DATABASE $db SET RECOVERY $RecoveryModel")) {
+            $db.RecoveryModel = $RecoveryModel
+            $db.Alter()
+            Write-Message -Level Verbose -Message "Recovery Model set to $RecoveryModel for database $db"
         }
     }
+    Get-DbaDbRecoveryModel -SqlInstance $db.Parent -Database $db.name
+}
+}
 }

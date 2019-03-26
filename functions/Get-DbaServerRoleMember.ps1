@@ -116,48 +116,48 @@ function Get-DbaServerRoleMember {
                 }
 
                 $loginRoles = $loginRoles | Select-Object -Unique
-                Write-Message -Level 'Verbose' -Message "Filtering by roles: $($loginRoles -join ', ')"
+            Write-Message -Level 'Verbose' -Message "Filtering by roles: $($loginRoles -join ', ')"
 
-                $roles = $roles | Where-Object { $_.Name -in $loginRoles }
-            }
-
-            if (Test-Bound -ParameterName 'ServerRole') {
-                $roles = $roles | Where-Object { $_.Name -in $ServerRole }
-            }
-
-            if (Test-Bound -ParameterName 'ExcludeServerRole') {
-                $roles = $roles | Where-Object { $_.Name -notin $ExcludeServerRole }
-            }
-
-            if (Test-Bound -ParameterName 'ExcludeFixedRole') {
-                $roles = $roles | Where-Object { $_.IsFixedRole -eq $false }
-            }
-
-            foreach ($role in $roles) {
-                Write-Message -Level 'Verbose' -Message "Getting Server Role Members for $role on $instance"
-
-                $members = $role.EnumMemberNames()
-                Write-Message -Level 'Verbose' -Message "$role members: $($members -join ', ')"
-
-                if (Test-Bound -ParameterName 'Login') {
-                    Write-Message -Level 'Verbose' -Message "Only returning results for $($logins.Name -join ', ')"
-                    $members = $members | Where-Object { $_ -in $logins.Name }
-                }
-
-                foreach ($member in $members) {
-                    $l = $server.Logins | Where-Object { $_.Name -eq $member }
-
-                    if ($l) {
-                        Add-Member -Force -InputObject $l -MemberType NoteProperty -Name ComputerName -Value $server.ComputerName
-                        Add-Member -Force -InputObject $l -MemberType NoteProperty -Name InstanceName -Value $server.ServiceName
-                        Add-Member -Force -InputObject $l -MemberType NoteProperty -Name SqlInstance -Value $server.DomainInstanceName
-                        Add-Member -Force -InputObject $l -MemberType NoteProperty -Name Role -Value $role.Name
-
-                        # Select object because Select-DefaultView causes strange behaviors when assigned to a variable (??)
-                        Select-Object -InputObject $l -Property 'ComputerName', 'InstanceName', 'SqlInstance', 'Role', 'Name'
-                    }
-                }
-            }
-        }
+            $roles = $roles | Where-Object { $_.Name -in $loginRoles }
     }
+
+    if (Test-Bound -ParameterName 'ServerRole') {
+        $roles = $roles | Where-Object { $_.Name -in $ServerRole }
+}
+
+if (Test-Bound -ParameterName 'ExcludeServerRole') {
+    $roles = $roles | Where-Object { $_.Name -notin $ExcludeServerRole }
+}
+
+if (Test-Bound -ParameterName 'ExcludeFixedRole') {
+    $roles = $roles | Where-Object { $_.IsFixedRole -eq $false }
+}
+
+foreach ($role in $roles) {
+    Write-Message -Level 'Verbose' -Message "Getting Server Role Members for $role on $instance"
+
+    $members = $role.EnumMemberNames()
+    Write-Message -Level 'Verbose' -Message "$role members: $($members -join ', ')"
+
+    if (Test-Bound -ParameterName 'Login') {
+        Write-Message -Level 'Verbose' -Message "Only returning results for $($logins.Name -join ', ')"
+        $members = $members | Where-Object { $_ -in $logins.Name }
+}
+
+foreach ($member in $members) {
+    $l = $server.Logins | Where-Object { $_.Name -eq $member }
+
+if ($l) {
+    Add-Member -Force -InputObject $l -MemberType NoteProperty -Name ComputerName -Value $server.ComputerName
+    Add-Member -Force -InputObject $l -MemberType NoteProperty -Name InstanceName -Value $server.ServiceName
+    Add-Member -Force -InputObject $l -MemberType NoteProperty -Name SqlInstance -Value $server.DomainInstanceName
+    Add-Member -Force -InputObject $l -MemberType NoteProperty -Name Role -Value $role.Name
+
+    # Select object because Select-DefaultView causes strange behaviors when assigned to a variable (??)
+    Select-Object -InputObject $l -Property 'ComputerName', 'InstanceName', 'SqlInstance', 'Role', 'Name'
+}
+}
+}
+}
+}
 }

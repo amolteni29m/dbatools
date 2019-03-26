@@ -156,53 +156,53 @@ function Test-DbaIdentityUsage {
 
             if ($Database) {
                 $dbs = $dbs | Where-Object Name -In $Database
-            }
-
-            if ($ExcludeDatabase) {
-                $dbs = $dbs | Where-Object Name -NotIn $ExcludeDatabase
-            }
-
-            if ($ExcludeSystem) {
-                $dbs = $dbs | Where-Object IsSystemObject -EQ $false
-            }
-
-            foreach ($db in $dbs) {
-                Write-Message -Level Verbose -Message "Processing $db on $instance"
-
-                if ($db.IsAccessible -eq $false) {
-                    Stop-Function -Message "The database $db is not accessible. Skipping." -Continue
-                }
-
-                try {
-                    $results = $db.Query($sql)
-                } catch {
-                    Stop-Function -Message "Error capturing data on $db" -Target $instance -ErrorRecord $_ -Exception $_.Exception -Continue
-                }
-
-                foreach ($row in $results) {
-                    if ($row.PercentUsed -eq [System.DBNull]::Value) {
-                        continue
-                    }
-
-                    if ($row.PercentUsed -ge $threshold) {
-                        [PSCustomObject]@{
-                            ComputerName   = $server.ComputerName
-                            InstanceName   = $server.ServiceName
-                            SqlInstance    = $server.DomainInstanceName
-                            Database       = $row.DatabaseName
-                            Schema         = $row.SchemaName
-                            Table          = $row.TableName
-                            Column         = $row.ColumnName
-                            SeedValue      = $row.SeedValue
-                            IncrementValue = $row.IncrementValue
-                            LastValue      = $row.LastValue
-                            MaxNumberRows  = $row.MaxNumberRows
-                            NumberOfUses   = $row.NumberOfUses
-                            PercentUsed    = $row.PercentUsed
-                        } | Select-DefaultView -Exclude MaxNumberRows, NumberOfUses
-                    }
-                }
-            }
         }
+
+        if ($ExcludeDatabase) {
+            $dbs = $dbs | Where-Object Name -NotIn $ExcludeDatabase
     }
+
+    if ($ExcludeSystem) {
+        $dbs = $dbs | Where-Object IsSystemObject -EQ $false
+}
+
+foreach ($db in $dbs) {
+    Write-Message -Level Verbose -Message "Processing $db on $instance"
+
+    if ($db.IsAccessible -eq $false) {
+        Stop-Function -Message "The database $db is not accessible. Skipping." -Continue
+    }
+
+    try {
+        $results = $db.Query($sql)
+    } catch {
+        Stop-Function -Message "Error capturing data on $db" -Target $instance -ErrorRecord $_ -Exception $_.Exception -Continue
+    }
+
+    foreach ($row in $results) {
+        if ($row.PercentUsed -eq [System.DBNull]::Value) {
+            continue
+        }
+
+        if ($row.PercentUsed -ge $threshold) {
+            [PSCustomObject]@{
+                ComputerName   = $server.ComputerName
+                InstanceName   = $server.ServiceName
+                SqlInstance    = $server.DomainInstanceName
+                Database       = $row.DatabaseName
+                Schema         = $row.SchemaName
+                Table          = $row.TableName
+                Column         = $row.ColumnName
+                SeedValue      = $row.SeedValue
+                IncrementValue = $row.IncrementValue
+                LastValue      = $row.LastValue
+                MaxNumberRows  = $row.MaxNumberRows
+                NumberOfUses   = $row.NumberOfUses
+                PercentUsed    = $row.PercentUsed
+            } | Select-DefaultView -Exclude MaxNumberRows, NumberOfUses
+    }
+}
+}
+}
+}
 }

@@ -96,18 +96,18 @@ function Get-DbaSchemaChangeHistory {
 
             $TraceFile = $server.Query($TraceFileQuery) | Select-Object Path
 
-            $Databases = $server.Databases
+        $Databases = $server.Databases
 
-            if ($Database) { $Databases = $Databases | Where-Object Name -in $database }
+        if ($Database) { $Databases = $Databases | Where-Object Name -in $database }
 
-            if ($ExcludeDatabase) { $Databases = $Databases | Where-Object Name -notin $ExcludeDatabase }
+    if ($ExcludeDatabase) { $Databases = $Databases | Where-Object Name -notin $ExcludeDatabase }
 
-            foreach ($db in $Databases) {
-                if ($db.IsAccessible -eq $false) {
-                    Write-Message -Level Verbose -Message "$($db.name) is not accessible, skipping"
-                }
+foreach ($db in $Databases) {
+    if ($db.IsAccessible -eq $false) {
+        Write-Message -Level Verbose -Message "$($db.name) is not accessible, skipping"
+    }
 
-                $sql = "select SERVERPROPERTY('MachineName') AS ComputerName,
+    $sql = "select SERVERPROPERTY('MachineName') AS ComputerName,
                         ISNULL(SERVERPROPERTY('InstanceName'), 'MSSQLSERVER') AS InstanceName,
                         SERVERPROPERTY('ServerName') AS SqlInstance,
                         tt.databasename as 'DatabaseName',
@@ -130,19 +130,19 @@ function Get-DbaSchemaChangeHistory {
                         and tt.DatabaseID=db_id()
                         and tt.EventSubClass=0"
 
-                if ($null -ne $since) {
-                    $sql = $sql + " and tt.StartTime>'$Since' "
-                }
-                if ($null -ne $object) {
-                    $sql = $sql + " and o.name in ('$($object -join ''',''')') "
-                }
-
-                $sql = $sql + " order by tt.StartTime asc"
-                Write-Message -Level Verbose -Message "Querying Database $db on $instance"
-                Write-Message -Level Debug -Message "SQL: $sql"
-
-                $db.Query($sql) | Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, DatabaseName, DateModified, LoginName, UserName, ApplicationName, DDLOperation, Object, ObjectType
-            }
-        }
+    if ($null -ne $since) {
+        $sql = $sql + " and tt.StartTime>'$Since' "
     }
+    if ($null -ne $object) {
+        $sql = $sql + " and o.name in ('$($object -join ''',''')') "
+    }
+
+    $sql = $sql + " order by tt.StartTime asc"
+    Write-Message -Level Verbose -Message "Querying Database $db on $instance"
+    Write-Message -Level Debug -Message "SQL: $sql"
+
+    $db.Query($sql) | Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, DatabaseName, DateModified, LoginName, UserName, ApplicationName, DDLOperation, Object, ObjectType
+}
+}
+}
 }

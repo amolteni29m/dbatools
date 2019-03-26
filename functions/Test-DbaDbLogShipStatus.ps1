@@ -188,95 +188,95 @@ EXEC master.sys.sp_help_log_shipping_monitor"
             # Filter the results
             if ($Primary) {
                 $results = $results | Where-Object { $_.IsPrimary -eq $true }
+        }
+
+        if ($Secondary) {
+            $results = $results | Where-Object { $_.IsPrimary -eq $false }
+    }
+
+    # Loop through each of the results
+    foreach ($result in $results) {
+
+        # Setup a variable to hold the errors
+        $statusDetails = @()
+
+        # Check if there are any results that need to be returned
+        if ($result.Status -notin 0, 1) {
+            $statusDetails += "N/A"
+        } else {
+            # Check the status of the row is true which indicates that something is wrong
+            if ($result.Status) {
+                # Check if the row is part of the primary or secondary instance
+                if ($result.IsPrimary) {
+                    # Check the backup
+                    if (-not $result.TimeSinceLastBackup) {
+                        $statusDetails += "The backup has never been executed."
+                    } elseif ($result.TimeSinceLastBackup -ge $result.BackupThreshold) {
+                        $statusDetails += "The backup has not been executed in the last $($result.BackupThreshold) minutes"
+                    }
+                } elseif (-not $result.IsPrimary) {
+                    # Check the restore
+                    if ($null -eq $result.TimeSinceLastRestore) {
+                        $statusDetails += "The restore has never been executed."
+                    } elseif ($result.TimeSinceLastRestore -ge $result.RestoreThreshold) {
+                        $statusDetails += "The restore has not been executed in the last $($result.RestoreThreshold) minutes"
+                    }
+                }
+            } else {
+                $statusDetails += "All OK"
             }
 
-            if ($Secondary) {
-                $results = $results | Where-Object { $_.IsPrimary -eq $false }
+
+            # Check the time for the backup, copy and restore
+            if ($result.TimeSinceLastBackup -eq [DBNull]::Value) {
+                $lastBackup = "N/A"
+            } else {
+                $lastBackup = (Get-Date).AddMinutes(- $result.TimeSinceLastBackup)
             }
 
-            # Loop through each of the results
-            foreach ($result in $results) {
+            if ($result.TimeSinceLastCopy -eq [DBNull]::Value) {
+                $lastCopy = "N/A"
+            } else {
+                $lastCopy = (Get-Date).AddMinutes(- $result.TimeSinceLastCopy)
+            }
 
-                # Setup a variable to hold the errors
-                $statusDetails = @()
-
-                # Check if there are any results that need to be returned
-                if ($result.Status -notin 0, 1) {
-                    $statusDetails += "N/A"
-                } else {
-                    # Check the status of the row is true which indicates that something is wrong
-                    if ($result.Status) {
-                        # Check if the row is part of the primary or secondary instance
-                        if ($result.IsPrimary) {
-                            # Check the backup
-                            if (-not $result.TimeSinceLastBackup) {
-                                $statusDetails += "The backup has never been executed."
-                            } elseif ($result.TimeSinceLastBackup -ge $result.BackupThreshold) {
-                                $statusDetails += "The backup has not been executed in the last $($result.BackupThreshold) minutes"
-                            }
-                        } elseif (-not $result.IsPrimary) {
-                            # Check the restore
-                            if ($null -eq $result.TimeSinceLastRestore) {
-                                $statusDetails += "The restore has never been executed."
-                            } elseif ($result.TimeSinceLastRestore -ge $result.RestoreThreshold) {
-                                $statusDetails += "The restore has not been executed in the last $($result.RestoreThreshold) minutes"
-                            }
-                        }
-                    } else {
-                        $statusDetails += "All OK"
-                    }
-
-
-                    # Check the time for the backup, copy and restore
-                    if ($result.TimeSinceLastBackup -eq [DBNull]::Value) {
-                        $lastBackup = "N/A"
-                    } else {
-                        $lastBackup = (Get-Date).AddMinutes(- $result.TimeSinceLastBackup)
-                    }
-
-                    if ($result.TimeSinceLastCopy -eq [DBNull]::Value) {
-                        $lastCopy = "N/A"
-                    } else {
-                        $lastCopy = (Get-Date).AddMinutes(- $result.TimeSinceLastCopy)
-                    }
-
-                    if ($result.TimeSinceLastRestore -eq [DBNull]::Value) {
-                        $lastRestore = "N/A"
-                    } else {
-                        $lastRestore = (Get-Date).AddMinutes(- $result.TimeSinceLastRestore)
-                    }
-                }
-
-                # Set up the custom object
-                $object = [PSCustomObject]@{
-                    ComputerName          = $server.ComputerName
-                    InstanceName          = $server.ServiceName
-                    SqlInstance           = $server.DomainInstanceName
-                    Database              = $result.DatabaseName
-                    InstanceType          = switch ($result.IsPrimary) { $true { "Primary Instance" } $false { "Secondary Instance" } }
-                    TimeSinceLastBackup   = $lastBackup
-                    LastBackupFile        = $result.LastBackupFile
-                    BackupThreshold       = $result.BackupThreshold
-                    IsBackupAlertEnabled  = $result.IsBackupAlertEnabled
-                    TimeSinceLastCopy     = $lastCopy
-                    LastCopiedFile        = $result.LastCopiedFile
-                    TimeSinceLastRestore  = $lastRestore
-                    LastRestoredFile      = $result.LastRestoredFile
-                    LastRestoredLatency   = $result.LastRestoredLatency
-                    RestoreThreshold      = $result.RestoreThreshold
-                    IsRestoreAlertEnabled = $result.IsRestoreAlertEnabled
-                    Status                = $statusDetails -join ","
-                }
-
-                if ($Simple) {
-                    $object | Select-DefaultView -Property SqlInstance, Database, InstanceType, Status
-                } else {
-                    $object
-                }
+            if ($result.TimeSinceLastRestore -eq [DBNull]::Value) {
+                $lastRestore = "N/A"
+            } else {
+                $lastRestore = (Get-Date).AddMinutes(- $result.TimeSinceLastRestore)
             }
         }
+
+        # Set up the custom object
+        $object = [PSCustomObject]@{
+            ComputerName          = $server.ComputerName
+            InstanceName          = $server.ServiceName
+            SqlInstance           = $server.DomainInstanceName
+            Database              = $result.DatabaseName
+            InstanceType          = switch ($result.IsPrimary) { $true { "Primary Instance" } $false { "Secondary Instance" } }
+            TimeSinceLastBackup   = $lastBackup
+            LastBackupFile        = $result.LastBackupFile
+            BackupThreshold       = $result.BackupThreshold
+            IsBackupAlertEnabled  = $result.IsBackupAlertEnabled
+            TimeSinceLastCopy     = $lastCopy
+            LastCopiedFile        = $result.LastCopiedFile
+            TimeSinceLastRestore  = $lastRestore
+            LastRestoredFile      = $result.LastRestoredFile
+            LastRestoredLatency   = $result.LastRestoredLatency
+            RestoreThreshold      = $result.RestoreThreshold
+            IsRestoreAlertEnabled = $result.IsRestoreAlertEnabled
+            Status                = $statusDetails -join ","
+        }
+
+        if ($Simple) {
+            $object | Select-DefaultView -Property SqlInstance, Database, InstanceType, Status
+    } else {
+        $object
     }
-    end {
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -Alias Test-DbaLogShippingStatus
-    }
+}
+}
+}
+end {
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -Alias Test-DbaLogShippingStatus
+}
 }

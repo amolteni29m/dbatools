@@ -94,77 +94,77 @@ function Get-DbaDbExtentDiff {
 
             if ($Database) {
                 $dbs = $dbs | Where-Object Name -In $Database
-            }
+        }
 
-            if ($ExcludeDatabase) {
-                $dbs = $dbs | Where-Object Name -NotIn $ExcludeDatabase
-            }
+        if ($ExcludeDatabase) {
+            $dbs = $dbs | Where-Object Name -NotIn $ExcludeDatabase
+    }
 
-            $sourcedbs = @()
-            foreach ($db in $dbs) {
-                if ($db.IsAccessible -ne $true) {
-                    Write-Message -Level Verbose -Message "$db is not accessible on $instance, skipping"
-                } else {
-                    $sourcedbs += $db
-                }
-            }
+    $sourcedbs = @()
+    foreach ($db in $dbs) {
+        if ($db.IsAccessible -ne $true) {
+            Write-Message -Level Verbose -Message "$db is not accessible on $instance, skipping"
+        } else {
+            $sourcedbs += $db
+        }
+    }
 
-            #Available from 2016 SP2
-            if ($server.Version -ge [version]'13.0.5026') {
-                foreach ($db in $sourcedbs) {
-                    $DBCCPageQueryDMV = "
+    #Available from 2016 SP2
+    if ($server.Version -ge [version]'13.0.5026') {
+        foreach ($db in $sourcedbs) {
+            $DBCCPageQueryDMV = "
                         SELECT
                         SUM(total_page_count) / 8 as [ExtentsTotal],
                         SUM(modified_extent_page_count) / 8 as [ExtentsChanged],
                         100.0 * SUM(modified_extent_page_count)/SUM(total_page_count) as [ChangedPerc]
                         FROM sys.dm_db_file_space_usage
                     "
-                    $DBCCPageResults = $server.Query($DBCCPageQueryDMV, $db.Name)
-                    [pscustomobject]@{
-                        ComputerName   = $server.ComputerName
-                        InstanceName   = $server.ServiceName
-                        SqlInstance    = $server.DomainInstanceName
-                        DatabaseName   = $db.Name
-                        ExtentsTotal   = $DBCCPageResults.ExtentsTotal
-                        ExtentsChanged = $DBCCPageResults.ExtentsChanged
-                        ChangedPerc    = [math]::Round($DBCCPageResults.ChangedPerc, 2)
-                    }
-                }
-            } else {
-                $MasterFilesQuery = "
+            $DBCCPageResults = $server.Query($DBCCPageQueryDMV, $db.Name)
+            [pscustomobject]@{
+                ComputerName   = $server.ComputerName
+                InstanceName   = $server.ServiceName
+                SqlInstance    = $server.DomainInstanceName
+                DatabaseName   = $db.Name
+                ExtentsTotal   = $DBCCPageResults.ExtentsTotal
+                ExtentsChanged = $DBCCPageResults.ExtentsChanged
+                ChangedPerc    = [math]::Round($DBCCPageResults.ChangedPerc, 2)
+            }
+        }
+    } else {
+        $MasterFilesQuery = "
                         SELECT [file_id], [size], database_id, db_name(database_id) as dbname FROM master.sys.master_files
                         WHERE [type_desc] = N'ROWS'
                     "
-                $MasterFiles = $server.Query($MasterFilesQuery)
-                $MasterFiles = $MasterFiles | Where-Object dbname -In $sourcedbs.Name
-                $MasterFilesGrouped = $MasterFiles | Group-Object -Property dbname
+        $MasterFiles = $server.Query($MasterFilesQuery)
+        $MasterFiles = $MasterFiles | Where-Object dbname -In $sourcedbs.Name
+    $MasterFilesGrouped = $MasterFiles | Group-Object -Property dbname
 
-                foreach ($db in $MasterFilesGrouped) {
-                    $sizeTotal = 0
-                    $dbExtents = @()
-                    foreach ($results in $db.Group) {
-                        $extentID = 0
-                        $sizeTotal = $sizeTotal + $results.size / 8
-                        while ($extentID -lt $results.size) {
-                            $pageID = $extentID + 6
-                            $DBCCPageQuery = "DBCC PAGE ('$($results.dbname)', $($results.file_id), $pageID, 3)  WITH TABLERESULTS, NO_INFOMSGS"
-                            $DBCCPageResults = $server.Query($DBCCPageQuery)
-                            $dbExtents += $DBCCPageResults | Where-Object { $_.VALUE -eq '    CHANGED' -And $_.ParentObject -like 'DIFF_MAP*'}
-                            $extentID = $extentID + 511232
-                        }
-                    }
-                    $extents = Get-DbaExtent $dbExtents.Field
-                    [pscustomobject]@{
-                        ComputerName   = $server.ComputerName
-                        InstanceName   = $server.ServiceName
-                        SqlInstance    = $server.DomainInstanceName
-                        DatabaseName   = $db.Name
-                        ExtentsTotal   = $sizeTotal
-                        ExtentsChanged = $extents
-                        ChangedPerc    = [math]::Round(($extents / $sizeTotal * 100), 2)
-                    }
-                }
-            }
-        }
+foreach ($db in $MasterFilesGrouped) {
+    $sizeTotal = 0
+    $dbExtents = @()
+    foreach ($results in $db.Group) {
+        $extentID = 0
+        $sizeTotal = $sizeTotal + $results.size / 8
+        while ($extentID -lt $results.size) {
+            $pageID = $extentID + 6
+            $DBCCPageQuery = "DBCC PAGE ('$($results.dbname)', $($results.file_id), $pageID, 3)  WITH TABLERESULTS, NO_INFOMSGS"
+            $DBCCPageResults = $server.Query($DBCCPageQuery)
+            $dbExtents += $DBCCPageResults | Where-Object { $_.VALUE -eq '    CHANGED' -And $_.ParentObject -like 'DIFF_MAP*' }
+        $extentID = $extentID + 511232
     }
+}
+$extents = Get-DbaExtent $dbExtents.Field
+[pscustomobject]@{
+    ComputerName   = $server.ComputerName
+    InstanceName   = $server.ServiceName
+    SqlInstance    = $server.DomainInstanceName
+    DatabaseName   = $db.Name
+    ExtentsTotal   = $sizeTotal
+    ExtentsChanged = $extents
+    ChangedPerc    = [math]::Round(($extents / $sizeTotal * 100), 2)
+}
+}
+}
+}
+}
 }

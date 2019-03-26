@@ -67,74 +67,74 @@ function Get-DbaDetachedDatabaseInfo {
             try {
                 $detachedDatabaseInfo = $server.DetachedDatabaseInfo($path)
                 $dbname = ($detachedDatabaseInfo | Where-Object { $_.Property -eq "Database name" }).Value
-                $exactdbversion = ($detachedDatabaseInfo | Where-Object { $_.Property -eq "Database version" }).Value
-                $collationid = ($detachedDatabaseInfo | Where-Object { $_.Property -eq "Collation" }).Value
-            } catch {
-                throw "$servername cannot read the file $path. Is the database detached?"
-            }
+            $exactdbversion = ($detachedDatabaseInfo | Where-Object { $_.Property -eq "Database version" }).Value
+        $collationid = ($detachedDatabaseInfo | Where-Object { $_.Property -eq "Collation" }).Value
+} catch {
+    throw "$servername cannot read the file $path. Is the database detached?"
+}
 
-            switch ($exactdbversion) {
-                852 { $dbversion = "SQL Server 2016" }
-                829 { $dbversion = "SQL Server 2016 Prerelease" }
-                782 { $dbversion = "SQL Server 2014" }
-                706 { $dbversion = "SQL Server 2012" }
-                684 { $dbversion = "SQL Server 2012 CTP1" }
-                661 { $dbversion = "SQL Server 2008 R2" }
-                660 { $dbversion = "SQL Server 2008 R2" }
-                655 { $dbversion = "SQL Server 2008 SP2+" }
-                612 { $dbversion = "SQL Server 2005" }
-                611 { $dbversion = "SQL Server 2005" }
-                539 { $dbversion = "SQL Server 2000" }
-                515 { $dbversion = "SQL Server 7.0" }
-                408 { $dbversion = "SQL Server 6.5" }
-                default { $dbversion = "Unknown" }
-            }
+switch ($exactdbversion) {
+    852 { $dbversion = "SQL Server 2016" }
+    829 { $dbversion = "SQL Server 2016 Prerelease" }
+    782 { $dbversion = "SQL Server 2014" }
+    706 { $dbversion = "SQL Server 2012" }
+    684 { $dbversion = "SQL Server 2012 CTP1" }
+    661 { $dbversion = "SQL Server 2008 R2" }
+    660 { $dbversion = "SQL Server 2008 R2" }
+    655 { $dbversion = "SQL Server 2008 SP2+" }
+    612 { $dbversion = "SQL Server 2005" }
+    611 { $dbversion = "SQL Server 2005" }
+    539 { $dbversion = "SQL Server 2000" }
+    515 { $dbversion = "SQL Server 7.0" }
+    408 { $dbversion = "SQL Server 6.5" }
+    default { $dbversion = "Unknown" }
+}
 
-            $collationsql = "SELECT name FROM fn_helpcollations() where collationproperty(name, N'COLLATIONID')  = $collationid"
+$collationsql = "SELECT name FROM fn_helpcollations() where collationproperty(name, N'COLLATIONID')  = $collationid"
 
-            try {
-                $dataset = $server.databases['master'].ExecuteWithResults($collationsql)
-                $collation = "$($dataset.Tables[0].Rows[0].Item(0))"
-            } catch {
-                $collation = $collationid
-            }
+try {
+    $dataset = $server.databases['master'].ExecuteWithResults($collationsql)
+    $collation = "$($dataset.Tables[0].Rows[0].Item(0))"
+} catch {
+    $collation = $collationid
+}
 
-            if ($collation.length -eq 0) { $collation = $collationid }
+if ($collation.length -eq 0) { $collation = $collationid }
 
-            try {
-                foreach ($file in $server.EnumDetachedDatabaseFiles($path)) {
-                    $datafiles += $file
-                }
-
-                foreach ($file in $server.EnumDetachedLogFiles($path)) {
-                    $logfiles += $file
-                }
-            } catch {
-                throw "$servername unable to enumerate database or log structure information for $path"
-            }
-
-            $mdfinfo = [pscustomobject]@{
-                Name         = $dbname
-                Version      = $dbversion
-                ExactVersion = $exactdbversion
-                Collation    = $collation
-                DataFiles    = $datafiles
-                LogFiles     = $logfiles
-            }
-
-            return $mdfinfo
-        }
+try {
+    foreach ($file in $server.EnumDetachedDatabaseFiles($path)) {
+        $datafiles += $file
     }
 
-    process {
-
-        $server = Connect-SqlInstance -SqlInstance $SqlInstance -SqlCredential $SqlCredential
-        $mdfinfo = Get-MdfFileInfo $server $path
-
+    foreach ($file in $server.EnumDetachedLogFiles($path)) {
+        $logfiles += $file
     }
+} catch {
+    throw "$servername unable to enumerate database or log structure information for $path"
+}
 
-    end {
-        $server.ConnectionContext.Disconnect()
-        return $mdfinfo
-    }
+$mdfinfo = [pscustomobject]@{
+    Name         = $dbname
+    Version      = $dbversion
+    ExactVersion = $exactdbversion
+    Collation    = $collation
+    DataFiles    = $datafiles
+    LogFiles     = $logfiles
+}
+
+return $mdfinfo
+}
+}
+
+process {
+
+    $server = Connect-SqlInstance -SqlInstance $SqlInstance -SqlCredential $SqlCredential
+    $mdfinfo = Get-MdfFileInfo $server $path
+
+}
+
+end {
+    $server.ConnectionContext.Disconnect()
+    return $mdfinfo
+}
 }

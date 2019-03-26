@@ -59,7 +59,7 @@ function Test-DbaMaxDop {
 
         Get Max DOP setting for servers sql2016 with the recommended value. Piping the output to Select-Object * will also show the 'NumaNodes' and 'NumberOfCores' of each instance. Because it is an 2016 instance will be shown 'InstanceVersion', 'Database' and 'DatabaseMaxDop' columns.
 
-       #>
+    #>
     [CmdletBinding()]
     [OutputType([System.Collections.ArrayList])]
     param (
@@ -167,38 +167,38 @@ function Test-DbaMaxDop {
                 Notes                 = $notes
             } | Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, Database, DatabaseMaxDop, CurrentInstanceMaxDop, RecommendedMaxDop, Notes
 
-            # On SQL Server 2016 and higher, MaxDop can be set on a per-database level
-            if ($server.VersionMajor -ge 13) {
-                #Variable marked as unused by PSScriptAnalyzer
-                #$hasScopedConfig = $true
-                Write-Message -Level Verbose -Message "SQL Server 2016 or higher detected, checking each database's MaxDop."
+        # On SQL Server 2016 and higher, MaxDop can be set on a per-database level
+        if ($server.VersionMajor -ge 13) {
+            #Variable marked as unused by PSScriptAnalyzer
+            #$hasScopedConfig = $true
+            Write-Message -Level Verbose -Message "SQL Server 2016 or higher detected, checking each database's MaxDop."
 
-                $databases = $server.Databases | where-object {$_.IsSystemObject -eq $false}
+            $databases = $server.Databases | Where-Object { $_.IsSystemObject -eq $false }
 
-                foreach ($database in $databases) {
-                    if ($database.IsAccessible -eq $false) {
-                        Write-Message -Level Verbose -Message "Database $database is not accessible."
-                        continue
-                    }
-                    Write-Message -Level Verbose -Message "Checking database '$($database.Name)'."
-
-                    $dbmaxdop = $database.MaxDop
-
-                    [pscustomobject]@{
-                        ComputerName          = $server.ComputerName
-                        InstanceName          = $server.ServiceName
-                        SqlInstance           = $server.DomainInstanceName
-                        InstanceVersion       = $server.Version
-                        Database              = $database.Name
-                        DatabaseMaxDop        = $dbmaxdop
-                        CurrentInstanceMaxDop = $maxDop
-                        RecommendedMaxDop     = $recommendedMaxDop
-                        NumaNodes             = $NumaNodes
-                        NumberOfCores         = $numberOfCores
-                        Notes                 = if ($dbmaxdop -eq 0) { "Will use CurrentInstanceMaxDop value" } else { "$notes" }
-                    }  | Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, Database, DatabaseMaxDop, CurrentInstanceMaxDop, RecommendedMaxDop, Notes
-                }
+        foreach ($database in $databases) {
+            if ($database.IsAccessible -eq $false) {
+                Write-Message -Level Verbose -Message "Database $database is not accessible."
+                continue
             }
-        }
+            Write-Message -Level Verbose -Message "Checking database '$($database.Name)'."
+
+            $dbmaxdop = $database.MaxDop
+
+            [pscustomobject]@{
+                ComputerName          = $server.ComputerName
+                InstanceName          = $server.ServiceName
+                SqlInstance           = $server.DomainInstanceName
+                InstanceVersion       = $server.Version
+                Database              = $database.Name
+                DatabaseMaxDop        = $dbmaxdop
+                CurrentInstanceMaxDop = $maxDop
+                RecommendedMaxDop     = $recommendedMaxDop
+                NumaNodes             = $NumaNodes
+                NumberOfCores         = $numberOfCores
+                Notes                 = if ($dbmaxdop -eq 0) { "Will use CurrentInstanceMaxDop value" } else { "$notes" }
+            } | Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, Database, DatabaseMaxDop, CurrentInstanceMaxDop, RecommendedMaxDop, Notes
     }
+}
+}
+}
 }

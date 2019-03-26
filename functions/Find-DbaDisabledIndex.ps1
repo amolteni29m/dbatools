@@ -109,44 +109,44 @@ function Find-DbaDisabledIndex {
 
             if ($Database) {
                 $databases = $server.Databases | Where-Object Name -in $database
-            } else {
-                $databases = $server.Databases | Where-Object IsAccessible -eq $true
+        } else {
+            $databases = $server.Databases | Where-Object IsAccessible -eq $true
+    }
+
+    if ($databases.Count -gt 0) {
+        foreach ($db in $databases.name) {
+
+            if ($ExcludeDatabase -contains $db -or $null -eq $server.Databases[$db]) {
+                continue
             }
 
-            if ($databases.Count -gt 0) {
-                foreach ($db in $databases.name) {
+            try {
+                if ($PSCmdlet.ShouldProcess($db, "Getting disabled indexes")) {
+                    Write-Message -Level Verbose -Message "Getting indexes from database '$db'."
+                    Write-Message -Level Debug -Message "SQL Statement: $sql"
+                    $disabledIndex = $server.Databases[$db].ExecuteWithResults($sql)
 
-                    if ($ExcludeDatabase -contains $db -or $null -eq $server.Databases[$db]) {
-                        continue
-                    }
-
-                    try {
-                        if ($PSCmdlet.ShouldProcess($db, "Getting disabled indexes")) {
-                            Write-Message -Level Verbose -Message "Getting indexes from database '$db'."
-                            Write-Message -Level Debug -Message "SQL Statement: $sql"
-                            $disabledIndex = $server.Databases[$db].ExecuteWithResults($sql)
-
-                            if ($disabledIndex.Tables[0].Rows.Count -gt 0) {
-                                $results = $disabledIndex.Tables[0];
-                                if ($results.Count -gt 0 -or !([string]::IsNullOrEmpty($results))) {
-                                    foreach ($index in $results) {
-                                        $index
-                                    }
-                                }
-                            } else {
-                                Write-Message -Level Verbose -Message "No Disabled indexes found!"
+                    if ($disabledIndex.Tables[0].Rows.Count -gt 0) {
+                        $results = $disabledIndex.Tables[0];
+                        if ($results.Count -gt 0 -or !([string]::IsNullOrEmpty($results))) {
+                            foreach ($index in $results) {
+                                $index
                             }
                         }
-                    } catch {
-                        Stop-Function -Message "Issue gathering indexes" -Category InvalidOperation -InnerErrorRecord $_ -Target $db
+                    } else {
+                        Write-Message -Level Verbose -Message "No Disabled indexes found!"
                     }
                 }
-            } else {
-                Write-Message -Level Verbose -Message "There are no databases to analyse."
+            } catch {
+                Stop-Function -Message "Issue gathering indexes" -Category InvalidOperation -InnerErrorRecord $_ -Target $db
             }
         }
+    } else {
+        Write-Message -Level Verbose -Message "There are no databases to analyse."
     }
-    end {
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Get-SqlDisabledIndex
-    }
+}
+}
+end {
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Get-SqlDisabledIndex
+}
 }

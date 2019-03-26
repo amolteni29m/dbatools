@@ -109,92 +109,92 @@ Function Invoke-DbaAdvancedUpdate {
         # Find a temporary folder to extract to - the drive that has most free space
         try {
             $chosenDrive = (Get-DbaDiskSpace -ComputerName $computer -Credential $Credential -EnableException:$true | Sort-Object -Property Free -Descending | Select-Object -First 1).Name
-            if (!$chosenDrive) {
-                # Fall back to the system drive
-                $chosenDrive = Invoke-Command2 -ComputerName $computer -Credential $Credential -ScriptBlock { $env:SystemDrive } -Raw -ErrorAction Stop
-            }
-        } catch {
-            $msg = "Failed to retrieve a disk drive to extract the update"
-            $output.Notes += $msg
-            Stop-Function -Message $msg -ErrorRecord $_
-            return $output
-        }
-        $spExtractPath = $chosenDrive.TrimEnd('\') + "\dbatools_KB$($currentAction.KB)_Extract"
-        $output.ExtractPath = $spExtractPath
-        try {
-            # Extract file
-            Write-ProgressHelper -ExcludePercent -Activity $activity -Message "Extracting $($currentAction.Installer) to $spExtractPath"
-            Write-Message -Level Verbose -Message "Extracting $($currentAction.Installer) to $spExtractPath"
-            $extractResult = Invoke-Program @execParams -Path $currentAction.Installer -ArgumentList "/x`:`"$spExtractPath`" /quiet" -Fallback
-            if (-not $extractResult.Successful) {
-                $msg = "Extraction failed with exit code $($extractResult.ExitCode)"
-                $output.Notes += $msg
-                Stop-Function -Message $msg
-                return $output
-            }
-            # Install the patch
-            if ($currentAction.InstanceName) {
-                $instanceClause = "/instancename=$($currentAction.InstanceName)"
-            } else {
-                $instanceClause = '/allinstances'
-            }
-            Write-ProgressHelper -ExcludePercent -Activity $activity -Message "Now installing update SQL$($currentAction.MajorVersion)$($currentAction.TargetLevel) from $spExtractPath"
-            Write-Message -Level Verbose -Message "Starting installation from $spExtractPath"
-            $updateResult = Invoke-Program @execParams -Path "$spExtractPath\setup.exe" -ArgumentList @('/quiet', $instanceClause, '/IAcceptSQLServerLicenseTerms') -WorkingDirectory $spExtractPath -Fallback
-            $output.ExitCode = $updateResult.ExitCode
-            if ($updateResult.Successful) {
-                $output.Successful = $true
-            } else {
-                $msg = "Update failed with exit code $($updateResult.ExitCode)"
-                $output.Notes += $msg
-                Stop-Function -Message $msg
-                return $output
-            }
-            $output.Log = $updateResult.stdout
-        } catch {
-            Stop-Function -Message "Upgrade failed" -ErrorRecord $_
-            $output.Notes += $_.Exception.Message
-            return $output
-        } finally {
-            ## Cleanup temp
-            Write-ProgressHelper -ExcludePercent -Activity $activity -Message "Cleaning up extracted files from $spExtractPath"
-            try {
-                Write-ProgressHelper -ExcludePercent -Activity $activity -Message "Removing temporary files"
-                $null = Invoke-CommandWithFallBack @execParams -ScriptBlock {
-                    if ($args[0] -like '*\dbatools_KB*_Extract' -and (Test-Path $args[0])) {
-                        Remove-Item -Recurse -Force -LiteralPath $args[0] -ErrorAction Stop
-                    }
-                } -Raw -ArgumentList $spExtractPath
-            } catch {
-                $message = "Failed to cleanup temp folder on computer $($computer)`: $($_.Exception.Message)"
-                Write-Message -Level Verbose -Message $message
-                $output.Notes += $message
-            }
-        }
-        #double check if restart is needed
-        try {
-            $restartNeeded = Test-PendingReboot -ComputerName $computer -Credential $Credential
-        } catch {
-            $restartNeeded = $false
-            Stop-Function -Message "Failed to get reboot status from $computer" -ErrorRecord $_
-        }
-        if ($updateResult.ExitCode -eq 3010 -or $restartNeeded) {
-            if ($Restart) {
-                # Restart the computer
-                Write-ProgressHelper -ExcludePercent -Activity $activity -Message "Restarting computer $($computer) and waiting for it to come back online"
-                Write-Message -Level Verbose "Restarting computer $($computer) and waiting for it to come back online"
-                try {
-                    $null = Restart-Computer @restartParams
-                    $output.Restarted = $true
-                } catch {
-                    Stop-Function -Message "Failed to restart computer" -ErrorRecord $_
-                    return $output
-                }
-            } else {
-                $output.Notes += "Restart is required for computer $($computer) to finish the installation of SQL$($currentAction.MajorVersion)$($currentAction.TargetLevel)"
-            }
-        }
-        $output
-        Write-Progress -Activity $activity -Completed
+    if (!$chosenDrive) {
+        # Fall back to the system drive
+        $chosenDrive = Invoke-Command2 -ComputerName $computer -Credential $Credential -ScriptBlock { $env:SystemDrive } -Raw -ErrorAction Stop
     }
+} catch {
+    $msg = "Failed to retrieve a disk drive to extract the update"
+    $output.Notes += $msg
+    Stop-Function -Message $msg -ErrorRecord $_
+    return $output
+}
+$spExtractPath = $chosenDrive.TrimEnd('\') + "\dbatools_KB$($currentAction.KB)_Extract"
+$output.ExtractPath = $spExtractPath
+try {
+    # Extract file
+    Write-ProgressHelper -ExcludePercent -Activity $activity -Message "Extracting $($currentAction.Installer) to $spExtractPath"
+    Write-Message -Level Verbose -Message "Extracting $($currentAction.Installer) to $spExtractPath"
+    $extractResult = Invoke-Program @execParams -Path $currentAction.Installer -ArgumentList "/x`:`"$spExtractPath`" /quiet" -Fallback
+    if (-not $extractResult.Successful) {
+        $msg = "Extraction failed with exit code $($extractResult.ExitCode)"
+        $output.Notes += $msg
+        Stop-Function -Message $msg
+        return $output
+    }
+    # Install the patch
+    if ($currentAction.InstanceName) {
+        $instanceClause = "/instancename=$($currentAction.InstanceName)"
+    } else {
+        $instanceClause = '/allinstances'
+    }
+    Write-ProgressHelper -ExcludePercent -Activity $activity -Message "Now installing update SQL$($currentAction.MajorVersion)$($currentAction.TargetLevel) from $spExtractPath"
+    Write-Message -Level Verbose -Message "Starting installation from $spExtractPath"
+    $updateResult = Invoke-Program @execParams -Path "$spExtractPath\setup.exe" -ArgumentList @('/quiet', $instanceClause, '/IAcceptSQLServerLicenseTerms') -WorkingDirectory $spExtractPath -Fallback
+    $output.ExitCode = $updateResult.ExitCode
+    if ($updateResult.Successful) {
+        $output.Successful = $true
+    } else {
+        $msg = "Update failed with exit code $($updateResult.ExitCode)"
+        $output.Notes += $msg
+        Stop-Function -Message $msg
+        return $output
+    }
+    $output.Log = $updateResult.stdout
+} catch {
+    Stop-Function -Message "Upgrade failed" -ErrorRecord $_
+    $output.Notes += $_.Exception.Message
+    return $output
+} finally {
+    ## Cleanup temp
+    Write-ProgressHelper -ExcludePercent -Activity $activity -Message "Cleaning up extracted files from $spExtractPath"
+    try {
+        Write-ProgressHelper -ExcludePercent -Activity $activity -Message "Removing temporary files"
+        $null = Invoke-CommandWithFallBack @execParams -ScriptBlock {
+            if ($args[0] -like '*\dbatools_KB*_Extract' -and (Test-Path $args[0])) {
+                Remove-Item -Recurse -Force -LiteralPath $args[0] -ErrorAction Stop
+            }
+        } -Raw -ArgumentList $spExtractPath
+    } catch {
+        $message = "Failed to cleanup temp folder on computer $($computer)`: $($_.Exception.Message)"
+        Write-Message -Level Verbose -Message $message
+        $output.Notes += $message
+    }
+}
+#double check if restart is needed
+try {
+    $restartNeeded = Test-PendingReboot -ComputerName $computer -Credential $Credential
+} catch {
+    $restartNeeded = $false
+    Stop-Function -Message "Failed to get reboot status from $computer" -ErrorRecord $_
+}
+if ($updateResult.ExitCode -eq 3010 -or $restartNeeded) {
+    if ($Restart) {
+        # Restart the computer
+        Write-ProgressHelper -ExcludePercent -Activity $activity -Message "Restarting computer $($computer) and waiting for it to come back online"
+        Write-Message -Level Verbose "Restarting computer $($computer) and waiting for it to come back online"
+        try {
+            $null = Restart-Computer @restartParams
+            $output.Restarted = $true
+        } catch {
+            Stop-Function -Message "Failed to restart computer" -ErrorRecord $_
+            return $output
+        }
+    } else {
+        $output.Notes += "Restart is required for computer $($computer) to finish the installation of SQL$($currentAction.MajorVersion)$($currentAction.TargetLevel)"
+    }
+}
+$output
+Write-Progress -Activity $activity -Completed
+}
 }

@@ -103,180 +103,180 @@ function Copy-DbaLinkedServer {
 
             if ($LinkedServer) {
                 $serverlist = $serverlist | Where-Object Name -In $LinkedServer
-            }
-            if ($ExcludeLinkedServer) {
-                $serverList = $serverlist | Where-Object Name -NotIn $ExcludeLinkedServer
-            }
-
-            foreach ($currentLinkedServer in $serverlist) {
-                $provider = $currentLinkedServer.ProviderName
-                try {
-                    $destServer.LinkedServers.Refresh()
-                    $destServer.LinkedServers.LinkedServerLogins.Refresh()
-                } catch {
-                    #here to avoid an empty catch
-                    $null = 1
-                }
-
-                $linkedServerName = $currentLinkedServer.Name
-                $linkedServerProductName = $currentLinkedServer.ProductName
-                $linkedServerDataSource = $currentLinkedServer.DataSource
-
-                $copyLinkedServer = [pscustomobject]@{
-                    SourceServer      = $sourceServer.Name
-                    DestinationServer = $destServer.Name
-                    Name              = $linkedServerName
-                    ProductName       = $linkedServerProductName
-                    DataSource        = $linkedServerDataSource
-                    Type              = "Linked Server"
-                    Status            = $null
-                    Notes             = $provider
-                    DateTime          = [DbaDateTime](Get-Date)
-                }
-
-                # This does a check to warn of missing OleDbProviderSettings but should only be checked on SQL on Windows
-                if ($destServer.Settings.OleDbProviderSettings.Name.Length -ne 0) {
-                    if (!$destServer.Settings.OleDbProviderSettings.Name -contains $provider -and !$provider.StartsWith("SQLN")) {
-                        $copyLinkedServer.Status = "Skipped"
-                        $copyLinkedServer.Notes = "Missing provider"
-                        $copyLinkedServer | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-
-                        Write-Message -Level Verbose -Message "$($destServer.Name) does not support the $provider provider. Skipping $linkedServerName."
-                        continue
-                    }
-                }
-
-                if ($null -ne $destServer.LinkedServers[$linkedServerName]) {
-                    if (!$force) {
-                        if ($Pscmdlet.ShouldProcess($destinstance, "$linkedServerName exists $($destServer.Name). Skipping.")) {
-                            $copyLinkedServer.Status = "Skipped"
-                            $copyLinkedServer.Notes = "Already exists on destination"
-                            $copyLinkedServer | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-
-                            Write-Message -Level Verbose -Message "$linkedServerName exists $($destServer.Name). Skipping."
-                        }
-                        continue
-                    } else {
-                        if ($Pscmdlet.ShouldProcess($destinstance, "Dropping $linkedServerName")) {
-                            if ($currentLinkedServer.Name -eq 'repl_distributor') {
-                                Write-Message -Level Verbose -Message "repl_distributor cannot be dropped. Not going to try."
-                                continue
-                            }
-
-                            $destServer.LinkedServers[$linkedServerName].Drop($true)
-                            $destServer.LinkedServers.refresh()
-                        }
-                    }
-                }
-
-                Write-Message -Level Verbose -Message "Attempting to migrate: $linkedServerName."
-                If ($Pscmdlet.ShouldProcess($destinstance, "Migrating $linkedServerName")) {
-                    try {
-                        $sql = $currentLinkedServer.Script() | Out-String
-                        Write-Message -Level Debug -Message $sql
-
-                        if ($UpgradeSqlClient -and $sql -match "sqlncli") {
-                            $destProviders = $destServer.Settings.OleDbProviderSettings | Where-Object { $_.Name -like 'SQLNCLI*' }
-                            $newProvider = $destProviders | Sort-Object Name -Descending | Select-Object -First 1 -ExpandProperty Name
-
-                            Write-Message -Level Verbose -Message "Changing sqlncli to $newProvider"
-                            $sql = $sql -replace ("sqlncli[0-9]+", $newProvider)
-                        }
-
-                        $destServer.Query($sql)
-
-                        if ($copyLinkedServer.ProductName -eq 'SQL Server' -and $copyLinkedServer.Name -ne $copyLinkedServer.DataSource) {
-                            $sql2 = "EXEC sp_setnetname '$($copyLinkedServer.Name)', '$($copyLinkedServer.DataSource)'; "
-                            $destServer.Query($sql2)
-                        }
-
-                        $destServer.LinkedServers.Refresh()
-                        Write-Message -Level Verbose -Message "$linkedServerName successfully copied."
-
-                        $copyLinkedServer.Status = "Successful"
-                        $copyLinkedServer | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-                    } catch {
-                        $copyLinkedServer.Status = "Failed"
-                        $copyLinkedServer | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-
-                        Stop-Function -Message "Issue adding linked server $destServer." -Target $linkedServerName -InnerErrorRecord $_
-                        $skiplogins = $true
-                    }
-                }
-
-                if ($skiplogins -ne $true) {
-                    $destlogins = $destServer.LinkedServers[$linkedServerName].LinkedServerLogins
-                    $lslogins = $sourcelogins | Where-Object { $_.Name -eq $linkedServerName }
-
-                    foreach ($login in $lslogins) {
-                        if ($Pscmdlet.ShouldProcess($destinstance, "Migrating $($login.Login)")) {
-                            $currentlogin = $destlogins | Where-Object { $_.RemoteUser -eq $login.Identity }
-
-                            $copyLinkedServer.Type = $login.Identity
-
-                            if ($currentlogin.RemoteUser.length -ne 0) {
-                                try {
-                                    $currentlogin.SetRemotePassword($login.Password)
-                                    $currentlogin.Alter()
-
-                                    $copyLinkedServer.Status = "Successful"
-                                    $copyLinkedServer | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-                                } catch {
-                                    $copyLinkedServer.Status = "Failed"
-                                    $copyLinkedServer | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-
-                                    Stop-Function -Message "Failed to copy login." -Target $login -InnerErrorRecord $_
-                                }
-                            }
-                        }
-                    }
-                }
-            }
         }
+        if ($ExcludeLinkedServer) {
+            $serverList = $serverlist | Where-Object Name -NotIn $ExcludeLinkedServer
+    }
 
-        if ($null -ne $SourceSqlCredential.Username) {
-            Write-Message -Level Verbose -Message "You are using a SQL Credential. Note that this script requires Windows Administrator access on the source server. Attempting with $($SourceSqlCredential.Username)."
-        }
+    foreach ($currentLinkedServer in $serverlist) {
+        $provider = $currentLinkedServer.ProviderName
         try {
-            $sourceServer = Connect-SqlInstance -SqlInstance $Source -SqlCredential $SourceSqlCredential
-            return
+            $destServer.LinkedServers.Refresh()
+            $destServer.LinkedServers.LinkedServerLogins.Refresh()
         } catch {
-            Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $Source
-            return
+            #here to avoid an empty catch
+            $null = 1
         }
-        if (!(Test-SqlSa -SqlInstance $sourceServer -SqlCredential $SourceSqlCredential)) {
-            Stop-Function -Message "Not a sysadmin on $source. Quitting." -Target $sourceServer
-            return
-        }
-        Write-Message -Level Verbose -Message "Getting NetBios name for $source."
-        $sourceNetBios = Resolve-NetBiosName $sourceserver
 
-        Write-Message -Level Verbose -Message "Checking if Remote Registry is enabled on $source."
+        $linkedServerName = $currentLinkedServer.Name
+        $linkedServerProductName = $currentLinkedServer.ProductName
+        $linkedServerDataSource = $currentLinkedServer.DataSource
+
+        $copyLinkedServer = [pscustomobject]@{
+            SourceServer      = $sourceServer.Name
+            DestinationServer = $destServer.Name
+            Name              = $linkedServerName
+            ProductName       = $linkedServerProductName
+            DataSource        = $linkedServerDataSource
+            Type              = "Linked Server"
+            Status            = $null
+            Notes             = $provider
+            DateTime          = [DbaDateTime](Get-Date)
+        }
+
+        # This does a check to warn of missing OleDbProviderSettings but should only be checked on SQL on Windows
+        if ($destServer.Settings.OleDbProviderSettings.Name.Length -ne 0) {
+            if (!$destServer.Settings.OleDbProviderSettings.Name -contains $provider -and !$provider.StartsWith("SQLN")) {
+                $copyLinkedServer.Status = "Skipped"
+                $copyLinkedServer.Notes = "Missing provider"
+                $copyLinkedServer | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+
+            Write-Message -Level Verbose -Message "$($destServer.Name) does not support the $provider provider. Skipping $linkedServerName."
+            continue
+        }
+    }
+
+    if ($null -ne $destServer.LinkedServers[$linkedServerName]) {
+        if (!$force) {
+            if ($Pscmdlet.ShouldProcess($destinstance, "$linkedServerName exists $($destServer.Name). Skipping.")) {
+                $copyLinkedServer.Status = "Skipped"
+                $copyLinkedServer.Notes = "Already exists on destination"
+                $copyLinkedServer | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+
+            Write-Message -Level Verbose -Message "$linkedServerName exists $($destServer.Name). Skipping."
+        }
+        continue
+    } else {
+        if ($Pscmdlet.ShouldProcess($destinstance, "Dropping $linkedServerName")) {
+            if ($currentLinkedServer.Name -eq 'repl_distributor') {
+                Write-Message -Level Verbose -Message "repl_distributor cannot be dropped. Not going to try."
+                continue
+            }
+
+            $destServer.LinkedServers[$linkedServerName].Drop($true)
+            $destServer.LinkedServers.refresh()
+        }
+    }
+}
+
+Write-Message -Level Verbose -Message "Attempting to migrate: $linkedServerName."
+If ($Pscmdlet.ShouldProcess($destinstance, "Migrating $linkedServerName")) {
+    try {
+        $sql = $currentLinkedServer.Script() | Out-String
+    Write-Message -Level Debug -Message $sql
+
+    if ($UpgradeSqlClient -and $sql -match "sqlncli") {
+        $destProviders = $destServer.Settings.OleDbProviderSettings | Where-Object { $_.Name -like 'SQLNCLI*' }
+    $newProvider = $destProviders | Sort-Object Name -Descending | Select-Object -First 1 -ExpandProperty Name
+
+Write-Message -Level Verbose -Message "Changing sqlncli to $newProvider"
+$sql = $sql -replace ("sqlncli[0-9]+", $newProvider)
+}
+
+$destServer.Query($sql)
+
+if ($copyLinkedServer.ProductName -eq 'SQL Server' -and $copyLinkedServer.Name -ne $copyLinkedServer.DataSource) {
+    $sql2 = "EXEC sp_setnetname '$($copyLinkedServer.Name)', '$($copyLinkedServer.DataSource)'; "
+    $destServer.Query($sql2)
+}
+
+$destServer.LinkedServers.Refresh()
+Write-Message -Level Verbose -Message "$linkedServerName successfully copied."
+
+$copyLinkedServer.Status = "Successful"
+$copyLinkedServer | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+} catch {
+    $copyLinkedServer.Status = "Failed"
+    $copyLinkedServer | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+
+Stop-Function -Message "Issue adding linked server $destServer." -Target $linkedServerName -InnerErrorRecord $_
+$skiplogins = $true
+}
+}
+
+if ($skiplogins -ne $true) {
+    $destlogins = $destServer.LinkedServers[$linkedServerName].LinkedServerLogins
+    $lslogins = $sourcelogins | Where-Object { $_.Name -eq $linkedServerName }
+
+foreach ($login in $lslogins) {
+    if ($Pscmdlet.ShouldProcess($destinstance, "Migrating $($login.Login)")) {
+        $currentlogin = $destlogins | Where-Object { $_.RemoteUser -eq $login.Identity }
+
+    $copyLinkedServer.Type = $login.Identity
+
+    if ($currentlogin.RemoteUser.length -ne 0) {
         try {
-            Invoke-Command2 -Raw -Credential $Credential -ComputerName $sourceNetBios -ScriptBlock { Get-ItemProperty -Path "HKLM:\SOFTWARE\" } -ErrorAction Stop
+            $currentlogin.SetRemotePassword($login.Password)
+            $currentlogin.Alter()
+
+            $copyLinkedServer.Status = "Successful"
+            $copyLinkedServer | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+    } catch {
+        $copyLinkedServer.Status = "Failed"
+        $copyLinkedServer | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+
+    Stop-Function -Message "Failed to copy login." -Target $login -InnerErrorRecord $_
+}
+}
+}
+}
+}
+}
+}
+
+if ($null -ne $SourceSqlCredential.Username) {
+    Write-Message -Level Verbose -Message "You are using a SQL Credential. Note that this script requires Windows Administrator access on the source server. Attempting with $($SourceSqlCredential.Username)."
+}
+try {
+    $sourceServer = Connect-SqlInstance -SqlInstance $Source -SqlCredential $SourceSqlCredential
+    return
+} catch {
+    Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $Source
+    return
+}
+if (!(Test-SqlSa -SqlInstance $sourceServer -SqlCredential $SourceSqlCredential)) {
+    Stop-Function -Message "Not a sysadmin on $source. Quitting." -Target $sourceServer
+    return
+}
+Write-Message -Level Verbose -Message "Getting NetBios name for $source."
+$sourceNetBios = Resolve-NetBiosName $sourceserver
+
+Write-Message -Level Verbose -Message "Checking if Remote Registry is enabled on $source."
+try {
+    Invoke-Command2 -Raw -Credential $Credential -ComputerName $sourceNetBios -ScriptBlock { Get-ItemProperty -Path "HKLM:\SOFTWARE\" } -ErrorAction Stop
+} catch {
+    Stop-Function -Message "Can't connect to registry on $source." -Target $sourceNetBios -ErrorRecord $_
+    return
+}
+}
+process {
+    if (Test-FunctionInterrupt) { return }
+
+    foreach ($destinstance in $Destination) {
+        try {
+            $destServer = Connect-SqlInstance -SqlInstance $destinstance -SqlCredential $DestinationSqlCredential
         } catch {
-            Stop-Function -Message "Can't connect to registry on $source." -Target $sourceNetBios -ErrorRecord $_
-            return
+            Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $destinstance -Continue
         }
-    }
-    process {
-        if (Test-FunctionInterrupt) { return }
-
-        foreach ($destinstance in $Destination) {
-            try {
-                $destServer = Connect-SqlInstance -SqlInstance $destinstance -SqlCredential $DestinationSqlCredential
-            } catch {
-                Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $destinstance -Continue
-            }
-            if (!(Test-SqlSa -SqlInstance $destServer -SqlCredential $DestinationSqlCredential)) {
-                Stop-Function -Message "Not a sysadmin on $destinstance" -Target $destServer -Continue
-            }
-
-            # Magic happens here
-            Copy-DbaLinkedServers $LinkedServer -Force:$force
+        if (!(Test-SqlSa -SqlInstance $destServer -SqlCredential $DestinationSqlCredential)) {
+            Stop-Function -Message "Not a sysadmin on $destinstance" -Target $destServer -Continue
         }
+
+        # Magic happens here
+        Copy-DbaLinkedServers $LinkedServer -Force:$force
     }
-    end {
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Copy-SqlLinkedServer
-    }
+}
+end {
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Copy-SqlLinkedServer
+}
 }

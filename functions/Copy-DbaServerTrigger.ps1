@@ -133,49 +133,49 @@ function Copy-DbaServerTrigger {
                         $copyTriggerStatus.Status = "Skipped"
                         $copyTriggerStatus.Notes = "Already exists on destination"
                         $copyTriggerStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-                        continue
-                    } else {
-                        if ($Pscmdlet.ShouldProcess($destinstance, "Dropping server trigger $triggerName and recreating")) {
-                            try {
-                                Write-Message -Level Verbose -Message "Dropping server trigger $triggerName"
-                                $destServer.Triggers[$triggerName].Drop()
-                            } catch {
-                                $copyTriggerStatus.Status = "Failed"
-                                $copyTriggerStatus.Notes = (Get-ErrorMessage -Record $_)
-                                $copyTriggerStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+                    continue
+                } else {
+                    if ($Pscmdlet.ShouldProcess($destinstance, "Dropping server trigger $triggerName and recreating")) {
+                        try {
+                            Write-Message -Level Verbose -Message "Dropping server trigger $triggerName"
+                            $destServer.Triggers[$triggerName].Drop()
+                        } catch {
+                            $copyTriggerStatus.Status = "Failed"
+                            $copyTriggerStatus.Notes = (Get-ErrorMessage -Record $_)
+                            $copyTriggerStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
 
-                                Stop-Function -Message "Issue dropping trigger on destination" -Target $triggerName -ErrorRecord $_ -Continue
-                            }
-                        }
-                    }
-                }
-
-                if ($Pscmdlet.ShouldProcess($destinstance, "Creating server trigger $triggerName")) {
-                    try {
-                        Write-Message -Level Verbose -Message "Copying server trigger $triggerName"
-                        $sql = $trigger.Script() | Out-String
-                        $sql = $sql -replace "CREATE TRIGGER", "`nGO`nCREATE TRIGGER"
-                        $sql = $sql -replace "ENABLE TRIGGER", "`nGO`nENABLE TRIGGER"
-                        Write-Message -Level Debug -Message $sql
-
-                        foreach ($query in ($sql -split '\nGO\b')) {
-                            $destServer.Query($query) | Out-Null
-                        }
-
-                        $copyTriggerStatus.Status = "Successful"
-                        $copyTriggerStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-                    } catch {
-                        $copyTriggerStatus.Status = "Failed"
-                        $copyTriggerStatus.Notes = (Get-ErrorMessage -Record $_)
-                        $copyTriggerStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-
-                        Stop-Function -Message "Issue creating trigger on destination" -Target $triggerName -ErrorRecord $_
+                        Stop-Function -Message "Issue dropping trigger on destination" -Target $triggerName -ErrorRecord $_ -Continue
                     }
                 }
             }
         }
-    }
-    end {
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Copy-SqlServerTrigger
-    }
+
+        if ($Pscmdlet.ShouldProcess($destinstance, "Creating server trigger $triggerName")) {
+            try {
+                Write-Message -Level Verbose -Message "Copying server trigger $triggerName"
+                $sql = $trigger.Script() | Out-String
+            $sql = $sql -replace "CREATE TRIGGER", "`nGO`nCREATE TRIGGER"
+            $sql = $sql -replace "ENABLE TRIGGER", "`nGO`nENABLE TRIGGER"
+            Write-Message -Level Debug -Message $sql
+
+            foreach ($query in ($sql -split '\nGO\b')) {
+                $destServer.Query($query) | Out-Null
+        }
+
+        $copyTriggerStatus.Status = "Successful"
+        $copyTriggerStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+} catch {
+    $copyTriggerStatus.Status = "Failed"
+    $copyTriggerStatus.Notes = (Get-ErrorMessage -Record $_)
+    $copyTriggerStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+
+Stop-Function -Message "Issue creating trigger on destination" -Target $triggerName -ErrorRecord $_
+}
+}
+}
+}
+}
+end {
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Copy-SqlServerTrigger
+}
 }

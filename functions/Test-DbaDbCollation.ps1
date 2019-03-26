@@ -85,29 +85,29 @@ function Test-DbaDbCollation {
 
             $dbs = $server.Databases | Where-Object IsAccessible
 
-            if ($Database) {
-                $dbs = $dbs | Where-Object { $Database -contains $_.Name }
-            }
-
-            if ($ExcludeDatabase) {
-                $dbs = $dbs | Where-Object Name -NotIn $ExcludeDatabase
-            }
-
-            foreach ($db in $dbs) {
-                Write-Message -Level Verbose -Message "Processing $($db.name) on $servername."
-                [PSCustomObject]@{
-                    ComputerName      = $server.ComputerName
-                    InstanceName      = $server.ServiceName
-                    SqlInstance       = $server.DomainInstanceName
-                    Database          = $db.name
-                    ServerCollation   = $server.collation
-                    DatabaseCollation = $db.collation
-                    IsEqual           = $db.collation -eq $server.collation
-                }
-            }
-        }
+        if ($Database) {
+            $dbs = $dbs | Where-Object { $Database -contains $_.Name }
     }
-    end {
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Test-DbaDatabaseCollation
+
+    if ($ExcludeDatabase) {
+        $dbs = $dbs | Where-Object Name -NotIn $ExcludeDatabase
+}
+
+foreach ($db in $dbs) {
+    Write-Message -Level Verbose -Message "Processing $($db.name) on $servername."
+    [PSCustomObject]@{
+        ComputerName      = $server.ComputerName
+        InstanceName      = $server.ServiceName
+        SqlInstance       = $server.DomainInstanceName
+        Database          = $db.name
+        ServerCollation   = $server.collation
+        DatabaseCollation = $db.collation
+        IsEqual           = $db.collation -eq $server.collation
     }
+}
+}
+}
+end {
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Test-DbaDatabaseCollation
+}
 }

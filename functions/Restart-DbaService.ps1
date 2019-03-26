@@ -115,35 +115,35 @@ function Restart-DbaService {
     }
     end {
         $processArray = [array]($processArray | Where-Object { (!$InstanceName -or $_.InstanceName -in $InstanceName) -and (!$Type -or $_.ServiceType -in $Type) })
-        foreach ($service in $processArray) {
-            if ($Force -and $service.ServiceType -eq 'Engine' -and !($processArray | Where-Object { $_.ServiceType -eq 'Agent' -and $_.InstanceName -eq $service.InstanceName -and $_.ComputerName -eq $service.ComputerName })) {
-                Write-Message -Level Verbose -Message "Adding Agent service to the list for service $($service.ServiceName) on $($service.ComputerName), since -Force has been specified"
-                #Construct parameters to call Get-DbaService
-                $serviceParams = @{
-                    ComputerName = $service.ComputerName
-                    InstanceName = $service.InstanceName
-                    Type         = 'Agent'
-                }
-                if ($Credential) { $serviceParams.Credential = $Credential }
-                if ($EnableException) { $serviceParams.Silent = $EnableException }
-                $processArray += @(Get-DbaService @serviceParams)
-            }
+    foreach ($service in $processArray) {
+        if ($Force -and $service.ServiceType -eq 'Engine' -and !($processArray | Where-Object { $_.ServiceType -eq 'Agent' -and $_.InstanceName -eq $service.InstanceName -and $_.ComputerName -eq $service.ComputerName })) {
+        Write-Message -Level Verbose -Message "Adding Agent service to the list for service $($service.ServiceName) on $($service.ComputerName), since -Force has been specified"
+        #Construct parameters to call Get-DbaService
+        $serviceParams = @{
+            ComputerName = $service.ComputerName
+            InstanceName = $service.InstanceName
+            Type         = 'Agent'
         }
-        if ($processArray) {
-            if ($PSCmdlet.ShouldProcess("$ProcessArray", "Restarting Service")) {
-                $services = Update-ServiceStatus -InputObject $processArray -Action 'stop' -Timeout $Timeout -EnableException $EnableException
-                foreach ($service in ($services | Where-Object { $_.Status -eq 'Failed'})) {
-                    $service
-                }
-                $services = $services | Where-Object { $_.Status -eq 'Successful'}
-                if ($services) {
-                    Update-ServiceStatus -InputObject $services -Action 'restart' -Timeout $Timeout -EnableException $EnableException
-                }
-            }
-        } else {
-            Stop-Function -EnableException $EnableException -Message "No SQL Server services found with current parameters."
-        }
-
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Restart-DbaSqlService
+        if ($Credential) { $serviceParams.Credential = $Credential }
+        if ($EnableException) { $serviceParams.Silent = $EnableException }
+        $processArray += @(Get-DbaService @serviceParams)
     }
+}
+if ($processArray) {
+    if ($PSCmdlet.ShouldProcess("$ProcessArray", "Restarting Service")) {
+        $services = Update-ServiceStatus -InputObject $processArray -Action 'stop' -Timeout $Timeout -EnableException $EnableException
+        foreach ($service in ($services | Where-Object { $_.Status -eq 'Failed' })) {
+        $service
+    }
+    $services = $services | Where-Object { $_.Status -eq 'Successful' }
+if ($services) {
+    Update-ServiceStatus -InputObject $services -Action 'restart' -Timeout $Timeout -EnableException $EnableException
+}
+}
+} else {
+    Stop-Function -EnableException $EnableException -Message "No SQL Server services found with current parameters."
+}
+
+Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Restart-DbaSqlService
+}
 }

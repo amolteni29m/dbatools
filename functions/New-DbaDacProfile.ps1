@@ -100,12 +100,12 @@ function New-DbaDacProfile {
                     $value = $PSItem.Value.ToString()
                     $return += "<$key>$value</$key>"
                 }
-            }
-            $return | Out-String
         }
+        $return | Out-String
+}
 
-        function Get-Template ($db, $connstring) {
-            "<?xml version=""1.0"" ?>
+function Get-Template ($db, $connstring) {
+    "<?xml version=""1.0"" ?>
             <Project ToolsVersion=""14.0"" xmlns=""http://schemas.microsoft.com/developer/msbuild/2003"">
               <PropertyGroup>
                 <TargetDatabaseName>{0}</TargetDatabaseName>
@@ -114,62 +114,62 @@ function New-DbaDacProfile {
                 {2}
               </PropertyGroup>
             </Project>" -f $db[0], $connstring, $(Convert-HashtableToXMLString($PublishOptions))
+}
+
+function Get-ServerName ($connstring) {
+    $builder = New-Object System.Data.Common.DbConnectionStringBuilder
+    $builder.set_ConnectionString($connstring)
+    $instance = $builder['data source']
+
+    if (-not $instance) {
+        $instance = $builder['server']
+    }
+
+    return $instance.ToString().Replace('\', '--')
+}
+}
+process {
+    if (Test-FunctionInterrupt) { return }
+
+    foreach ($instance in $sqlinstance) {
+        try {
+            $server = Connect-SqlInstance -SqlInstance $instance -SqlCredential $sqlcredential
+        } catch {
+            Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $instance -Continue
         }
 
-        function Get-ServerName ($connstring) {
-            $builder = New-Object System.Data.Common.DbConnectionStringBuilder
-            $builder.set_ConnectionString($connstring)
-            $instance = $builder['data source']
+        $ConnectionString += $server.ConnectionContext.ConnectionString.Replace(';Application Name="dbatools PowerShell module - dbatools.io"', '')
 
-            if (-not $instance) {
-                $instance = $builder['server']
-            }
+    }
 
-            return $instance.ToString().Replace('\', '--')
+    foreach ($connstring in $ConnectionString) {
+        foreach ($db in $Database) {
+            if ($Pscmdlet.ShouldProcess($db, "Creating new DAC Profile")) {
+                $profileTemplate = Get-Template $db, $connstring
+                $instancename = Get-ServerName $connstring
+
+                try {
+                    $server = [DbaInstance]($instancename.ToString().Replace('--', '\'))
+                    $PublishProfile = Join-Path $Path "$($instancename.Replace('--','-'))-$db-publish.xml" -ErrorAction Stop
+                    Write-Message -Level Verbose -Message "Writing to $PublishProfile"
+                    $profileTemplate | Out-File $PublishProfile -ErrorAction Stop
+                [pscustomobject]@{
+                    ComputerName     = $server.ComputerName
+                    InstanceName     = $server.InstanceName
+                    SqlInstance      = $server.FullName
+                    Database         = $db
+                    FileName         = $PublishProfile
+                    ConnectionString = $connstring
+                    ProfileTemplate  = $profileTemplate
+                } | Select-DefaultView -ExcludeProperty ComputerName, InstanceName, ProfileTemplate
+        } catch {
+            Stop-Function -ErrorRecord $_ -Message "Failure" -Target $instancename -Continue
         }
     }
-    process {
-        if (Test-FunctionInterrupt) { return }
-
-        foreach ($instance in $sqlinstance) {
-            try {
-                $server = Connect-SqlInstance -SqlInstance $instance -SqlCredential $sqlcredential
-            } catch {
-                Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $instance -Continue
-            }
-
-            $ConnectionString += $server.ConnectionContext.ConnectionString.Replace(';Application Name="dbatools PowerShell module - dbatools.io"', '')
-
-        }
-
-        foreach ($connstring in $ConnectionString) {
-            foreach ($db in $Database) {
-                if ($Pscmdlet.ShouldProcess($db, "Creating new DAC Profile")) {
-                    $profileTemplate = Get-Template $db, $connstring
-                    $instancename = Get-ServerName $connstring
-
-                    try {
-                        $server = [DbaInstance]($instancename.ToString().Replace('--', '\'))
-                        $PublishProfile = Join-Path $Path "$($instancename.Replace('--','-'))-$db-publish.xml" -ErrorAction Stop
-                        Write-Message -Level Verbose -Message "Writing to $PublishProfile"
-                        $profileTemplate | Out-File $PublishProfile -ErrorAction Stop
-                        [pscustomobject]@{
-                            ComputerName     = $server.ComputerName
-                            InstanceName     = $server.InstanceName
-                            SqlInstance      = $server.FullName
-                            Database         = $db
-                            FileName         = $PublishProfile
-                            ConnectionString = $connstring
-                            ProfileTemplate  = $profileTemplate
-                        } | Select-DefaultView -ExcludeProperty ComputerName, InstanceName, ProfileTemplate
-                    } catch {
-                        Stop-Function -ErrorRecord $_ -Message "Failure" -Target $instancename -Continue
-                    }
-                }
-            }
-        }
-    }
-    end {
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias New-DbaPublishProfile
-    }
+}
+}
+}
+end {
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias New-DbaPublishProfile
+}
 }

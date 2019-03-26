@@ -86,18 +86,18 @@ function Test-DbaLoginPassword {
         $CheckPasses = "''", "'@@Name'"
         if ($Dictionary) {
             $Dictionary | ForEach-Object { $CheckPasses += "'" + $psitem + "'" }
-        }
+    }
 
-        foreach ($CheckPass in $CheckPasses) {
-            if ($CheckPasses.IndexOf($CheckPass) -eq 0) {
-                $checks = "SELECT " + $CheckPass
-            } else {
-                $checks += "
+    foreach ($CheckPass in $CheckPasses) {
+        if ($CheckPasses.IndexOf($CheckPass) -eq 0) {
+            $checks = "SELECT " + $CheckPass
+        } else {
+            $checks += "
         UNION SELECT " + $CheckPass
-            }
         }
+    }
 
-        $sql = "DECLARE @WeakPwdList TABLE(WeakPwd NVARCHAR(255))
+    $sql = "DECLARE @WeakPwdList TABLE(WeakPwd NVARCHAR(255))
             --Define weak password list
             --Use @@Name if users password contain their name
             INSERT INTO @WeakPwdList(WeakPwd)
@@ -116,33 +116,33 @@ function Test-DbaLoginPassword {
             FROM sys.sql_logins SysLogins
             INNER JOIN @WeakPwdList WeakPassword ON (PWDCOMPARE(WeakPassword.WeakPwd, password_hash) = 1
                 OR PWDCOMPARE(REPLACE(WeakPassword.WeakPwd,'@@Name',SysLogins.name),password_hash) = 1)"
-    }
-    process {
-        foreach ($instance in $SqlInstance) {
-            try {
-                $server = Connect-SqlInstance -SqlInstance $instance -SqlCredential $sqlcredential -MinimumVersion 10
-                Write-Message -Message "Connected to: $instance." -Level Verbose
-            } catch {
-                Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $instance -Continue
-            }
-            $InputObject += Get-DbaLogin -SqlInstance $server -Login $Login
+}
+process {
+    foreach ($instance in $SqlInstance) {
+        try {
+            $server = Connect-SqlInstance -SqlInstance $instance -SqlCredential $sqlcredential -MinimumVersion 10
+            Write-Message -Message "Connected to: $instance." -Level Verbose
+        } catch {
+            Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $instance -Continue
         }
-
-        $logins += $InputObject
+        $InputObject += Get-DbaLogin -SqlInstance $server -Login $Login
     }
-    end {
-        $servers = $logins | Select-Object -Unique -ExpandProperty Parent
-        $names = $logins | Select-Object -Unique -ExpandProperty Name
 
-        foreach ($serverinstance in $servers) {
-            Write-Message -Level Debug -Message "Executing $sql"
-            Write-Message -Level Verbose -Message "Testing: same username as Password"
-            Write-Message -Level Verbose -Message "Testing: the following Passwords $CheckPasses"
-            try {
-                $serverinstance.Query("$sql") | Where-Object SqlLogin -in $names
-            } catch {
-                Stop-Function -Message "Failure" -ErrorRecord $_ -Target $serverinstance -Continue
-            }
-        }
-    }
+    $logins += $InputObject
+}
+end {
+    $servers = $logins | Select-Object -Unique -ExpandProperty Parent
+$names = $logins | Select-Object -Unique -ExpandProperty Name
+
+foreach ($serverinstance in $servers) {
+    Write-Message -Level Debug -Message "Executing $sql"
+    Write-Message -Level Verbose -Message "Testing: same username as Password"
+    Write-Message -Level Verbose -Message "Testing: the following Passwords $CheckPasses"
+    try {
+        $serverinstance.Query("$sql") | Where-Object SqlLogin -in $names
+} catch {
+    Stop-Function -Message "Failure" -ErrorRecord $_ -Target $serverinstance -Continue
+}
+}
+}
 }

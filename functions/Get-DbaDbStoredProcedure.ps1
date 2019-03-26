@@ -83,38 +83,38 @@ function Get-DbaDbStoredProcedure {
 
             $databases = $server.Databases | Where-Object IsAccessible
 
-            if ($Database) {
-                $databases = $databases | Where-Object Name -In $Database
-            }
-            if ($ExcludeDatabase) {
-                $databases = $databases | Where-Object Name -NotIn $ExcludeDatabase
-            }
-
-            foreach ($db in $databases) {
-                if (!$db.IsAccessible) {
-                    Write-Message -Level Warning -Message "Database $db is not accessible. Skipping."
-                    continue
-                }
-                if ($db.StoredProcedures.Count -eq 0) {
-                    Write-Message -Message "No Stored Procedures exist in the $db database on $instance" -Target $db -Level Output
-                    continue
-                }
-
-                foreach ($proc in $db.StoredProcedures) {
-                    if ( (Test-Bound -ParameterName ExcludeSystemSp) -and $proc.IsSystemObject ) {
-                        continue
-                    }
-
-                    Add-Member -Force -InputObject $proc -MemberType NoteProperty -Name ComputerName -value $server.ComputerName
-                    Add-Member -Force -InputObject $proc -MemberType NoteProperty -Name InstanceName -value $server.ServiceName
-                    Add-Member -Force -InputObject $proc -MemberType NoteProperty -Name SqlInstance -value $server.DomainInstanceName
-                    Add-Member -Force -InputObject $proc -MemberType NoteProperty -Name Database -value $db.Name
-
-                    $defaults = 'ComputerName', 'InstanceName', 'SqlInstance', 'Database', 'Schema', 'ID as ObjectId', 'CreateDate',
-                    'DateLastModified', 'Name', 'ImplementationType', 'Startup'
-                    Select-DefaultView -InputObject $proc -Property $defaults
-                }
-            }
-        }
+        if ($Database) {
+            $databases = $databases | Where-Object Name -In $Database
     }
+    if ($ExcludeDatabase) {
+        $databases = $databases | Where-Object Name -NotIn $ExcludeDatabase
+}
+
+foreach ($db in $databases) {
+    if (!$db.IsAccessible) {
+        Write-Message -Level Warning -Message "Database $db is not accessible. Skipping."
+        continue
+    }
+    if ($db.StoredProcedures.Count -eq 0) {
+        Write-Message -Message "No Stored Procedures exist in the $db database on $instance" -Target $db -Level Output
+        continue
+    }
+
+    foreach ($proc in $db.StoredProcedures) {
+        if ( (Test-Bound -ParameterName ExcludeSystemSp) -and $proc.IsSystemObject ) {
+            continue
+        }
+
+        Add-Member -Force -InputObject $proc -MemberType NoteProperty -Name ComputerName -value $server.ComputerName
+        Add-Member -Force -InputObject $proc -MemberType NoteProperty -Name InstanceName -value $server.ServiceName
+        Add-Member -Force -InputObject $proc -MemberType NoteProperty -Name SqlInstance -value $server.DomainInstanceName
+        Add-Member -Force -InputObject $proc -MemberType NoteProperty -Name Database -value $db.Name
+
+        $defaults = 'ComputerName', 'InstanceName', 'SqlInstance', 'Database', 'Schema', 'ID as ObjectId', 'CreateDate',
+        'DateLastModified', 'Name', 'ImplementationType', 'Startup'
+        Select-DefaultView -InputObject $proc -Property $defaults
+    }
+}
+}
+}
 }

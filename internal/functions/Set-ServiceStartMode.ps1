@@ -62,11 +62,11 @@ function Set-ServiceStartMode {
             $Wmi = Get-DbaCmObject -ComputerName $service.ComputerName -Namespace "root\cimv2" -Query "SELECT * FROM Win32_Service WHERE Name = '$($service.ServiceName)'" -EnableException
             if ($Pscmdlet.ShouldProcess($Wmi, "Changing the Start Mode to $Mode")) {
                 $x = $Wmi | Invoke-CimMethod -MethodName ChangeStartMode -Arguments @{ StartMode = $Mode }
-                if ($x.ReturnValue -ne 0) {
-                    Stop-Function -EnableException $EnableException -Message ("The attempt to change the start mode of $($service.ServiceName) on $($service.ComputerName) returned the following message: " + (Get-DbaServiceErrorMessage $x.ReturnValue))
-                    return
-                }
+            if ($x.ReturnValue -ne 0) {
+                Stop-Function -EnableException $EnableException -Message ("The attempt to change the start mode of $($service.ServiceName) on $($service.ComputerName) returned the following message: " + (Get-DbaServiceErrorMessage $x.ReturnValue))
+                return
             }
         }
     }
+}
 }

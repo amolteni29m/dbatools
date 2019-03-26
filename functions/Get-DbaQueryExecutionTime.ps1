@@ -190,49 +190,49 @@ function Get-DbaQueryExecutionTime {
             $dbs = $server.Databases
             if ($Database) {
                 $dbs = $dbs | Where-Object Name -In $Database
-            }
-
-            if ($ExcludeSystem) {
-                $dbs = $dbs | Where-Object { $_.IsSystemObject -eq $false }
-            }
-
-            if ($ExcludeDatabase) {
-                $dbs = $dbs | Where-Object Name -NotIn $ExcludeDatabase
-            }
-
-            foreach ($db in $dbs) {
-                Write-Message -Level Verbose -Message "Processing $db on $instance"
-
-                if ($db.IsAccessible -eq $false) {
-                    Write-Message -Level Warning -Message "The database $db is not accessible. Skipping database."
-                    continue
-                }
-
-                try {
-                    foreach ($row in $db.ExecuteWithResults($sql).Tables.Rows) {
-                        [PSCustomObject]@{
-                            ComputerName       = $server.ComputerName
-                            InstanceName       = $server.ServiceName
-                            SqlInstance        = $server.DomainInstanceName
-                            Database           = $row.DatabaseName
-                            ProcName           = $row.ProcName
-                            ObjectID           = $row.object_id
-                            TypeDesc           = $row.type_desc
-                            Executions         = $row.Execution_Count
-                            AvgExecMs          = $row.AvgExec_ms
-                            MaxExecMs          = $row.MaxExec_ms
-                            CachedTime         = $row.cached_time
-                            LastExecTime       = $row.last_execution_time
-                            TotalWorkerTimeMs  = $row.total_worker_time_ms
-                            TotalElapsedTimeMs = $row.total_elapsed_time_ms
-                            SQLText            = $row.SQLText
-                            FullStatementText  = $row.full_statement_text
-                        } | Select-DefaultView -ExcludeProperty FullStatementText
-                    }
-                } catch {
-                    Stop-Function -Message "Could not process $db on $instance" -Target $db -ErrorRecord $_ -Continue
-                }
-            }
         }
+
+        if ($ExcludeSystem) {
+            $dbs = $dbs | Where-Object { $_.IsSystemObject -eq $false }
     }
+
+    if ($ExcludeDatabase) {
+        $dbs = $dbs | Where-Object Name -NotIn $ExcludeDatabase
+}
+
+foreach ($db in $dbs) {
+    Write-Message -Level Verbose -Message "Processing $db on $instance"
+
+    if ($db.IsAccessible -eq $false) {
+        Write-Message -Level Warning -Message "The database $db is not accessible. Skipping database."
+        continue
+    }
+
+    try {
+        foreach ($row in $db.ExecuteWithResults($sql).Tables.Rows) {
+            [PSCustomObject]@{
+                ComputerName       = $server.ComputerName
+                InstanceName       = $server.ServiceName
+                SqlInstance        = $server.DomainInstanceName
+                Database           = $row.DatabaseName
+                ProcName           = $row.ProcName
+                ObjectID           = $row.object_id
+                TypeDesc           = $row.type_desc
+                Executions         = $row.Execution_Count
+                AvgExecMs          = $row.AvgExec_ms
+                MaxExecMs          = $row.MaxExec_ms
+                CachedTime         = $row.cached_time
+                LastExecTime       = $row.last_execution_time
+                TotalWorkerTimeMs  = $row.total_worker_time_ms
+                TotalElapsedTimeMs = $row.total_elapsed_time_ms
+                SQLText            = $row.SQLText
+                FullStatementText  = $row.full_statement_text
+            } | Select-DefaultView -ExcludeProperty FullStatementText
+    }
+} catch {
+    Stop-Function -Message "Could not process $db on $instance" -Target $db -ErrorRecord $_ -Continue
+}
+}
+}
+}
 }

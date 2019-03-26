@@ -133,20 +133,20 @@ function Find-DbaLoginInGroup {
 
             $AdGroups = $server.Logins | Where-Object { $_.LoginType -eq "WindowsGroup" -and $_.Name -ne "BUILTIN\Administrators" -and $_.Name -notlike "*NT SERVICE*" }
 
-            foreach ($AdGroup in $AdGroups) {
-                Write-Message -Level Verbose -Message "Looking at Group: $AdGroup"
-                $ADGroupOut += Get-AllLogins $AdGroup.Name -ParentADGroup $AdGroup.Name
-            }
+        foreach ($AdGroup in $AdGroups) {
+            Write-Message -Level Verbose -Message "Looking at Group: $AdGroup"
+            $ADGroupOut += Get-AllLogins $AdGroup.Name -ParentADGroup $AdGroup.Name
+        }
 
-            if (-not $Login) {
-                $res = $ADGroupOut
-            } else {
-                $res = $ADGroupOut | Where-Object { $Login -contains $_.Login }
-                if ($res.Length -eq 0) {
-                    continue
-                }
-            }
-            Select-DefaultView -InputObject $res -Property SqlInstance, Login, DisplayName, MemberOf, ParentADGroupLogin
+        if (-not $Login) {
+            $res = $ADGroupOut
+        } else {
+            $res = $ADGroupOut | Where-Object { $Login -contains $_.Login }
+        if ($res.Length -eq 0) {
+            continue
         }
     }
+    Select-DefaultView -InputObject $res -Property SqlInstance, Login, DisplayName, MemberOf, ParentADGroupLogin
+}
+}
 }

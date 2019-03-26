@@ -99,28 +99,28 @@ function Test-DbaDbOwner {
                 $TargetLogin = ($server.logins | Where-Object {
                         $_.id -eq 1
                     }).Name
-            }
-
-            #Validate login
-            if (($server.Logins.Name) -notmatch [Regex]::Escape($TargetLogin)) {
-                Write-Message -Level Verbose -Message "$TargetLogin is not a login on $instance" -Target $instance
-            }
-
-            Write-Message -Level Verbose -Message "Checking $db"
-            [pscustomobject]@{
-                ComputerName = $server.ComputerName
-                InstanceName = $server.ServiceName
-                SqlInstance  = $server.DomainInstanceName
-                Server       = $server.DomainInstanceName
-                Database     = $db.Name
-                DBState      = $db.Status
-                CurrentOwner = $db.Owner
-                TargetOwner  = $TargetLogin
-                OwnerMatch   = ($db.owner -eq $TargetLogin)
-            } | Select-DefaultView -ExcludeProperty Server
         }
-    }
-    end {
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Test-DbaDatabaseOwner
-    }
+
+        #Validate login
+        if (($server.Logins.Name) -notmatch [Regex]::Escape($TargetLogin)) {
+            Write-Message -Level Verbose -Message "$TargetLogin is not a login on $instance" -Target $instance
+        }
+
+        Write-Message -Level Verbose -Message "Checking $db"
+        [pscustomobject]@{
+            ComputerName = $server.ComputerName
+            InstanceName = $server.ServiceName
+            SqlInstance  = $server.DomainInstanceName
+            Server       = $server.DomainInstanceName
+            Database     = $db.Name
+            DBState      = $db.Status
+            CurrentOwner = $db.Owner
+            TargetOwner  = $TargetLogin
+            OwnerMatch   = ($db.owner -eq $TargetLogin)
+        } | Select-DefaultView -ExcludeProperty Server
+}
+}
+end {
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Test-DbaDatabaseOwner
+}
 }

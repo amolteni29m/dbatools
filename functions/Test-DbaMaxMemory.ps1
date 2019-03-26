@@ -49,7 +49,7 @@ function Test-DbaMaxMemory {
 
         Find all servers in CMS that have Max SQL memory set to higher than the total memory of the server (think 2147483647) and set it to recommended value.
 
-       #>
+    #>
     [CmdletBinding()]
     param (
         [parameter(Mandatory, ValueFromPipeline)]
@@ -79,47 +79,47 @@ function Test-DbaMaxMemory {
                     $serverService = Get-DbaService -ComputerName $instance -EnableException
                 }
                 $instanceCount = ($serverService | Where-Object State -Like Running | Where-Object InstanceName | Group-Object InstanceName | Measure-Object Count).Count
-            } catch {
-                Write-Message -Level Warning -Message "Couldn't get accurate SQL Server instance count on $instance. Defaulting to 1." -Target $instance -ErrorRecord $_
-                $instanceCount = 1
-            }
+} catch {
+    Write-Message -Level Warning -Message "Couldn't get accurate SQL Server instance count on $instance. Defaulting to 1." -Target $instance -ErrorRecord $_
+    $instanceCount = 1
+}
 
-            if ($null -eq $serverMemory) {
-                continue
-            }
-            $reserve = 1
+if ($null -eq $serverMemory) {
+    continue
+}
+$reserve = 1
 
-            $maxMemory = $serverMemory.MaxValue
-            $totalMemory = $serverMemory.Total
+$maxMemory = $serverMemory.MaxValue
+$totalMemory = $serverMemory.Total
 
-            if ($totalMemory -ge 4096) {
-                $currentCount = $totalMemory
-                while ($currentCount / 4096 -gt 0) {
-                    if ($currentCount -gt 16384) {
-                        $reserve += 1
-                        $currentCount += -8192
-                    } else {
-                        $reserve += 1
-                        $currentCount += -4096
-                    }
-                }
-                $recommendedMax = [int]($totalMemory - ($reserve * 1024))
-            } else {
-                $recommendedMax = $totalMemory * .5
-            }
-
-            $recommendedMax = $recommendedMax / $instanceCount
-
-            [pscustomobject]@{
-                ComputerName     = $server.ComputerName
-                InstanceName     = $server.ServiceName
-                SqlInstance      = $server.DomainInstanceName
-                InstanceCount    = $instanceCount
-                Total            = [int]$totalMemory
-                MaxValue         = [int]$maxMemory
-                RecommendedValue = [int]$recommendedMax
-                Server           = $server # This will allowing piping a non-connected object
-            } | Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, InstanceCount, Total, MaxValue, RecommendedValue
+if ($totalMemory -ge 4096) {
+    $currentCount = $totalMemory
+    while ($currentCount / 4096 -gt 0) {
+        if ($currentCount -gt 16384) {
+            $reserve += 1
+            $currentCount += -8192
+        } else {
+            $reserve += 1
+            $currentCount += -4096
         }
     }
+    $recommendedMax = [int]($totalMemory - ($reserve * 1024))
+} else {
+    $recommendedMax = $totalMemory * .5
+}
+
+$recommendedMax = $recommendedMax / $instanceCount
+
+[pscustomobject]@{
+    ComputerName     = $server.ComputerName
+    InstanceName     = $server.ServiceName
+    SqlInstance      = $server.DomainInstanceName
+    InstanceCount    = $instanceCount
+    Total            = [int]$totalMemory
+    MaxValue         = [int]$maxMemory
+    RecommendedValue = [int]$recommendedMax
+    Server           = $server # This will allowing piping a non-connected object
+} | Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, InstanceCount, Total, MaxValue, RecommendedValue
+}
+}
 }

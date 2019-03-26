@@ -87,29 +87,29 @@ function Test-DbaDbCompatibility {
             $serverversion = "Version$($server.VersionMajor)0"
             $dbs = $server.Databases | Where-Object IsAccessible
 
-            if ($Database) {
-                $dbs = $dbs | Where-Object { $Database -contains $_.Name }
-            }
-
-            if ($ExcludeDatabase) {
-                $dbs = $dbs | Where-Object Name -NotIn $ExcludeDatabase
-            }
-
-            foreach ($db in $dbs) {
-                Write-Message -Level Verbose -Message "Processing $($db.name) on $instance."
-                [PSCustomObject]@{
-                    ComputerName          = $server.ComputerName
-                    InstanceName          = $server.ServiceName
-                    SqlInstance           = $server.DomainInstanceName
-                    ServerLevel           = $serverversion
-                    Database              = $db.name
-                    DatabaseCompatibility = $db.CompatibilityLevel
-                    IsEqual               = $db.CompatibilityLevel -eq $serverversion
-                }
-            }
-        }
+        if ($Database) {
+            $dbs = $dbs | Where-Object { $Database -contains $_.Name }
     }
-    end {
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Test-DbaDatabaseCompatibility
+
+    if ($ExcludeDatabase) {
+        $dbs = $dbs | Where-Object Name -NotIn $ExcludeDatabase
+}
+
+foreach ($db in $dbs) {
+    Write-Message -Level Verbose -Message "Processing $($db.name) on $instance."
+    [PSCustomObject]@{
+        ComputerName          = $server.ComputerName
+        InstanceName          = $server.ServiceName
+        SqlInstance           = $server.DomainInstanceName
+        ServerLevel           = $serverversion
+        Database              = $db.name
+        DatabaseCompatibility = $db.CompatibilityLevel
+        IsEqual               = $db.CompatibilityLevel -eq $serverversion
     }
+}
+}
+}
+end {
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Test-DbaDatabaseCompatibility
+}
 }

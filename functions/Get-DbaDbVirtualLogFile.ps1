@@ -91,41 +91,41 @@ function Get-DbaDbVirtualLogFile {
 
             $dbs = $server.Databases | Where-Object IsAccessible
 
-            if ($Database) {
-                $dbs = $dbs | Where-Object Name -in $Database
-            }
-            if ($ExcludeDatabase) {
-                $dbs = $dbs | Where-Object Name -NotIn $ExcludeDatabase
-            }
+        if ($Database) {
+            $dbs = $dbs | Where-Object Name -in $Database
+    }
+    if ($ExcludeDatabase) {
+        $dbs = $dbs | Where-Object Name -NotIn $ExcludeDatabase
+}
 
-            if (!$IncludeSystemDBs) {
-                $dbs = $dbs | Where-Object IsSystemObject -eq $false
-            }
+if (!$IncludeSystemDBs) {
+    $dbs = $dbs | Where-Object IsSystemObject -eq $false
+}
 
-            foreach ($db in $dbs) {
-                try {
-                    $data = $db.Query("DBCC LOGINFO")
+foreach ($db in $dbs) {
+    try {
+        $data = $db.Query("DBCC LOGINFO")
 
-                    foreach ($d in $data) {
-                        [pscustomobject]@{
-                            ComputerName   = $server.ComputerName
-                            InstanceName   = $server.ServiceName
-                            SqlInstance    = $server.DomainInstanceName
-                            Database       = $db.Name
-                            RecoveryUnitId = $d.RecoveryUnitId
-                            FileId         = $d.FileId
-                            FileSize       = $d.FileSize
-                            StartOffset    = $d.StartOffset
-                            FSeqNo         = $d.FSeqNo
-                            Status         = $d.Status
-                            Parity         = $d.Parity
-                            CreateLsn      = $d.CreateLSN
-                        }
-                    }
-                } catch {
-                    Stop-Function -Message "Unable to query $($db.name) on $instance." -ErrorRecord $_ -Target $db -Continue
-                }
+        foreach ($d in $data) {
+            [pscustomobject]@{
+                ComputerName   = $server.ComputerName
+                InstanceName   = $server.ServiceName
+                SqlInstance    = $server.DomainInstanceName
+                Database       = $db.Name
+                RecoveryUnitId = $d.RecoveryUnitId
+                FileId         = $d.FileId
+                FileSize       = $d.FileSize
+                StartOffset    = $d.StartOffset
+                FSeqNo         = $d.FSeqNo
+                Status         = $d.Status
+                Parity         = $d.Parity
+                CreateLsn      = $d.CreateLSN
             }
         }
+    } catch {
+        Stop-Function -Message "Unable to query $($db.name) on $instance." -ErrorRecord $_ -Target $db -Continue
     }
+}
+}
+}
 }

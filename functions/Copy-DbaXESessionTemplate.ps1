@@ -60,13 +60,13 @@ function Copy-DbaXESessionTemplate {
             }
             try {
                 $files = (Get-DbaXESessionTemplate -Path $Path | Where-Object Source -ne Microsoft).Path
-                foreach ($file in $files) {
-                    Write-Message -Level Output -Message "Copying $($file.Name) to $destinstance."
-                    Copy-Item -Path $file -Destination $destinstance -ErrorAction Stop
-                }
-            } catch {
-                Stop-Function -Message "Failure" -ErrorRecord $_ -Target $path
+            foreach ($file in $files) {
+                Write-Message -Level Output -Message "Copying $($file.Name) to $destinstance."
+                Copy-Item -Path $file -Destination $destinstance -ErrorAction Stop
             }
+        } catch {
+            Stop-Function -Message "Failure" -ErrorRecord $_ -Target $path
         }
     }
+}
 }

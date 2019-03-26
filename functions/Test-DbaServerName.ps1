@@ -142,42 +142,42 @@ function Test-DbaServerName {
             # check for mirroring
             $mirroredDb = $server.Databases | Where-Object { $_.IsMirroringEnabled -eq $true }
 
-            Write-Message -Level Debug -Message "Found the following mirrored dbs: $($mirroredDb.Name)"
+        Write-Message -Level Debug -Message "Found the following mirrored dbs: $($mirroredDb.Name)"
 
-            if ($mirroredDb.Length -gt 0) {
-                $dbs = $mirroredDb.Name -join ", "
-                $reasons += "Databases are being mirrored: $dbs"
-            }
-
-            # check for replication
-            $sql = "SELECT name FROM sys.databases WHERE is_published = 1 OR is_subscribed = 1 OR is_distributor = 1"
-            Write-Message -Level Debug -Message "SQL Statement: $sql"
-            $replicatedDb = $server.Query($sql)
-
-            if ($replicatedDb.Count -gt 0) {
-                $dbs = $replicatedDb.Name -join ", "
-                $reasons += "Database(s) are involved in replication: $dbs"
-            }
-
-            # check for even more replication
-            $sql = "SELECT srl.remote_name as RemoteLoginName FROM sys.remote_logins srl JOIN sys.sysservers sss ON srl.server_id = sss.srvid"
-            Write-Message -Level Debug -Message "SQL Statement: $sql"
-            $results = $server.Query($sql)
-
-            if ($results.RemoteLoginName.Count -gt 0) {
-                $remoteLogins = $results.RemoteLoginName -join ", "
-                $reasons += "Remote logins still exist: $remoteLogins"
-            }
-
-            if ($reasons.Length -gt 0) {
-                $serverInfo.Updatable = $false
-                $serverInfo.Blockers = $reasons
-            } else {
-                $serverInfo.Updatable = $true
-                $serverInfo.Blockers = "N/A"
-            }
-
-            $serverInfo | Select-DefaultView -ExcludeProperty InstanceName, SqlInstance
+        if ($mirroredDb.Length -gt 0) {
+            $dbs = $mirroredDb.Name -join ", "
+            $reasons += "Databases are being mirrored: $dbs"
         }
-    }
+
+        # check for replication
+        $sql = "SELECT name FROM sys.databases WHERE is_published = 1 OR is_subscribed = 1 OR is_distributor = 1"
+        Write-Message -Level Debug -Message "SQL Statement: $sql"
+        $replicatedDb = $server.Query($sql)
+
+        if ($replicatedDb.Count -gt 0) {
+            $dbs = $replicatedDb.Name -join ", "
+            $reasons += "Database(s) are involved in replication: $dbs"
+        }
+
+        # check for even more replication
+        $sql = "SELECT srl.remote_name as RemoteLoginName FROM sys.remote_logins srl JOIN sys.sysservers sss ON srl.server_id = sss.srvid"
+        Write-Message -Level Debug -Message "SQL Statement: $sql"
+        $results = $server.Query($sql)
+
+        if ($results.RemoteLoginName.Count -gt 0) {
+            $remoteLogins = $results.RemoteLoginName -join ", "
+            $reasons += "Remote logins still exist: $remoteLogins"
+        }
+
+        if ($reasons.Length -gt 0) {
+            $serverInfo.Updatable = $false
+            $serverInfo.Blockers = $reasons
+        } else {
+            $serverInfo.Updatable = $true
+            $serverInfo.Blockers = "N/A"
+        }
+
+        $serverInfo | Select-DefaultView -ExcludeProperty InstanceName, SqlInstance
+}
+}
 }

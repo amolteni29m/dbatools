@@ -178,52 +178,52 @@ function Get-DbaDbccSessionBuffer {
                             Buffer       = $asciiStringBuilder.ToString().Replace('.', '').TrimEnd()
                             HexBuffer    = $hexStringBuilder.ToString().Replace(' ', '')
                         } | Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, SessionId, Buffer
-                    }
                 }
-            } else {
-                $sessionQuery = 'Select session_id FROM sys.dm_exec_connections'
-                $sessionList = $server.Query($sessionQuery )
-                foreach ($session in $sessionList) {
-                    $query = $StringBuilder.ToString()
-                    $query = $query.Replace('#Operation#', $session.session_id)
-                    try {
-                        Write-Message -Message "Query to run: $query" -Level Verbose
-                        $results = $server.Query($query)
-                    } catch {
-                        Stop-Function -Message "Failure" -ErrorRecord $_ -Target $server -Continue
-                    }
-                    if ($Operation -eq 'INPUTBUFFER') {
-                        foreach ($row in $results) {
-                            [PSCustomObject]@{
-                                ComputerName = $server.ComputerName
-                                InstanceName = $server.ServiceName
-                                SqlInstance  = $server.DomainInstanceName
-                                SessionId    = $session.session_id
-                                EventType    = $row[0]
-                                Parameters   = $row[1]
-                                EventInfo    = $row[2]
-                            }
-                        }
-                    } else {
-                        $hexStringBuilder = New-Object System.Text.StringBuilder
-                        $asciiStringBuilder = New-Object System.Text.StringBuilder
-
-                        foreach ($row in $results) {
-                            $str = $row[0].ToString()
-                            $null = $hexStringBuilder.Append($str.Substring(11, 48))
-                            $null = $asciiStringBuilder.Append($str.Substring(61, 16))
-                        }
+            }
+        } else {
+            $sessionQuery = 'Select session_id FROM sys.dm_exec_connections'
+            $sessionList = $server.Query($sessionQuery )
+            foreach ($session in $sessionList) {
+                $query = $StringBuilder.ToString()
+                $query = $query.Replace('#Operation#', $session.session_id)
+                try {
+                    Write-Message -Message "Query to run: $query" -Level Verbose
+                    $results = $server.Query($query)
+                } catch {
+                    Stop-Function -Message "Failure" -ErrorRecord $_ -Target $server -Continue
+                }
+                if ($Operation -eq 'INPUTBUFFER') {
+                    foreach ($row in $results) {
                         [PSCustomObject]@{
                             ComputerName = $server.ComputerName
                             InstanceName = $server.ServiceName
                             SqlInstance  = $server.DomainInstanceName
                             SessionId    = $session.session_id
-                            Buffer       = $asciiStringBuilder.ToString().Replace('.', '').TrimEnd()
-                            HexBuffer    = $hexStringBuilder.ToString().Replace(' ', '')
-                        } | Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, SessionId, Buffer
+                            EventType    = $row[0]
+                            Parameters   = $row[1]
+                            EventInfo    = $row[2]
+                        }
                     }
-                }
+                } else {
+                    $hexStringBuilder = New-Object System.Text.StringBuilder
+                    $asciiStringBuilder = New-Object System.Text.StringBuilder
+
+                    foreach ($row in $results) {
+                        $str = $row[0].ToString()
+                        $null = $hexStringBuilder.Append($str.Substring(11, 48))
+                        $null = $asciiStringBuilder.Append($str.Substring(61, 16))
+                    }
+                    [PSCustomObject]@{
+                        ComputerName = $server.ComputerName
+                        InstanceName = $server.ServiceName
+                        SqlInstance  = $server.DomainInstanceName
+                        SessionId    = $session.session_id
+                        Buffer       = $asciiStringBuilder.ToString().Replace('.', '').TrimEnd()
+                        HexBuffer    = $hexStringBuilder.ToString().Replace(' ', '')
+                    } | Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, SessionId, Buffer
             }
         }
     }
+}
+}
 }

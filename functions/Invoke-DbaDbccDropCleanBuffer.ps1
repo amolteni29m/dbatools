@@ -95,19 +95,19 @@ function Invoke-DbaDbccDropCleanBuffer {
                 if ($Pscmdlet.ShouldProcess($server.Name, "Execute the command $query against $instance")) {
                     Write-Message -Message "Query to run: $query" -Level Verbose
                     $results = $server | Invoke-DbaQuery  -Query $query -MessagesToOutput
-                }
-            } catch {
-                Stop-Function -Message "Failure running DBCC DROPCLEANBUFFERS" -ErrorRecord $_ -Target $server -Continue
             }
-            If ($Pscmdlet.ShouldProcess("console", "Outputting object")) {
-                [PSCustomObject]@{
-                    ComputerName = $server.ComputerName
-                    InstanceName = $server.ServiceName
-                    SqlInstance  = $server.DomainInstanceName
-                    Cmd          = $query.ToString()
-                    Output       = $results
-                }
+        } catch {
+            Stop-Function -Message "Failure running DBCC DROPCLEANBUFFERS" -ErrorRecord $_ -Target $server -Continue
+        }
+        If ($Pscmdlet.ShouldProcess("console", "Outputting object")) {
+            [PSCustomObject]@{
+                ComputerName = $server.ComputerName
+                InstanceName = $server.ServiceName
+                SqlInstance  = $server.DomainInstanceName
+                Cmd          = $query.ToString()
+                Output       = $results
             }
         }
     }
+}
 }

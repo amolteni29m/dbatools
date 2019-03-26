@@ -88,36 +88,36 @@ function Remove-DbaLogin {
                 Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $instance -Continue
             }
             $InputObject += $server.Logins | Where-Object { $_.Name -in $Login }
-        }
+    }
 
-        foreach ($currentlogin in $InputObject) {
-            try {
-                $server = $currentlogin.Parent
-                if ($Pscmdlet.ShouldProcess("$currentlogin on $server", "KillLogin")) {
-                    if ($force) {
-                        $null = Stop-DbaProcess -SqlInstance $server -Login $currentlogin.name
-                    }
-
-                    $currentlogin.Drop()
-
-                    [pscustomobject]@{
-                        ComputerName = $server.ComputerName
-                        InstanceName = $server.ServiceName
-                        SqlInstance  = $server.DomainInstanceName
-                        Login        = $currentlogin.name
-                        Status       = "Dropped"
-                    }
+    foreach ($currentlogin in $InputObject) {
+        try {
+            $server = $currentlogin.Parent
+            if ($Pscmdlet.ShouldProcess("$currentlogin on $server", "KillLogin")) {
+                if ($force) {
+                    $null = Stop-DbaProcess -SqlInstance $server -Login $currentlogin.name
                 }
-            } catch {
+
+                $currentlogin.Drop()
+
                 [pscustomobject]@{
                     ComputerName = $server.ComputerName
                     InstanceName = $server.ServiceName
                     SqlInstance  = $server.DomainInstanceName
                     Login        = $currentlogin.name
-                    Status       = $_
+                    Status       = "Dropped"
                 }
-                Stop-Function -Message "Could not drop Login $currentlogin on $server" -ErrorRecord $_ -Target $currentlogin -Continue
             }
+        } catch {
+            [pscustomobject]@{
+                ComputerName = $server.ComputerName
+                InstanceName = $server.ServiceName
+                SqlInstance  = $server.DomainInstanceName
+                Login        = $currentlogin.name
+                Status       = $_
+            }
+            Stop-Function -Message "Could not drop Login $currentlogin on $server" -ErrorRecord $_ -Target $currentlogin -Continue
         }
     }
+}
 }

@@ -103,9 +103,9 @@ function Get-DbaXEObject {
 
             try {
                 $server.Query($sql) | Select-DefaultView -ExcludeProperty ComputerName, InstanceName, ObjectTypeRaw
-            } catch {
-                Stop-Function -Message "Issue collecting trace data on $server." -Target $server -ErrorRecord $_
-            }
+        } catch {
+            Stop-Function -Message "Issue collecting trace data on $server." -Target $server -ErrorRecord $_
         }
     }
+}
 }

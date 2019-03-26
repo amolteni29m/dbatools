@@ -146,18 +146,45 @@ function Revoke-DbaAgPermission {
                 $server.Endpoints.Refresh()
                 $endpoint = $server.Endpoints | Where-Object EndpointType -eq DatabaseMirroring
 
-                if (-not $endpoint) {
-                    Stop-Function -Message "DatabaseMirroring endpoint does not exist on $server" -Target $server -Continue
-                }
+            if (-not $endpoint) {
+                Stop-Function -Message "DatabaseMirroring endpoint does not exist on $server" -Target $server -Continue
+            }
 
-                foreach ($perm in $Permission) {
-                    if ($Pscmdlet.ShouldProcess($server.Name, "Revokeing $perm on $endpoint")) {
-                        if ($perm -in 'CreateAnyDatabase') {
-                            Stop-Function -Message "$perm not supported by endpoints" -Continue
+            foreach ($perm in $Permission) {
+                if ($Pscmdlet.ShouldProcess($server.Name, "Revokeing $perm on $endpoint")) {
+                    if ($perm -in 'CreateAnyDatabase') {
+                        Stop-Function -Message "$perm not supported by endpoints" -Continue
+                    }
+                    try {
+                        $bigperms = New-Object Microsoft.SqlServer.Management.Smo.ObjectPermissionSet([Microsoft.SqlServer.Management.Smo.ObjectPermission]::$perm)
+                        $endpoint.Revoke($bigperms, $account.Name)
+                        [pscustomobject]@{
+                            ComputerName = $account.ComputerName
+                            InstanceName = $account.InstanceName
+                            SqlInstance  = $account.SqlInstance
+                            Name         = $account.Name
+                            Permission   = $perm
+                            Type         = "Revoke"
+                            Status       = "Success"
                         }
+                    } catch {
+                        Stop-Function -Message "Failure" -ErrorRecord $_ -Target $ag -Continue
+                    }
+                }
+            }
+        }
+
+        if ($Type -contains "AvailabilityGroup") {
+            $ags = Get-DbaAvailabilityGroup -SqlInstance $account.Parent -AvailabilityGroup $AvailabilityGroup
+            foreach ($ag in $ags) {
+                foreach ($perm in $Permission) {
+                    if ($perm -notin 'Alter', 'Control', 'TakeOwnership', 'ViewDefinition') {
+                        Stop-Function -Message "$perm not supported by availability groups" -Continue
+                    }
+                    if ($Pscmdlet.ShouldProcess($server.Name, "Revokeing $perm on $ags")) {
                         try {
                             $bigperms = New-Object Microsoft.SqlServer.Management.Smo.ObjectPermissionSet([Microsoft.SqlServer.Management.Smo.ObjectPermission]::$perm)
-                            $endpoint.Revoke($bigperms, $account.Name)
+                            $ag.Revoke($bigperms, $account.Name)
                             [pscustomobject]@{
                                 ComputerName = $account.ComputerName
                                 InstanceName = $account.InstanceName
@@ -173,34 +200,7 @@ function Revoke-DbaAgPermission {
                     }
                 }
             }
-
-            if ($Type -contains "AvailabilityGroup") {
-                $ags = Get-DbaAvailabilityGroup -SqlInstance $account.Parent -AvailabilityGroup $AvailabilityGroup
-                foreach ($ag in $ags) {
-                    foreach ($perm in $Permission) {
-                        if ($perm -notin 'Alter', 'Control', 'TakeOwnership', 'ViewDefinition') {
-                            Stop-Function -Message "$perm not supported by availability groups" -Continue
-                        }
-                        if ($Pscmdlet.ShouldProcess($server.Name, "Revokeing $perm on $ags")) {
-                            try {
-                                $bigperms = New-Object Microsoft.SqlServer.Management.Smo.ObjectPermissionSet([Microsoft.SqlServer.Management.Smo.ObjectPermission]::$perm)
-                                $ag.Revoke($bigperms, $account.Name)
-                                [pscustomobject]@{
-                                    ComputerName = $account.ComputerName
-                                    InstanceName = $account.InstanceName
-                                    SqlInstance  = $account.SqlInstance
-                                    Name         = $account.Name
-                                    Permission   = $perm
-                                    Type         = "Revoke"
-                                    Status       = "Success"
-                                }
-                            } catch {
-                                Stop-Function -Message "Failure" -ErrorRecord $_ -Target $ag -Continue
-                            }
-                        }
-                    }
-                }
-            }
         }
     }
+}
 }

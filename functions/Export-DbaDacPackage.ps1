@@ -256,50 +256,50 @@ function Export-DbaDacPackage {
                         }
                     }
                     $finalResult = ($output.output -join "`r`n" | Out-String).Trim()
-                } elseif ($PsCmdlet.ParameterSetName -eq 'CMD') {
-                    if ($Type -eq 'Dacpac') { $action = 'Extract' }
-                    elseif ($Type -eq 'Bacpac') { $action = 'Export' }
-                    $cmdConnString = $connstring.Replace('"', "'")
+            } elseif ($PsCmdlet.ParameterSetName -eq 'CMD') {
+                if ($Type -eq 'Dacpac') { $action = 'Extract' }
+                elseif ($Type -eq 'Bacpac') { $action = 'Export' }
+                $cmdConnString = $connstring.Replace('"', "'")
 
-                    $sqlPackageArgs = "/action:$action /tf:""$currentFileName"" /SourceConnectionString:""$cmdConnString"" $ExtendedParameters $ExtendedProperties"
+                $sqlPackageArgs = "/action:$action /tf:""$currentFileName"" /SourceConnectionString:""$cmdConnString"" $ExtendedParameters $ExtendedProperties"
 
-                    try {
-                        $startprocess = New-Object System.Diagnostics.ProcessStartInfo
-                        $startprocess.FileName = "$script:PSModuleRoot\bin\smo\sqlpackage.exe"
-                        $startprocess.Arguments = $sqlPackageArgs
-                        $startprocess.RedirectStandardError = $true
-                        $startprocess.RedirectStandardOutput = $true
-                        $startprocess.UseShellExecute = $false
-                        $startprocess.CreateNoWindow = $true
-                        $process = New-Object System.Diagnostics.Process
-                        $process.StartInfo = $startprocess
-                        $process.Start() | Out-Null
-                        $stdout = $process.StandardOutput.ReadToEnd()
-                        $stderr = $process.StandardError.ReadToEnd()
-                        $process.WaitForExit()
-                        Write-Message -level Verbose -Message "StandardOutput: $stdout"
-                        $finalResult = $stdout
-                    } catch {
-                        Stop-Function -Message "SQLPackage Failure" -ErrorRecord $_ -Continue
-                    }
+                try {
+                    $startprocess = New-Object System.Diagnostics.ProcessStartInfo
+                    $startprocess.FileName = "$script:PSModuleRoot\bin\smo\sqlpackage.exe"
+                    $startprocess.Arguments = $sqlPackageArgs
+                    $startprocess.RedirectStandardError = $true
+                    $startprocess.RedirectStandardOutput = $true
+                    $startprocess.UseShellExecute = $false
+                    $startprocess.CreateNoWindow = $true
+                    $process = New-Object System.Diagnostics.Process
+                    $process.StartInfo = $startprocess
+                    $process.Start() | Out-Null
+                $stdout = $process.StandardOutput.ReadToEnd()
+                $stderr = $process.StandardError.ReadToEnd()
+                $process.WaitForExit()
+                Write-Message -level Verbose -Message "StandardOutput: $stdout"
+                $finalResult = $stdout
+            } catch {
+                Stop-Function -Message "SQLPackage Failure" -ErrorRecord $_ -Continue
+            }
 
-                    if ($process.ExitCode -ne 0) {
-                        Stop-Function -Message "Standard output - $stderr" -Continue
-                    }
-                }
-                [pscustomobject]@{
-                    ComputerName = $server.ComputerName
-                    InstanceName = $server.ServiceName
-                    SqlInstance  = $server.DomainInstanceName
-                    Database     = $dbname
-                    Path         = $currentFileName
-                    Elapsed      = [prettytimespan]($resultstime.Elapsed)
-                    Result       = $finalResult
-                } | Select-DefaultView -ExcludeProperty ComputerName, InstanceName
+            if ($process.ExitCode -ne 0) {
+                Stop-Function -Message "Standard output - $stderr" -Continue
             }
         }
-    }
-    end {
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Export-DbaDacpac
-    }
+        [pscustomobject]@{
+            ComputerName = $server.ComputerName
+            InstanceName = $server.ServiceName
+            SqlInstance  = $server.DomainInstanceName
+            Database     = $dbname
+            Path         = $currentFileName
+            Elapsed      = [prettytimespan]($resultstime.Elapsed)
+            Result       = $finalResult
+        } | Select-DefaultView -ExcludeProperty ComputerName, InstanceName
+}
+}
+}
+end {
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Export-DbaDacpac
+}
 }

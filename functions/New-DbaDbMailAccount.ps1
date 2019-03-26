@@ -110,10 +110,10 @@ function New-DbaDbMailAccount {
                     Add-Member -Force -InputObject $account -MemberType NoteProperty -Name InstanceName -value $server.ServiceName
                     Add-Member -Force -InputObject $account -MemberType NoteProperty -Name SqlInstance -value $server.DomainInstanceName
                     $account | Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, Id, Name, DisplayName, Description, EmailAddress, ReplyToAddress, IsBusyAccount, MailServers
-                } catch {
-                    Stop-Function -Message "Failure returning output" -ErrorRecord $_ -Continue
-                }
+            } catch {
+                Stop-Function -Message "Failure returning output" -ErrorRecord $_ -Continue
             }
         }
     }
+}
 }

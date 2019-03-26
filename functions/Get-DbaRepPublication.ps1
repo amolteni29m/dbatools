@@ -74,38 +74,38 @@ function Get-DbaRepPublication {
 
             if ($Database) {
                 $dbList = $dbList | Where-Object name -in $Database
-            }
+        }
 
-            $dbList = $dbList | Where-Object { ($_.ID -gt 4) -and ($_.status -ne "Offline") }
+        $dbList = $dbList | Where-Object { ($_.ID -gt 4) -and ($_.status -ne "Offline") }
 
 
-            foreach ($db in $dbList) {
+    foreach ($db in $dbList) {
 
-                if (($db.ReplicationOptions -ne "Published") -and ($db.ReplicationOptions -ne "MergePublished")) {
-                    Write-Message -Level Verbose -Message "Skipping $($db.name). Database is not published."
-                }
+        if (($db.ReplicationOptions -ne "Published") -and ($db.ReplicationOptions -ne "MergePublished")) {
+            Write-Message -Level Verbose -Message "Skipping $($db.name). Database is not published."
+        }
 
-                $repDB = Connect-ReplicationDB -Server $server -Database $db
+        $repDB = Connect-ReplicationDB -Server $server -Database $db
 
-                $pubTypes = $repDB.TransPublications + $repDB.MergePublications
+        $pubTypes = $repDB.TransPublications + $repDB.MergePublications
 
-                if ($PublicationType) {
-                    $pubTypes = $pubTypes | Where-Object Type -in $PublicationType
-                }
+        if ($PublicationType) {
+            $pubTypes = $pubTypes | Where-Object Type -in $PublicationType
+    }
 
-                foreach ($pub in $pubTypes) {
+    foreach ($pub in $pubTypes) {
 
-                    [PSCustomObject]@{
-                        ComputerName    = $server.ComputerName
-                        InstanceName    = $server.InstanceName
-                        SqlInstance     = $server.SqlInstance
-                        Server          = $server.name
-                        Database        = $db.name
-                        PublicationName = $pub.Name
-                        PublicationType = $pub.Type
-                    }
-                }
-            }
+        [PSCustomObject]@{
+            ComputerName    = $server.ComputerName
+            InstanceName    = $server.InstanceName
+            SqlInstance     = $server.SqlInstance
+            Server          = $server.name
+            Database        = $db.name
+            PublicationName = $pub.Name
+            PublicationType = $pub.Type
         }
     }
+}
+}
+}
 }

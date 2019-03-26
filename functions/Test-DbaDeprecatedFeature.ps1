@@ -94,14 +94,14 @@ function Test-DbaDeprecatedFeature {
                 foreach ($dep in $deps) {
                     $escaped = [Regex]::Escape("$($dep.dep)".Trim())
                     $matchedep = $results | Where-Object Definition -match $escaped
-                    if ($matchedep) {
-                        $matchedep | Add-Member -NotePropertyName DeprecatedFeature -NotePropertyValue $dep.dep.ToString().Trim() -PassThru -Force |
-                            Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, DeprecatedFeature, ID, Name, Type
-                    }
-                }
-            } catch {
-                Stop-Function -Message "Failure" -ErrorRecord $_ -Continue
+                if ($matchedep) {
+                    $matchedep | Add-Member -NotePropertyName DeprecatedFeature -NotePropertyValue $dep.dep.ToString().Trim() -PassThru -Force |
+                        Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, DeprecatedFeature, ID, Name, Type
             }
         }
+    } catch {
+        Stop-Function -Message "Failure" -ErrorRecord $_ -Continue
     }
+}
+}
 }

@@ -109,64 +109,64 @@ function Set-DbaAgentJobOwner {
             Write-Message -Level Verbose -Message "Gathering jobs to update."
 
             if ($Job) {
-                $jobcollection = $server.JobServer.Jobs | Where-Object {$Job -contains $_.Name}
-            } else {
-                $jobcollection = $server.JobServer.Jobs
-            }
-
-            if ($ExcludeJob) {
-                $jobcollection = $jobcollection | Where-Object { $ExcludeJob -notcontains $_.Name }
-            }
-
-            $InputObject += $jobcollection
+                $jobcollection = $server.JobServer.Jobs | Where-Object { $Job -contains $_.Name }
+        } else {
+            $jobcollection = $server.JobServer.Jobs
         }
 
-        Write-Message -Level Verbose -Message "Updating $($InputObject.Count) job(s)."
-        foreach ($agentJob in $InputObject) {
-            $jobname = $agentJob.Name
-            $server = $agentJob.Parent.Parent
+        if ($ExcludeJob) {
+            $jobcollection = $jobcollection | Where-Object { $ExcludeJob -notcontains $_.Name }
+    }
 
-            if (-not $Login) {
-                # dynamic sa name for orgs who have changed their sa name
-                $newLogin = ($server.logins | Where-Object { $_.id -eq 1 }).Name
-            } else {
-                $newLogin = $Login
-            }
+    $InputObject += $jobcollection
+}
 
-            #Validate login
-            if ($agentJob.OwnerLoginName -eq $newLogin) {
-                $status = 'Skipped'
-                $notes = "Owner already set"
-            } else {
-                if (($server.Logins.Name) -notcontains $newLogin) {
-                    $status = 'Failed'
-                    $notes = "Login $newLogin not valid"
-                } else {
-                    if ($server.logins[$newLogin].LoginType -eq 'WindowsGroup') {
-                        $status = 'Failed'
-                        $notes = "$newLogin is a Windows Group and can not be a job owner."
-                    } else {
-                        if ($PSCmdlet.ShouldProcess($instance, "Setting job owner for $jobname to $newLogin")) {
-                            try {
-                                Write-Message -Level Verbose -Message "Setting job owner for $jobname to $newLogin on $instance."
-                                #Set job owner to $TargetLogin (default 'sa')
-                                $agentJob.OwnerLoginName = $newLogin
-                                $agentJob.Alter()
-                                $status = 'Successful'
-                                $notes = ''
-                            } catch {
-                                Stop-Function -Message "Issue setting job owner on $jobName." -Target $jobName -InnerErrorRecord $_ -Category InvalidOperation
-                            }
-                        }
-                    }
+Write-Message -Level Verbose -Message "Updating $($InputObject.Count) job(s)."
+foreach ($agentJob in $InputObject) {
+    $jobname = $agentJob.Name
+    $server = $agentJob.Parent.Parent
+
+    if (-not $Login) {
+        # dynamic sa name for orgs who have changed their sa name
+        $newLogin = ($server.logins | Where-Object { $_.id -eq 1 }).Name
+} else {
+    $newLogin = $Login
+}
+
+#Validate login
+if ($agentJob.OwnerLoginName -eq $newLogin) {
+    $status = 'Skipped'
+    $notes = "Owner already set"
+} else {
+    if (($server.Logins.Name) -notcontains $newLogin) {
+        $status = 'Failed'
+        $notes = "Login $newLogin not valid"
+    } else {
+        if ($server.logins[$newLogin].LoginType -eq 'WindowsGroup') {
+            $status = 'Failed'
+            $notes = "$newLogin is a Windows Group and can not be a job owner."
+        } else {
+            if ($PSCmdlet.ShouldProcess($instance, "Setting job owner for $jobname to $newLogin")) {
+                try {
+                    Write-Message -Level Verbose -Message "Setting job owner for $jobname to $newLogin on $instance."
+                    #Set job owner to $TargetLogin (default 'sa')
+                    $agentJob.OwnerLoginName = $newLogin
+                    $agentJob.Alter()
+                    $status = 'Successful'
+                    $notes = ''
+                } catch {
+                    Stop-Function -Message "Issue setting job owner on $jobName." -Target $jobName -InnerErrorRecord $_ -Category InvalidOperation
                 }
             }
-            Add-Member -Force -InputObject $agentJob -MemberType NoteProperty -Name ComputerName -value $server.ComputerName
-            Add-Member -Force -InputObject $agentJob -MemberType NoteProperty -Name InstanceName -value $server.ServiceName
-            Add-Member -Force -InputObject $agentJob -MemberType NoteProperty -Name SqlInstance -value $server.DomainInstanceName
-            Add-Member -Force -InputObject $agentJob -MemberType NoteProperty -Name Status -value $status
-            Add-Member -Force -InputObject $agentJob -MemberType NoteProperty -Name Notes -value $notes
-            Select-DefaultView -InputObject $agentJob -Property ComputerName, InstanceName, SqlInstance, Name, Category, OwnerLoginName, Status, Notes
         }
     }
+}
+Add-Member -Force -InputObject $agentJob -MemberType NoteProperty -Name ComputerName -value $server.ComputerName
+Add-Member -Force -InputObject $agentJob -MemberType NoteProperty -Name InstanceName -value $server.ServiceName
+Add-Member -Force -InputObject $agentJob -MemberType NoteProperty -Name SqlInstance -value $server.DomainInstanceName
+Add-Member -Force -InputObject $agentJob -MemberType NoteProperty -Name Status -value $status
+Add-Member -Force -InputObject $agentJob -MemberType NoteProperty -Name Notes -value $notes
+Select-DefaultView -InputObject $agentJob -Property ComputerName, InstanceName, SqlInstance, Name, Category, OwnerLoginName, Status, Notes
+}
+}
 }

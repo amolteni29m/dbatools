@@ -901,7 +901,7 @@ function Get-DbaWaitStatistic {
                     URL                    = $row.URL
                     Notes                  = ($details).$waitType
                 } | Select-DefaultView -ExcludeProperty $excludeColumns
-            }
         }
     }
+}
 }

@@ -189,225 +189,225 @@ function Update-DbaInstance {
             }
         }
         $actions = @()
-        $actionTemplate = @{}
+        $actionTemplate = @{ }
         if ($InstanceName) { $actionTemplate.InstanceName = $InstanceName }
         if ($Continue) { $actionTemplate.Continue = $Continue }
         #Putting together list of actions based on current ParameterSet
         if ($PSCmdlet.ParameterSetName -eq 'Version') {
             if ($Type -contains 'All') { $typeList = @('ServicePack', 'CumulativeUpdate') }
             else { $typeList = $Type | Sort-Object -Descending }
-            foreach ($ver in $Version) {
-                $currentAction = $actionTemplate.Clone()
-                if ($ver -and $ver -match '^(SQL)?(\d{4}(R2)?)?\s*(RTM|SP)?(\d+)?(CU)?(\d+)?') {
-                    $majorV, $spV, $cuV = $Matches[2, 5, 7]
-                    Write-Message -Level Debug -Message "Parsed Version as Major $majorV SP $spV CU $cuV"
-                    # Add appropriate fields to the splat
-                    # Add version to every field
-                    if ($null -ne $majorV) {
-                        $currentAction += @{
-                            MajorVersion = $majorV
-                        }
-                        # When version is the only thing that is specified, we want all the types added
-                        if ($null -eq $spV -and $null -eq $cuV) {
-                            foreach ($currentType in $typeList) {
-                                $actions += $currentAction.Clone() + @{ Type = $currentType }
-                            }
+        foreach ($ver in $Version) {
+            $currentAction = $actionTemplate.Clone()
+            if ($ver -and $ver -match '^(SQL)?(\d{4}(R2)?)?\s*(RTM|SP)?(\d+)?(CU)?(\d+)?') {
+                $majorV, $spV, $cuV = $Matches[2, 5, 7]
+                Write-Message -Level Debug -Message "Parsed Version as Major $majorV SP $spV CU $cuV"
+                # Add appropriate fields to the splat
+                # Add version to every field
+                if ($null -ne $majorV) {
+                    $currentAction += @{
+                        MajorVersion = $majorV
+                    }
+                    # When version is the only thing that is specified, we want all the types added
+                    if ($null -eq $spV -and $null -eq $cuV) {
+                        foreach ($currentType in $typeList) {
+                            $actions += $currentAction.Clone() + @{ Type = $currentType }
                         }
                     }
-                    #when SP# is specified
-                    if ($null -ne $spV) {
-                        $currentAction += @{
-                            ServicePack = $spV
-                        }
-                        # ignore SP0 and trigger only when SP is in Type
-                        if ($spV -ne '0' -and 'ServicePack' -in $typeList) {
-                            $actions += $currentAction.Clone()
-                        }
-                    }
-                    # When CU# is specified, but ignore CU0 and trigger only when CU is in Type
-                    if ($null -ne $cuV -and $cuV -ne '0' -and 'CumulativeUpdate' -in $typeList) {
-                        $actions += $currentAction.Clone() + @{ CumulativeUpdate = $cuV }
-                    }
-                } else {
-                    Stop-Function -Category InvalidArgument -Message "$ver is an incorrect Version value, please refer to Get-Help Update-DbaInstance -Parameter Version"
-                    return
                 }
-            }
-            # If no version specified, simply apply latest $currentType
-            if (!$Version) {
-                foreach ($currentType in $typeList) {
-                    $currentAction = $actionTemplate.Clone() + @{
-                        Type = $currentType
+                #when SP# is specified
+                if ($null -ne $spV) {
+                    $currentAction += @{
+                        ServicePack = $spV
                     }
-                    $actions += $currentAction
+                    # ignore SP0 and trigger only when SP is in Type
+                    if ($spV -ne '0' -and 'ServicePack' -in $typeList) {
+                        $actions += $currentAction.Clone()
+                    }
                 }
+                # When CU# is specified, but ignore CU0 and trigger only when CU is in Type
+                if ($null -ne $cuV -and $cuV -ne '0' -and 'CumulativeUpdate' -in $typeList) {
+                    $actions += $currentAction.Clone() + @{ CumulativeUpdate = $cuV }
+                }
+            } else {
+                Stop-Function -Category InvalidArgument -Message "$ver is an incorrect Version value, please refer to Get-Help Update-DbaInstance -Parameter Version"
+                return
             }
-        } elseif ($PSCmdlet.ParameterSetName -eq 'KB') {
-            foreach ($kbItem in $kbList) {
+        }
+        # If no version specified, simply apply latest $currentType
+        if (!$Version) {
+            foreach ($currentType in $typeList) {
                 $currentAction = $actionTemplate.Clone() + @{
-                    KB = $kbItem
+                    Type = $currentType
                 }
                 $actions += $currentAction
             }
         }
-        # debug message
-        foreach ($a in $actions) {
-            Write-Message -Level Debug -Message "Added installation action $($a | ConvertTo-Json -Depth 1 -Compress)"
+    } elseif ($PSCmdlet.ParameterSetName -eq 'KB') {
+        foreach ($kbItem in $kbList) {
+            $currentAction = $actionTemplate.Clone() + @{
+                KB = $kbItem
+            }
+            $actions += $currentAction
         }
-        # defining how to process the final results
-        $outputHandler = {
-            $_ | Select-DefaultView -Property ComputerName, MajorVersion, TargetLevel, KB, Successful, Restarted, InstanceName, Installer, Notes
-            if ($_.Successful -eq $false) {
-                Write-Message -Level Warning -Message "Update failed: $($_.Notes -join ' | ')"
+    }
+    # debug message
+    foreach ($a in $actions) {
+        Write-Message -Level Debug -Message "Added installation action $($a | ConvertTo-Json -Depth 1 -Compress)"
+    }
+    # defining how to process the final results
+    $outputHandler = {
+        $_ | Select-DefaultView -Property ComputerName, MajorVersion, TargetLevel, KB, Successful, Restarted, InstanceName, Installer, Notes
+    if ($_.Successful -eq $false) {
+        Write-Message -Level Warning -Message "Update failed: $($_.Notes -join ' | ')"
+    }
+}
+}
+process {
+    if (Test-FunctionInterrupt) { return }
+
+    #Resolve all the provided names
+    $resolvedComputers = @()
+    $pathIsNetwork = $Path | ForEach-Object -Begin { $o = @() } -Process { $o += $_ -like '\\*' } -End { $o -contains $true }
+foreach ($computer in $ComputerName) {
+    $null = Test-ElevationRequirement -ComputerName $computer -Continue
+    if (!$computer.IsLocalHost -and -not $notifiedCredentials -and -not $Credential -and $pathIsNetwork) {
+        Write-Message -Level Warning -Message "Explicit -Credential might be required when running agains remote hosts and -Path is a network folder"
+        $notifiedCredentials = $true
+    }
+    if ($resolvedComputer = Resolve-DbaNetworkName -ComputerName $computer.ComputerName) {
+        $resolvedComputers += $resolvedComputer.FullComputerName
+    }
+}
+#Leave only unique computer names
+$resolvedComputers = $resolvedComputers | Sort-Object -Unique
+#Process planned actions and gather installation actions
+$installActions = @()
+:computers foreach ($resolvedName in $resolvedComputers) {
+    $activity = "Preparing to update SQL Server on $resolvedName"
+    ## Find the current version on the computer
+    Write-ProgressHelper -ExcludePercent -Activity $activity -StepNumber 0 -Message "Gathering all SQL Server instance versions"
+    try {
+        $components = Get-SQLInstanceComponent -ComputerName $resolvedName -Credential $Credential
+    } catch {
+        Stop-Function -Message "Error while looking for SQL Server installations on $resolvedName" -Continue -ErrorRecord $_
+    }
+    if (!$components) {
+        Stop-Function -Message "No SQL Server installations found on $resolvedName" -Continue
+    }
+    Write-Message -Level Debug -Message "Found $(($components | Measure-Object).Count) existing SQL Server instance components: $(($components | ForEach-Object { "$($_.InstanceName)($($_.InstanceType) $($_.Version.NameLevel))" }) -join ',')"
+    # Filter for specific instance name
+    if ($InstanceName) {
+        $components = $components | Where-Object { $_.InstanceName -eq $InstanceName }
+}
+try {
+    $restartNeeded = Test-PendingReboot -ComputerName $resolvedName -Credential $Credential
+} catch {
+    Stop-Function -Message "Failed to get reboot status from $resolvedName" -Continue -ErrorRecord $_
+}
+if ($restartNeeded -and (-not $Restart -or ([DbaInstanceParameter]$resolvedName).IsLocalHost)) {
+    #Exit the actions loop altogether - nothing can be installed here anyways
+    Stop-Function -Message "$resolvedName is pending a reboot. Reboot the computer before proceeding." -Continue
+}
+$upgrades = @()
+:actions foreach ($currentAction in $actions) {
+    # Attempt to configure CredSSP for the remote host when credentials are defined
+    if ($Credential -and -not ([DbaInstanceParameter]$resolvedName).IsLocalHost -and $Authentication -eq 'Credssp') {
+        Write-Message -Level Verbose -Message "Attempting to configure CredSSP for remote connections"
+        Initialize-CredSSP -ComputerName $resolvedName -Credential $Credential -EnableException $false
+        # Verify remote connection and confirm using unsecure credentials
+        try {
+            $secureProtocol = Invoke-Command2 -ComputerName $resolvedName -Credential $Credential -Authentication $Authentication -ScriptBlock { $true } -Raw
+        } catch {
+            $secureProtocol = $false
+        }
+        # only ask once about using unsecure protocol
+        if (-not $secureProtocol -and -not $notifiedUnsecure) {
+            if ($PSCmdlet.ShouldProcess($resolvedName, "Primary protocol ($Authentication) failed, sending credentials via potentially unsecure protocol")) {
+                $notifiedUnsecure = $true
+            } else {
+                Stop-Function -Message "Failed to connect to $resolvedName through $Authentication protocol. No actions will be performed on that computer." -Continue -ContinueLabel computers
             }
         }
     }
-    process {
-        if (Test-FunctionInterrupt) { return }
+    # Pass only relevant components
+    if ($currentAction.MajorVersion) {
+        Write-Message -Level Debug -Message "Limiting components to version $($currentAction.MajorVersion)"
+        $selectedComponents = $components | Where-Object { $_.Version.NameLevel -contains $currentAction.MajorVersion }
+    $currentAction.Remove('MajorVersion')
+} else {
+    $selectedComponents = $components
+}
+Write-ProgressHelper -ExcludePercent -Activity $activity -Message "Looking for a KB file for a chosen version"
+Write-Message -Level Debug -Message "Looking for appropriate KB file on $resolvedName with following params: $($currentAction | ConvertTo-Json -Depth 1 -Compress)"
+# get upgrade details for each component
+$upgradeDetails = Get-SqlServerUpdate @currentAction -ComputerName $resolvedName -Credential $Credential -Component $selectedComponents
+if ($upgradeDetails.Successful -contains $false) {
+    #Exit the actions loop altogether - upgrade cannot be performed
+    $upgradeDetails
+    Stop-Function -Message "Update cannot be applied to $resolvedName | $($upgradeDetails.Notes -join ' | ')" -Continue -ContinueLabel computers
+}
 
-        #Resolve all the provided names
-        $resolvedComputers = @()
-        $pathIsNetwork = $Path | Foreach-Object -Begin { $o = @() } -Process { $o += $_ -like '\\*'} -End { $o -contains $true }
-        foreach ($computer in $ComputerName) {
-            $null = Test-ElevationRequirement -ComputerName $computer -Continue
-            if (!$computer.IsLocalHost -and -not $notifiedCredentials -and -not $Credential -and $pathIsNetwork) {
-                Write-Message -Level Warning -Message "Explicit -Credential might be required when running agains remote hosts and -Path is a network folder"
-                $notifiedCredentials = $true
-            }
-            if ($resolvedComputer = Resolve-DbaNetworkName -ComputerName $computer.ComputerName) {
-                $resolvedComputers += $resolvedComputer.FullComputerName
-            }
-        }
-        #Leave only unique computer names
-        $resolvedComputers = $resolvedComputers | Sort-Object -Unique
-        #Process planned actions and gather installation actions
-        $installActions = @()
-        :computers foreach ($resolvedName in $resolvedComputers) {
-            $activity = "Preparing to update SQL Server on $resolvedName"
-            ## Find the current version on the computer
-            Write-ProgressHelper -ExcludePercent -Activity $activity -StepNumber 0 -Message "Gathering all SQL Server instance versions"
-            try {
-                $components = Get-SQLInstanceComponent -ComputerName $resolvedName -Credential $Credential
-            } catch {
-                Stop-Function -Message "Error while looking for SQL Server installations on $resolvedName" -Continue -ErrorRecord $_
-            }
-            if (!$components) {
-                Stop-Function -Message "No SQL Server installations found on $resolvedName" -Continue
-            }
-            Write-Message -Level Debug -Message "Found $(($components | Measure-Object).Count) existing SQL Server instance components: $(($components | Foreach-Object { "$($_.InstanceName)($($_.InstanceType) $($_.Version.NameLevel))" }) -join ',')"
-            # Filter for specific instance name
-            if ($InstanceName) {
-                $components = $components | Where-Object {$_.InstanceName -eq $InstanceName }
-            }
-            try {
-                $restartNeeded = Test-PendingReboot -ComputerName $resolvedName -Credential $Credential
-            } catch {
-                Stop-Function -Message "Failed to get reboot status from $resolvedName" -Continue -ErrorRecord $_
-            }
-            if ($restartNeeded -and (-not $Restart -or ([DbaInstanceParameter]$resolvedName).IsLocalHost)) {
-                #Exit the actions loop altogether - nothing can be installed here anyways
-                Stop-Function -Message "$resolvedName is pending a reboot. Reboot the computer before proceeding." -Continue
-            }
-            $upgrades = @()
-            :actions foreach ($currentAction in $actions) {
-                # Attempt to configure CredSSP for the remote host when credentials are defined
-                if ($Credential -and -not ([DbaInstanceParameter]$resolvedName).IsLocalHost -and $Authentication -eq 'Credssp') {
-                    Write-Message -Level Verbose -Message "Attempting to configure CredSSP for remote connections"
-                    Initialize-CredSSP -ComputerName $resolvedName -Credential $Credential -EnableException $false
-                    # Verify remote connection and confirm using unsecure credentials
-                    try {
-                        $secureProtocol = Invoke-Command2 -ComputerName $resolvedName -Credential $Credential -Authentication $Authentication -ScriptBlock { $true } -Raw
-                    } catch {
-                        $secureProtocol = $false
-                    }
-                    # only ask once about using unsecure protocol
-                    if (-not $secureProtocol -and -not $notifiedUnsecure) {
-                        if ($PSCmdlet.ShouldProcess($resolvedName, "Primary protocol ($Authentication) failed, sending credentials via potentially unsecure protocol")) {
-                            $notifiedUnsecure = $true
-                        } else {
-                            Stop-Function -Message "Failed to connect to $resolvedName through $Authentication protocol. No actions will be performed on that computer." -Continue -ContinueLabel computers
-                        }
-                    }
-                }
-                # Pass only relevant components
-                if ($currentAction.MajorVersion) {
-                    Write-Message -Level Debug -Message "Limiting components to version $($currentAction.MajorVersion)"
-                    $selectedComponents = $components | Where-Object { $_.Version.NameLevel -contains $currentAction.MajorVersion }
-                    $currentAction.Remove('MajorVersion')
-                } else {
-                    $selectedComponents = $components
-                }
-                Write-ProgressHelper -ExcludePercent -Activity $activity -Message "Looking for a KB file for a chosen version"
-                Write-Message -Level Debug -Message "Looking for appropriate KB file on $resolvedName with following params: $($currentAction | ConvertTo-Json -Depth 1 -Compress)"
-                # get upgrade details for each component
-                $upgradeDetails = Get-SqlServerUpdate @currentAction -ComputerName $resolvedName -Credential $Credential -Component $selectedComponents
-                if ($upgradeDetails.Successful -contains $false) {
-                    #Exit the actions loop altogether - upgrade cannot be performed
-                    $upgradeDetails
-                    Stop-Function -Message "Update cannot be applied to $resolvedName | $($upgradeDetails.Notes -join ' | ')" -Continue -ContinueLabel computers
-                }
-
-                foreach ($detail in $upgradeDetails) {
-                    # search for installer for each target upgrade
-                    $kbLookupParams = @{
-                        ComputerName   = $resolvedName
-                        Credential     = $Credential
-                        Authentication = $Authentication
-                        Architecture   = $detail.Architecture
-                        MajorVersion   = $detail.MajorVersion
-                        Path           = $Path
-                        KB             = $detail.KB
-                    }
-                    try {
-                        $installer = Find-SqlServerUpdate @kbLookupParams
-                    } catch {
-                        Stop-Function -Message "Failed to enumerate files in -Path" -ErrorRecord $_ -Continue
-                    }
-                    if ($installer) {
-                        $detail.Installer = $installer.FullName
-                    } else {
-                        Stop-Function -Message "Could not find installer for the SQL$($detail.MajorVersion) update KB$($detail.KB)" -Continue
-                    }
-                    # update components to mirror the updated version - will be used for multi-step upgrades
-                    foreach ($component in $components) {
-                        if ($component.Version.NameLevel -eq $detail.TargetVersion.NameLevel) {
-                            $component.Version = $detail.TargetVersion
-                        }
-                    }
-                    # finally, add the upgrade details to the upgrade list
-                    $upgrades += $detail
-                }
-            }
-            if ($upgrades) {
-                Write-ProgressHelper -ExcludePercent -Activity $activity -Message "Preparing installation"
-                $chosenVersions = ($upgrades | ForEach-Object { "$($_.MajorVersion) to $($_.TargetLevel) (KB$($_.KB))" }) -join ', '
-                if ($PSCmdlet.ShouldProcess($resolvedName, "Update $chosenVersions")) {
-                    $installActions += [pscustomobject]@{
-                        ComputerName = $resolvedName
-                        Actions      = $upgrades
-                    }
-                }
-            }
-            Write-Progress -Activity $activity -Completed
-        }
-        $explicitAuth = Test-Bound -Parameter Authentication
-        # Declare the installation script
-        $installScript = {
-            $updateSplat = @{
-                ComputerName    = $_.ComputerName
-                Action          = $_.Actions
-                Restart         = $Restart
-                Credential      = $Credential
-                EnableException = $EnableException
-            }
-            if ($explicitAuth) { $updateSplat.Authentication = $Authentication }
-            Invoke-DbaAdvancedUpdate @updateSplat
-        }
-        # check how many computers we are looking at and decide upon parallelism
-        if ($installActions.Count -eq 1) {
-            $installActions | ForEach-Object -Process $installScript | ForEach-Object -Process $outputHandler
-        } elseif ($installActions.Count -ge 2) {
-            $installActions | Invoke-Parallel -ImportModules -ImportVariables -ScriptBlock $installScript -Throttle $Throttle | ForEach-Object -Process $outputHandler
+foreach ($detail in $upgradeDetails) {
+    # search for installer for each target upgrade
+    $kbLookupParams = @{
+        ComputerName   = $resolvedName
+        Credential     = $Credential
+        Authentication = $Authentication
+        Architecture   = $detail.Architecture
+        MajorVersion   = $detail.MajorVersion
+        Path           = $Path
+        KB             = $detail.KB
+    }
+    try {
+        $installer = Find-SqlServerUpdate @kbLookupParams
+    } catch {
+        Stop-Function -Message "Failed to enumerate files in -Path" -ErrorRecord $_ -Continue
+    }
+    if ($installer) {
+        $detail.Installer = $installer.FullName
+    } else {
+        Stop-Function -Message "Could not find installer for the SQL$($detail.MajorVersion) update KB$($detail.KB)" -Continue
+    }
+    # update components to mirror the updated version - will be used for multi-step upgrades
+    foreach ($component in $components) {
+        if ($component.Version.NameLevel -eq $detail.TargetVersion.NameLevel) {
+            $component.Version = $detail.TargetVersion
         }
     }
+    # finally, add the upgrade details to the upgrade list
+    $upgrades += $detail
+}
+}
+if ($upgrades) {
+    Write-ProgressHelper -ExcludePercent -Activity $activity -Message "Preparing installation"
+    $chosenVersions = ($upgrades | ForEach-Object { "$($_.MajorVersion) to $($_.TargetLevel) (KB$($_.KB))" }) -join ', '
+if ($PSCmdlet.ShouldProcess($resolvedName, "Update $chosenVersions")) {
+    $installActions += [pscustomobject]@{
+        ComputerName = $resolvedName
+        Actions      = $upgrades
+    }
+}
+}
+Write-Progress -Activity $activity -Completed
+}
+$explicitAuth = Test-Bound -Parameter Authentication
+# Declare the installation script
+$installScript = {
+    $updateSplat = @{
+        ComputerName    = $_.ComputerName
+        Action          = $_.Actions
+        Restart         = $Restart
+        Credential      = $Credential
+        EnableException = $EnableException
+    }
+    if ($explicitAuth) { $updateSplat.Authentication = $Authentication }
+    Invoke-DbaAdvancedUpdate @updateSplat
+}
+# check how many computers we are looking at and decide upon parallelism
+if ($installActions.Count -eq 1) {
+    $installActions | ForEach-Object -Process $installScript | ForEach-Object -Process $outputHandler
+} elseif ($installActions.Count -ge 2) {
+    $installActions | Invoke-Parallel -ImportModules -ImportVariables -ScriptBlock $installScript -Throttle $Throttle | ForEach-Object -Process $outputHandler
+}
+}
 }

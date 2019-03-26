@@ -71,8 +71,8 @@ function Get-DbaUptime {
     }
     process {
         # uses cim commands
-        
-        
+
+
         foreach ($instance in $SqlInstance) {
             if ($instance.Gettype().FullName -eq [System.Management.Automation.PSCustomObject] ) {
                 $servername = $instance.SqlInstance
@@ -106,24 +106,24 @@ function Get-DbaUptime {
                     $CimOption = New-CimSessionOption -Protocol DCOM
                     $CimSession = New-CimSession -Credential:$Credential -ComputerName $WindowsServerName -SessionOption $CimOption
                     [dbadatetime]$WinBootTime = ($CimSession | Get-CimInstance -ClassName Win32_OperatingSystem).LastBootUpTime
-                    $WindowsUptime = New-TimeSpan -start $WinBootTime.ToUniversalTime() -end $nowutc
-                    $WindowsUptimeString = "{0} days {1} hours {2} minutes {3} seconds" -f $($WindowsUptime.Days), $($WindowsUptime.Hours), $($WindowsUptime.Minutes), $($WindowsUptime.Seconds)
-                } catch {
-                    Stop-Function -Message "Failure getting WinBootTime" -ErrorRecord $_ -Target $instance -Continue
-                }
-            }
-
-            [PSCustomObject]@{
-                ComputerName     = $WindowsServerName
-                InstanceName     = $server.ServiceName
-                SqlServer        = $server.Name
-                SqlUptime        = $SQLUptime
-                WindowsUptime    = $WindowsUptime
-                SqlStartTime     = $SQLStartTime
-                WindowsBootTime  = $WinBootTime
-                SinceSqlStart    = $SQLUptimeString
-                SinceWindowsBoot = $WindowsUptimeString
+                $WindowsUptime = New-TimeSpan -start $WinBootTime.ToUniversalTime() -end $nowutc
+                $WindowsUptimeString = "{0} days {1} hours {2} minutes {3} seconds" -f $($WindowsUptime.Days), $($WindowsUptime.Hours), $($WindowsUptime.Minutes), $($WindowsUptime.Seconds)
+            } catch {
+                Stop-Function -Message "Failure getting WinBootTime" -ErrorRecord $_ -Target $instance -Continue
             }
         }
+
+        [PSCustomObject]@{
+            ComputerName     = $WindowsServerName
+            InstanceName     = $server.ServiceName
+            SqlServer        = $server.Name
+            SqlUptime        = $SQLUptime
+            WindowsUptime    = $WindowsUptime
+            SqlStartTime     = $SQLStartTime
+            WindowsBootTime  = $WinBootTime
+            SinceSqlStart    = $SQLUptimeString
+            SinceWindowsBoot = $WindowsUptimeString
+        }
     }
+}
 }

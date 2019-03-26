@@ -130,7 +130,7 @@ function Get-DbaWaitingTask {
                     QueryPlan    = $row.QueryPlan
                     InfoUrl      = $row.InfoUrl
                 } | Select-DefaultView -ExcludeProperty 'SqlText', 'QueryPlan', 'InfoUrl'
-            }
         }
     }
+}
 }

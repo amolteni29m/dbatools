@@ -578,62 +578,62 @@ IF OBJECT_ID('tempdb..##tmpEstimatePage', 'U') IS NOT NULL
             try {
                 $dbs = $server.Databases | Where-Object IsAccessible
 
-                if ($Database) {
-                    $dbs = $dbs | Where-Object { $Database -contains $_.Name -and $_.IsSystemObject -eq 0 }
-                }
+            if ($Database) {
+                $dbs = $dbs | Where-Object { $Database -contains $_.Name -and $_.IsSystemObject -eq 0 }
+        }
 
-                else {
-                    $dbs = $dbs | Where-Object { $_.IsSystemObject -eq 0 }
-                }
+        else {
+            $dbs = $dbs | Where-Object { $_.IsSystemObject -eq 0 }
+    }
 
-                if (Test-Bound "ExcludeDatabase") {
-                    $dbs = $dbs | Where-Object Name -NotIn $ExcludeDatabase
-                }
-            } catch {
-                Stop-Function -Message "Unable to gather list of databases for $instance" -Target $instance -ErrorRecord $_ -Continue
-            }
+    if (Test-Bound "ExcludeDatabase") {
+        $dbs = $dbs | Where-Object Name -NotIn $ExcludeDatabase
+}
+} catch {
+    Stop-Function -Message "Unable to gather list of databases for $instance" -Target $instance -ErrorRecord $_ -Continue
+}
 
-            foreach ($db in $dbs) {
-                try {
-                    $dbCompatibilityLevel = [int]($db.CompatibilityLevel.ToString().Replace('Version', ''))
+foreach ($db in $dbs) {
+    try {
+        $dbCompatibilityLevel = [int]($db.CompatibilityLevel.ToString().Replace('Version', ''))
 
-                    Write-Message -Level Verbose -Message "Querying $instance - $db"
-                    if ($db.status -ne 'Normal' -or $db.IsAccessible -eq $false) {
-                        Write-Message -Level Warning -Message "$db is not accessible." -Target $db
-                        Continue
-                    }
+        Write-Message -Level Verbose -Message "Querying $instance - $db"
+        if ($db.status -ne 'Normal' -or $db.IsAccessible -eq $false) {
+            Write-Message -Level Warning -Message "$db is not accessible." -Target $db
+            Continue
+        }
 
-                    if ($dbCompatibilityLevel -lt 100) {
-                        Stop-Function -Message "$db has a compatibility level lower than Version100 and will be skipped." -Target $db -Continue
-                        Continue
-                    }
-                    #Execute query against individual database and add to output
-                    foreach ($row in ($server.Query($sql, $db.Name))) {
-                        [pscustomobject]@{
-                            ComputerName                  = $server.ComputerName
-                            InstanceName                  = $server.ServiceName
-                            SqlInstance                   = $server.DomainInstanceName
-                            Database                      = $row.DBName
-                            Schema                        = $row.Schema
-                            TableName                     = $row.TableName
-                            IndexName                     = $row.IndexName
-                            Partition                     = $row.Partition
-                            IndexID                       = $row.IndexID
-                            IndexType                     = $row.IndexType
-                            PercentScan                   = $row.PercentScan
-                            PercentUpdate                 = $row.PercentUpdate
-                            RowEstimatePercentOriginal    = $row.RowEstimatePercentOriginal
-                            PageEstimatePercentOriginal   = $row.PageEstimatePercentOriginal
-                            CompressionTypeRecommendation = $row.CompressionTypeRecommendation
-                            SizeCurrent                   = [dbasize]($row.SizeCurrentKB * 1024)
-                            SizeRequested                 = [dbasize]($row.SizeRequestedKB * 1024)
-                            PercentCompression            = $row.PercentCompression
-                        }
-                    }
-                } catch {
-                    Stop-Function -Message "Unable to query $instance - $db" -Target $db -ErrorRecord $_ -Continue
-                }
+        if ($dbCompatibilityLevel -lt 100) {
+            Stop-Function -Message "$db has a compatibility level lower than Version100 and will be skipped." -Target $db -Continue
+            Continue
+        }
+        #Execute query against individual database and add to output
+        foreach ($row in ($server.Query($sql, $db.Name))) {
+            [pscustomobject]@{
+                ComputerName                  = $server.ComputerName
+                InstanceName                  = $server.ServiceName
+                SqlInstance                   = $server.DomainInstanceName
+                Database                      = $row.DBName
+                Schema                        = $row.Schema
+                TableName                     = $row.TableName
+                IndexName                     = $row.IndexName
+                Partition                     = $row.Partition
+                IndexID                       = $row.IndexID
+                IndexType                     = $row.IndexType
+                PercentScan                   = $row.PercentScan
+                PercentUpdate                 = $row.PercentUpdate
+                RowEstimatePercentOriginal    = $row.RowEstimatePercentOriginal
+                PageEstimatePercentOriginal   = $row.PageEstimatePercentOriginal
+                CompressionTypeRecommendation = $row.CompressionTypeRecommendation
+                SizeCurrent                   = [dbasize]($row.SizeCurrentKB * 1024)
+                SizeRequested                 = [dbasize]($row.SizeRequestedKB * 1024)
+                PercentCompression            = $row.PercentCompression
             }
         }
+    } catch {
+        Stop-Function -Message "Unable to query $instance - $db" -Target $db -ErrorRecord $_ -Continue
     }
+}
+}
+}
 }

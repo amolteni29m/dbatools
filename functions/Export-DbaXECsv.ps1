@@ -107,7 +107,7 @@ function Export-DbaXECsv {
             }
 
             $accessible = Test-Path -Path $currentfile
-            $whoami = whoami
+            $whoami = whoami.exe
 
             if (-not $accessible) {
                 if ($file.Status -eq "Stopped") { continue }
@@ -117,38 +117,38 @@ function Export-DbaXECsv {
             if (-not (Test-Path $Path)) {
                 if ([String]::IsNullOrEmpty([IO.Path]::GetExtension($Path))) {
                     New-Item $Path -ItemType directory | Out-Null
-                    $outDir = $Path
-                    $outFile = [IO.Path]::GetFileNameWithoutExtension($currentfile) + ".csv"
-                } else {
-                    $outDir = [IO.Path]::GetDirectoryName($Path)
-                    $outFile = [IO.Path]::GetFileName($Path)
-                }
+                $outDir = $Path
+                $outFile = [IO.Path]::GetFileNameWithoutExtension($currentfile) + ".csv"
             } else {
-                if ((Get-Item $Path) -is [System.IO.DirectoryInfo]) {
-                    $outDir = $Path
-                    $outFile = [IO.Path]::GetFileNameWithoutExtension($currentfile) + ".csv"
-                } else {
-                    $outDir = [IO.Path]::GetDirectoryName($Path)
-                    $outFile = [IO.Path]::GetFileName($Path)
-                }
+                $outDir = [IO.Path]::GetDirectoryName($Path)
+                $outFile = [IO.Path]::GetFileName($Path)
             }
-
-            $adapter = New-Object XESmartTarget.Core.Utils.XELFileCSVAdapter
-            $adapter.InputFile = $currentfile
-            $adapter.OutputFile = (Join-Path $outDir $outFile)
-
-            try {
-                $adapter.Convert()
-                $file = Get-ChildItem -Path $adapter.OutputFile
-
-                if ($file.Length -eq 0) {
-                    Remove-Item -Path $adapter.OutputFile
-                } else {
-                    $file
-                }
-            } catch {
-                Stop-Function -Message "Failure" -ErrorRecord $_ -Target "XESmartTarget" -Continue
+        } else {
+            if ((Get-Item $Path) -is [System.IO.DirectoryInfo]) {
+                $outDir = $Path
+                $outFile = [IO.Path]::GetFileNameWithoutExtension($currentfile) + ".csv"
+            } else {
+                $outDir = [IO.Path]::GetDirectoryName($Path)
+                $outFile = [IO.Path]::GetFileName($Path)
             }
         }
+
+        $adapter = New-Object XESmartTarget.Core.Utils.XELFileCSVAdapter
+        $adapter.InputFile = $currentfile
+        $adapter.OutputFile = (Join-Path $outDir $outFile)
+
+        try {
+            $adapter.Convert()
+            $file = Get-ChildItem -Path $adapter.OutputFile
+
+            if ($file.Length -eq 0) {
+                Remove-Item -Path $adapter.OutputFile
+            } else {
+                $file
+            }
+        } catch {
+            Stop-Function -Message "Failure" -ErrorRecord $_ -Target "XESmartTarget" -Continue
+        }
     }
+}
 }

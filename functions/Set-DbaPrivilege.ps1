@@ -73,90 +73,90 @@ function Convert-UserNameToSID ([string] `$Acc ) {
 }
 "@
         $ComputerName = $ComputerName.ComputerName | Select-Object -Unique
-    }
-    process {
-        foreach ($computer in $ComputerName) {
-            if ($Pscmdlet.ShouldProcess($computer, "Setting Privilege for SQL Service Account")) {
-                try {
-                    $null = Test-ElevationRequirement -ComputerName $Computer -Continue
-                    if (Test-PSRemoting -ComputerName $Computer) {
-                        Write-Message -Level Verbose -Message "Exporting Privileges on $Computer"
-                        Invoke-Command2 -Raw -ComputerName $computer -Credential $Credential -ScriptBlock {
-                            $temp = ([System.IO.Path]::GetTempPath()).TrimEnd(""); secedit /export /cfg $temp\secpolByDbatools.cfg > $NULL;
-                        }
-                        Write-Message -Level Verbose -Message "Getting SQL Service Accounts on $computer"
-                        $SQLServiceAccounts = (Get-DbaService -ComputerName $computer -Type Engine).StartName
-                        if ($SQLServiceAccounts.count -ge 1) {
-                            Write-Message -Level Verbose -Message "Setting Privileges on $Computer"
-                            Invoke-Command2 -Raw -ComputerName $computer -Credential $Credential -Verbose -ArgumentList $ResolveAccountToSID, $SQLServiceAccounts, $BatchLogon, $IFI, $LPIM -ScriptBlock {
-                                [CmdletBinding()]
-                                param ($ResolveAccountToSID,
-                                    $SQLServiceAccounts,
-                                    $BatchLogon,
-                                    $IFI,
-                                    $LPIM)
-                                . ([ScriptBlock]::Create($ResolveAccountToSID))
-                                $temp = ([System.IO.Path]::GetTempPath()).TrimEnd("");
-                                $tempfile = "$temp\secpolByDbatools.cfg"
-                                if ('BatchLogon' -in $Type) {
-                                    $BLline = Get-Content $tempfile | Where-Object { $_ -match "SeBatchLogonRight" }
-                                    ForEach ($acc in $SQLServiceAccounts) {
-                                        $SID = Convert-UserNameToSID -Acc $acc;
-                                        if ($BLline -notmatch $SID) {
-                                            (Get-Content $tempfile) -replace "SeBatchLogonRight = ", "SeBatchLogonRight = *$SID," |
-                                                Set-Content $tempfile
-                                            <# DO NOT use Write-Message as this is inside of a script block #>
-                                            Write-Verbose "Added $acc to Batch Logon Privileges on $env:ComputerName"
-                                        } else {
-                                            <# DO NOT use Write-Message as this is inside of a script block #>
-                                            Write-Warning "$acc already has Batch Logon Privilege on $env:ComputerName"
-                                        }
-                                    }
-                                }
-                                if ('IFI' -in $Type) {
-                                    $IFIline = Get-Content $tempfile | Where-Object { $_ -match "SeManageVolumePrivilege" }
-                                    ForEach ($acc in $SQLServiceAccounts) {
-                                        $SID = Convert-UserNameToSID -Acc $acc;
-                                        if ($IFIline -notmatch $SID) {
-                                            (Get-Content $tempfile) -replace "SeManageVolumePrivilege = ", "SeManageVolumePrivilege = *$SID," |
-                                                Set-Content $tempfile
-                                            <# DO NOT use Write-Message as this is inside of a script block #>
-                                            Write-Verbose "Added $acc to Instant File Initialization Privileges on $env:ComputerName"
-                                        } else {
-                                            <# DO NOT use Write-Message as this is inside of a script block #>
-                                            Write-Warning "$acc already has Instant File Initialization Privilege on $env:ComputerName"
-                                        }
-                                    }
-                                }
-                                if ('LPIM' -in $Type) {
-                                    $LPIMline = Get-Content $tempfile | Where-Object { $_ -match "SeLockMemoryPrivilege" }
-                                    ForEach ($acc in $SQLServiceAccounts) {
-                                        $SID = Convert-UserNameToSID -Acc $acc;
-                                        if ($LPIMline -notmatch $SID) {
-                                            (Get-Content $tempfile) -replace "SeLockMemoryPrivilege = ", "SeLockMemoryPrivilege = *$SID," |
-                                                Set-Content $tempfile
-                                            <# DO NOT use Write-Message as this is inside of a script block #>
-                                            Write-Verbose "Added $acc to Lock Pages in Memory Privileges on $env:ComputerName"
-                                        } else {
-                                            <# DO NOT use Write-Message as this is inside of a script block #>
-                                            Write-Warning "$acc already has Lock Pages in Memory Privilege on $env:ComputerName"
-                                        }
-                                    }
-                                }
-                                $null = secedit /configure /cfg $tempfile /db secedit.sdb /areas USER_RIGHTS /overwrite /quiet
-                            } -ErrorAction SilentlyContinue
-                            Write-Message -Level Verbose -Message "Removing secpol file on $computer"
-                            Invoke-Command2 -Raw -ComputerName $computer -Credential $Credential -ScriptBlock { $temp = ([System.IO.Path]::GetTempPath()).TrimEnd(""); Remove-Item $temp\secpolByDbatools.cfg -Force > $NULL }
-                        } else {
-                            Write-Message -Level Warning -Message "No SQL Service Accounts found on $Computer"
-                        }
-                    } else {
-                        Write-Message -Level Warning -Message "Failed to connect to $Computer"
+}
+process {
+    foreach ($computer in $ComputerName) {
+        if ($Pscmdlet.ShouldProcess($computer, "Setting Privilege for SQL Service Account")) {
+            try {
+                $null = Test-ElevationRequirement -ComputerName $Computer -Continue
+                if (Test-PSRemoting -ComputerName $Computer) {
+                    Write-Message -Level Verbose -Message "Exporting Privileges on $Computer"
+                    Invoke-Command2 -Raw -ComputerName $computer -Credential $Credential -ScriptBlock {
+                        $temp = ([System.IO.Path]::GetTempPath()).TrimEnd(""); SecEdit.exe /export /cfg $temp\secpolByDbatools.cfg > $NULL;
                     }
-                } catch {
-                    Stop-Function -Message "Failure" -ErrorRecord $_ -Target $computer -Continue
+                    Write-Message -Level Verbose -Message "Getting SQL Service Accounts on $computer"
+                    $SQLServiceAccounts = (Get-DbaService -ComputerName $computer -Type Engine).StartName
+                    if ($SQLServiceAccounts.count -ge 1) {
+                        Write-Message -Level Verbose -Message "Setting Privileges on $Computer"
+                        Invoke-Command2 -Raw -ComputerName $computer -Credential $Credential -Verbose -ArgumentList $ResolveAccountToSID, $SQLServiceAccounts, $BatchLogon, $IFI, $LPIM -ScriptBlock {
+                            [CmdletBinding()]
+                            param ($ResolveAccountToSID,
+                                $SQLServiceAccounts,
+                                $BatchLogon,
+                                $IFI,
+                                $LPIM)
+                            . ([ScriptBlock]::Create($ResolveAccountToSID))
+                            $temp = ([System.IO.Path]::GetTempPath()).TrimEnd("");
+                            $tempfile = "$temp\secpolByDbatools.cfg"
+                            if ('BatchLogon' -in $Type) {
+                                $BLline = Get-Content $tempfile | Where-Object { $_ -match "SeBatchLogonRight" }
+                            ForEach ($acc in $SQLServiceAccounts) {
+                                $SID = Convert-UserNameToSID -Acc $acc;
+                                if ($BLline -notmatch $SID) {
+                                    (Get-Content $tempfile) -replace "SeBatchLogonRight = ", "SeBatchLogonRight = *$SID," |
+                                        Set-Content $tempfile
+                                    <# DO NOT use Write-Message as this is inside of a script block #>
+                                    Write-Verbose "Added $acc to Batch Logon Privileges on $env:ComputerName"
+                                } else {
+                                    <# DO NOT use Write-Message as this is inside of a script block #>
+                                    Write-Warning "$acc already has Batch Logon Privilege on $env:ComputerName"
+                                }
+                            }
+                        }
+                        if ('IFI' -in $Type) {
+                            $IFIline = Get-Content $tempfile | Where-Object { $_ -match "SeManageVolumePrivilege" }
+                        ForEach ($acc in $SQLServiceAccounts) {
+                            $SID = Convert-UserNameToSID -Acc $acc;
+                            if ($IFIline -notmatch $SID) {
+                                (Get-Content $tempfile) -replace "SeManageVolumePrivilege = ", "SeManageVolumePrivilege = *$SID," |
+                                    Set-Content $tempfile
+                                <# DO NOT use Write-Message as this is inside of a script block #>
+                                Write-Verbose "Added $acc to Instant File Initialization Privileges on $env:ComputerName"
+                            } else {
+                                <# DO NOT use Write-Message as this is inside of a script block #>
+                                Write-Warning "$acc already has Instant File Initialization Privilege on $env:ComputerName"
+                            }
+                        }
+                    }
+                    if ('LPIM' -in $Type) {
+                        $LPIMline = Get-Content $tempfile | Where-Object { $_ -match "SeLockMemoryPrivilege" }
+                    ForEach ($acc in $SQLServiceAccounts) {
+                        $SID = Convert-UserNameToSID -Acc $acc;
+                        if ($LPIMline -notmatch $SID) {
+                            (Get-Content $tempfile) -replace "SeLockMemoryPrivilege = ", "SeLockMemoryPrivilege = *$SID," |
+                                Set-Content $tempfile
+                            <# DO NOT use Write-Message as this is inside of a script block #>
+                            Write-Verbose "Added $acc to Lock Pages in Memory Privileges on $env:ComputerName"
+                        } else {
+                            <# DO NOT use Write-Message as this is inside of a script block #>
+                            Write-Warning "$acc already has Lock Pages in Memory Privilege on $env:ComputerName"
+                        }
+                    }
                 }
-            }
+                $null = SecEdit.exe /configure /cfg $tempfile /db secedit.sdb /areas USER_RIGHTS /overwrite /quiet
+            } -ErrorAction SilentlyContinue
+            Write-Message -Level Verbose -Message "Removing secpol file on $computer"
+            Invoke-Command2 -Raw -ComputerName $computer -Credential $Credential -ScriptBlock { $temp = ([System.IO.Path]::GetTempPath()).TrimEnd(""); Remove-Item $temp\secpolByDbatools.cfg -Force > $NULL }
+        } else {
+            Write-Message -Level Warning -Message "No SQL Service Accounts found on $Computer"
         }
+    } else {
+        Write-Message -Level Warning -Message "Failed to connect to $Computer"
     }
+} catch {
+    Stop-Function -Message "Failure" -ErrorRecord $_ -Target $computer -Continue
+}
+}
+}
+}
 }

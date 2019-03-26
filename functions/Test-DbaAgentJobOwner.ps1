@@ -113,44 +113,44 @@ function Test-DbaAgentJobOwner {
             # dynamic sa name for orgs who have changed their sa name
             if ($Login -eq "sa") {
                 $Login = ($server.Logins | Where-Object { $_.id -eq 1 }).Name
-            }
-
-            #Get database list. If value for -Job is passed, massage to make it a string array.
-            #Otherwise, use all jobs on the instance where owner not equal to -TargetLogin
-            Write-Message -Level Verbose -Message "Gathering jobs to check."
-            if ($Job) {
-                $jobCollection = $server.JobServer.Jobs | Where-Object { $Job -contains $_.Name }
-            } elseif ($ExcludeJob) {
-                $jobCollection = $server.JobServer.Jobs | Where-Object { $ExcludeJob -notcontains $_.Name }
-            } else {
-                $jobCollection = $server.JobServer.Jobs
-            }
-
-            #for each database, create custom object for return set.
-            foreach ($j in $jobCollection) {
-                Write-Message -Level Verbose -Message "Checking $j"
-                $row = [ordered]@{
-                    Server       = $server.Name
-                    Job          = $j.Name
-                    JobType      = if ($j.CategoryID -eq 1) { "Remote" } else { $j.JobType }
-                    CurrentOwner = $j.OwnerLoginName
-                    TargetOwner  = $Login
-                    OwnerMatch   = if ($j.CategoryID -eq 1) { $true } else { $j.OwnerLoginName -eq $Login }
-
-                }
-                #add each custom object to the return array
-                $return += New-Object PSObject -Property $row
-            }
-            if ($Job) {
-                $results = $return
-            } else {
-                $results = $return | Where-Object {$_.OwnerMatch -eq $False}
-            }
         }
+
+        #Get database list. If value for -Job is passed, massage to make it a string array.
+        #Otherwise, use all jobs on the instance where owner not equal to -TargetLogin
+        Write-Message -Level Verbose -Message "Gathering jobs to check."
+        if ($Job) {
+            $jobCollection = $server.JobServer.Jobs | Where-Object { $Job -contains $_.Name }
+    } elseif ($ExcludeJob) {
+        $jobCollection = $server.JobServer.Jobs | Where-Object { $ExcludeJob -notcontains $_.Name }
+} else {
+    $jobCollection = $server.JobServer.Jobs
+}
+
+#for each database, create custom object for return set.
+foreach ($j in $jobCollection) {
+    Write-Message -Level Verbose -Message "Checking $j"
+    $row = [ordered]@{
+        Server       = $server.Name
+        Job          = $j.Name
+        JobType      = if ($j.CategoryID -eq 1) { "Remote" } else { $j.JobType }
+        CurrentOwner = $j.OwnerLoginName
+        TargetOwner  = $Login
+        OwnerMatch   = if ($j.CategoryID -eq 1) { $true } else { $j.OwnerLoginName -eq $Login }
+
     }
-    end {
-        #return results
-        Select-DefaultView -InputObject $results -Property Server, Job, JobType, CurrentOwner, TargetOwner, OwnerMatch
-    }
+    #add each custom object to the return array
+    $return += New-Object PSObject -Property $row
+}
+if ($Job) {
+    $results = $return
+} else {
+    $results = $return | Where-Object { $_.OwnerMatch -eq $False }
+}
+}
+}
+end {
+    #return results
+    Select-DefaultView -InputObject $results -Property Server, Job, JobType, CurrentOwner, TargetOwner, OwnerMatch
+}
 
 }

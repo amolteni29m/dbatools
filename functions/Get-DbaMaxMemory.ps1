@@ -45,7 +45,7 @@ function Get-DbaMaxMemory {
         PS C:\> Find-DbaInstance -ComputerName localhost | Get-DbaMaxMemory | Format-Table -AutoSize
 
         Scans localhost for instances using the browser service, traverses all instances and displays memory settings in a formatted table.
-       #>
+    #>
     [CmdletBinding()]
     param (
         [parameter(Position = 0, Mandatory, ValueFromPipeline)]
@@ -77,6 +77,6 @@ function Get-DbaMaxMemory {
                 MaxValue     = [int]$server.Configuration.MaxServerMemory.ConfigValue
                 Server       = $server # This will allowing piping a non-connected object
             } | Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, Total, MaxValue
-        }
     }
+}
 }

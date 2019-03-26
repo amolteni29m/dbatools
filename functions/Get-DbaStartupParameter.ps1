@@ -78,112 +78,112 @@ function Get-DbaStartupParameter {
 
                     $wmisvc = $wmi.Services | Where-Object DisplayName -eq $displayname
 
-                    $params = $wmisvc.StartupParameters -split ';'
+                $params = $wmisvc.StartupParameters -split ';'
 
-                    $masterdata = $params | Where-Object { $_.StartsWith('-d') }
-                    $masterlog = $params | Where-Object { $_.StartsWith('-l') }
-                    $errorlog = $params | Where-Object { $_.StartsWith('-e') }
-                    $traceflags = $params | Where-Object { $_.StartsWith('-T') }
+                $masterdata = $params | Where-Object { $_.StartsWith('-d') }
+            $masterlog = $params | Where-Object { $_.StartsWith('-l') }
+        $errorlog = $params | Where-Object { $_.StartsWith('-e') }
+    $traceflags = $params | Where-Object { $_.StartsWith('-T') }
 
-                    $debugflag = $params | Where-Object { $_.StartsWith('-t') }
+$debugflag = $params | Where-Object { $_.StartsWith('-t') }
 
-                    if ($debugflag.length -ne 0) {
-                        Write-Message -Level Warning "$instance is using the lowercase -t trace flag. This is for internal debugging only. Please ensure this was intentional."
-                    }
-                    #>
+if ($debugflag.length -ne 0) {
+    Write-Message -Level Warning "$instance is using the lowercase -t trace flag. This is for internal debugging only. Please ensure this was intentional."
+}
+#>
 
-                    if ($traceflags.length -eq 0) {
-                        $traceflags = "None"
-                    } else {
-                        $traceflags = $traceflags.substring(2)
-                    }
+if ($traceflags.length -eq 0) {
+    $traceflags = "None"
+} else {
+    $traceflags = $traceflags.substring(2)
+}
 
-                    if ($Simple -eq $true) {
-                        [PSCustomObject]@{
-                            ComputerName    = $computerName
-                            InstanceName    = $instanceName
-                            SqlInstance     = $ogInstance
-                            MasterData      = $masterdata.TrimStart('-d')
-                            MasterLog       = $masterlog.TrimStart('-l')
-                            ErrorLog        = $errorlog.TrimStart('-e')
-                            TraceFlags      = $traceflags -join ','
-                            ParameterString = $wmisvc.StartupParameters
-                        }
-                    } else {
-                        # From https://msdn.microsoft.com/en-us/library/ms190737.aspx
-
-                        $commandpromptparm = $params | Where-Object { $_ -eq '-c' }
-                        $minimalstartparm = $params | Where-Object { $_ -eq '-f' }
-                        $memorytoreserve = $params | Where-Object { $_.StartsWith('-g') }
-                        $noeventlogsparm = $params | Where-Object { $_ -eq '-n' }
-                        $instancestartparm = $params | Where-Object { $_ -eq '-s' }
-                        $disablemonitoringparm = $params | Where-Object { $_ -eq '-x' }
-                        $increasedextentsparm = $params | Where-Object { $_ -ceq '-E' }
-
-                        $minimalstart = $noeventlogs = $instancestart = $disablemonitoring = $false
-                        $increasedextents = $commandprompt = $singleuser = $false
-
-                        if ($null -ne $commandpromptparm) {
-                            $commandprompt = $true
-                        }
-                        if ($null -ne $minimalstartparm) {
-                            $minimalstart = $true
-                        }
-                        if ($null -eq $memorytoreserve) {
-                            $memorytoreserve = 0
-                        }
-                        if ($null -ne $noeventlogsparm) {
-                            $noeventlogs = $true
-                        }
-                        if ($null -ne $instancestartparm) {
-                            $instancestart = $true
-                        }
-                        if ($null -ne $disablemonitoringparm) {
-                            $disablemonitoring = $true
-                        }
-                        if ($null -ne $increasedextentsparm) {
-                            $increasedextents = $true
-                        }
-
-                        $singleuserparm = $params | Where-Object { $_.StartsWith('-m') }
-
-                        if ($singleuserparm.length -ne 0) {
-                            $singleuser = $true
-                            $singleuserdetails = $singleuserparm.TrimStart('-m')
-                        }
-
-                        [PSCustomObject]@{
-                            ComputerName         = $computerName
-                            InstanceName         = $instanceName
-                            SqlInstance          = $ogInstance
-                            MasterData           = $masterdata -replace '^-[dD]', ''
-                            MasterLog            = $masterlog -replace '^-[lL]', ''
-                            ErrorLog             = $errorlog -replace '^-[eE]', ''
-                            TraceFlags           = $traceflags -join ','
-                            CommandPromptStart   = $commandprompt
-                            MinimalStart         = $minimalstart
-                            MemoryToReserve      = $memorytoreserve
-                            SingleUser           = $singleuser
-                            SingleUserName       = $singleuserdetails
-                            NoLoggingToWinEvents = $noeventlogs
-                            StartAsNamedInstance = $instancestart
-                            DisableMonitoring    = $disablemonitoring
-                            IncreasedExtents     = $increasedextents
-                            ParameterString      = $wmisvc.StartupParameters
-                        }
-                    }
-                }
-
-                # This command is in the internal function
-                # It's sorta like Invoke-Command.
-                if ($credential) {
-                    Invoke-ManagedComputerCommand -Server $computerName -Credential $credential -ScriptBlock $Scriptblock -ArgumentList $computerName, $displayname
-                } else {
-                    Invoke-ManagedComputerCommand -Server $computerName -ScriptBlock $Scriptblock -ArgumentList $computerName, $displayname
-                }
-            } catch {
-                Stop-Function -Message "$instance failed." -ErrorRecord $_ -Continue -Target $instance
-            }
-        }
+if ($Simple -eq $true) {
+    [PSCustomObject]@{
+        ComputerName    = $computerName
+        InstanceName    = $instanceName
+        SqlInstance     = $ogInstance
+        MasterData      = $masterdata.TrimStart('-d')
+        MasterLog       = $masterlog.TrimStart('-l')
+        ErrorLog        = $errorlog.TrimStart('-e')
+        TraceFlags      = $traceflags -join ','
+        ParameterString = $wmisvc.StartupParameters
     }
+} else {
+    # From https://msdn.microsoft.com/en-us/library/ms190737.aspx
+
+    $commandpromptparm = $params | Where-Object { $_ -eq '-c' }
+$minimalstartparm = $params | Where-Object { $_ -eq '-f' }
+$memorytoreserve = $params | Where-Object { $_.StartsWith('-g') }
+$noeventlogsparm = $params | Where-Object { $_ -eq '-n' }
+$instancestartparm = $params | Where-Object { $_ -eq '-s' }
+$disablemonitoringparm = $params | Where-Object { $_ -eq '-x' }
+$increasedextentsparm = $params | Where-Object { $_ -ceq '-E' }
+
+$minimalstart = $noeventlogs = $instancestart = $disablemonitoring = $false
+$increasedextents = $commandprompt = $singleuser = $false
+
+if ($null -ne $commandpromptparm) {
+    $commandprompt = $true
+}
+if ($null -ne $minimalstartparm) {
+    $minimalstart = $true
+}
+if ($null -eq $memorytoreserve) {
+    $memorytoreserve = 0
+}
+if ($null -ne $noeventlogsparm) {
+    $noeventlogs = $true
+}
+if ($null -ne $instancestartparm) {
+    $instancestart = $true
+}
+if ($null -ne $disablemonitoringparm) {
+    $disablemonitoring = $true
+}
+if ($null -ne $increasedextentsparm) {
+    $increasedextents = $true
+}
+
+$singleuserparm = $params | Where-Object { $_.StartsWith('-m') }
+
+if ($singleuserparm.length -ne 0) {
+    $singleuser = $true
+    $singleuserdetails = $singleuserparm.TrimStart('-m')
+}
+
+[PSCustomObject]@{
+    ComputerName         = $computerName
+    InstanceName         = $instanceName
+    SqlInstance          = $ogInstance
+    MasterData           = $masterdata -replace '^-[dD]', ''
+    MasterLog            = $masterlog -replace '^-[lL]', ''
+    ErrorLog             = $errorlog -replace '^-[eE]', ''
+    TraceFlags           = $traceflags -join ','
+    CommandPromptStart   = $commandprompt
+    MinimalStart         = $minimalstart
+    MemoryToReserve      = $memorytoreserve
+    SingleUser           = $singleuser
+    SingleUserName       = $singleuserdetails
+    NoLoggingToWinEvents = $noeventlogs
+    StartAsNamedInstance = $instancestart
+    DisableMonitoring    = $disablemonitoring
+    IncreasedExtents     = $increasedextents
+    ParameterString      = $wmisvc.StartupParameters
+}
+}
+}
+
+# This command is in the internal function
+# It's sorta like Invoke-Command.
+if ($credential) {
+    Invoke-ManagedComputerCommand -Server $computerName -Credential $credential -ScriptBlock $Scriptblock -ArgumentList $computerName, $displayname
+} else {
+    Invoke-ManagedComputerCommand -Server $computerName -ScriptBlock $Scriptblock -ArgumentList $computerName, $displayname
+}
+} catch {
+    Stop-Function -Message "$instance failed." -ErrorRecord $_ -Continue -Target $instance
+}
+}
+}
 }

@@ -79,10 +79,10 @@ function Start-DbaMigration {
     .PARAMETER SetSourceReadOnly
         If this switch is enabled, all migrated databases will be set to ReadOnly on the source instance prior to detach/attach & backup/restore. If -Reattach is specified, the database is set to read-only after reattaching.
 
-    
+
     .PARAMETER Exclude
         Exclude one or more objects to migrate
-    
+
         Databases
         Logins
         AgentServer
@@ -212,10 +212,10 @@ function Start-DbaMigration {
         [switch]$Force,
         [switch]$EnableException
     )
-    
+
     begin {
         Test-DbaDeprecation -DeprecatedOn 1.0.0 -Parameter NetworkShare -CustomMessage "Using the parameter NetworkShare is deprecated. This parameter will be removed in version 1.0.0 or before. Use SharedPath instead."
-        
+
         if ($Exclude -notcontains "Databases") {
             if (-not $BackupRestore -and -not $DetachAttach -and -not $UseLastBackup) {
                 Stop-Function -Message "You must specify a database migration method (-BackupRestore or -DetachAttach) or -Exclude Databases"
@@ -246,7 +246,7 @@ function Start-DbaMigration {
         if ($UseLastBackup -and -not $BackupRestore) {
             $BackupRestore = $true
         }
-        
+
         $elapsed = [System.Diagnostics.Stopwatch]::StartNew()
         $started = Get-Date
         $sourceserver = Connect-SqlInstance -SqlInstance $Source -SqlCredential $SourceSqlCredential
@@ -347,12 +347,12 @@ function Start-DbaMigration {
                 $null = Update-SqlDbOwner -Source $sourceserver -Destination $dest -DestinationSqlCredential $DestinationSqlCredential
             }
         }
-        
+
         if ($Exclude -notcontains 'LinkedServers') {
             Write-Message -Level Verbose -Message "Migrating linked servers"
             Copy-DbaLinkedServer -Source $sourceserver -Destination $Destination -DestinationSqlCredential $DestinationSqlCredential -Force:$Force
         }
-        
+
         if ($Exclude -notcontains 'DataCollector') {
             Write-Message -Level Verbose -Message "Migrating Data Collector collection sets"
             Copy-DbaDataCollector -Source $sourceserver -Destination $Destination -DestinationSqlCredential $DestinationSqlCredential -Force:$Force

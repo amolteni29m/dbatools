@@ -189,16 +189,16 @@ function Get-DbaDbRestoreHistory {
                 $results = $server.ConnectionContext.ExecuteWithResults($sql).Tables.Rows
                 if ($last) {
                     $ga = $results | Group-Object Database
-                    $tmpres = @()
-                    foreach ($g in $ga) {
-                        $tmpres += $g.Group | Sort-Object -Property Date -Descending | Select-Object -First 1
-                    }
-                    $results = $tmpres
-                }
-                $results | Select-DefaultView -ExcludeProperty first_lsn, last_lsn, checkpoint_lsn, database_backup_lsn, backup_finish_date
-            } catch {
-                Stop-Function -Message "Failure" -Target $SqlInstance -Error $_ -Exception $_.Exception.InnerException -Continue
-            }
+                $tmpres = @()
+                foreach ($g in $ga) {
+                    $tmpres += $g.Group | Sort-Object -Property Date -Descending | Select-Object -First 1
         }
+        $results = $tmpres
     }
+    $results | Select-DefaultView -ExcludeProperty first_lsn, last_lsn, checkpoint_lsn, database_backup_lsn, backup_finish_date
+} catch {
+    Stop-Function -Message "Failure" -Target $SqlInstance -Error $_ -Exception $_.Exception.InnerException -Continue
+}
+}
+}
 }

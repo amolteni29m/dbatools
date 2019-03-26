@@ -122,48 +122,48 @@ function Copy-DbaSpConfigure {
                 }
 
                 $destProp = $destProps | Where-Object ConfigName -eq $sConfigName
-                if (!$destProp) {
-                    Write-Message -Level Verbose -Message "Configuration $sConfigName ('$displayName') does not exist on the destination instance."
+            if (!$destProp) {
+                Write-Message -Level Verbose -Message "Configuration $sConfigName ('$displayName') does not exist on the destination instance."
 
-                    $copySpConfigStatus.Status = "Skipped"
-                    $copySpConfigStatus.Notes = "Configuration does not exist on destination"
-                    $copySpConfigStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+                $copySpConfigStatus.Status = "Skipped"
+                $copySpConfigStatus.Notes = "Configuration does not exist on destination"
+                $copySpConfigStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
 
-                    continue
-                }
+            continue
+        }
 
-                if ($Pscmdlet.ShouldProcess($destinstance, "Updating $sConfigName [$displayName]")) {
-                    try {
-                        $destOldConfigValue = $destProp.ConfiguredValue
+        if ($Pscmdlet.ShouldProcess($destinstance, "Updating $sConfigName [$displayName]")) {
+            try {
+                $destOldConfigValue = $destProp.ConfiguredValue
 
-                        if ($sConfiguredValue -ne $destOldConfigValue) {
-                            $result = Set-DbaSpConfigure -SqlInstance $destServer -Name $sConfigName -Value $sConfiguredValue -EnableException -WarningAction SilentlyContinue
-                            if ($result) {
-                                Write-Message -Level Verbose -Message "Updated $($destProp.ConfigName) ($($destProp.DisplayName)) from $destOldConfigValue to $sConfiguredValue."
-                            }
-                        }
-                        if ($requiresRestart -eq $false) {
-                            Write-Message -Level Verbose -Message "Configuration option $sConfigName ($displayName) requires restart."
-                            $copySpConfigStatus.Notes = "Requires restart"
-                        }
-                        $copySpConfigStatus.Status = "Successful"
-                        $copySpConfigStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-                    } catch {
-                        if ($_.Exception -match 'the same as the') {
-                            $copySpConfigStatus.Status = "Successful"
-                        } else {
-                            $copySpConfigStatus.Status = "Failed"
-                            $copySpConfigStatus.Notes = (Get-ErrorMessage -Record $_)
-                        }
-                        $copySpConfigStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-
-                        Stop-Function -Message "Could not set $($destProp.ConfigName) to $sConfiguredValue." -Target $sConfigName -ErrorRecord $_
+                if ($sConfiguredValue -ne $destOldConfigValue) {
+                    $result = Set-DbaSpConfigure -SqlInstance $destServer -Name $sConfigName -Value $sConfiguredValue -EnableException -WarningAction SilentlyContinue
+                    if ($result) {
+                        Write-Message -Level Verbose -Message "Updated $($destProp.ConfigName) ($($destProp.DisplayName)) from $destOldConfigValue to $sConfiguredValue."
                     }
                 }
+                if ($requiresRestart -eq $false) {
+                    Write-Message -Level Verbose -Message "Configuration option $sConfigName ($displayName) requires restart."
+                    $copySpConfigStatus.Notes = "Requires restart"
+                }
+                $copySpConfigStatus.Status = "Successful"
+                $copySpConfigStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+        } catch {
+            if ($_.Exception -match 'the same as the') {
+                $copySpConfigStatus.Status = "Successful"
+            } else {
+                $copySpConfigStatus.Status = "Failed"
+                $copySpConfigStatus.Notes = (Get-ErrorMessage -Record $_)
             }
-        }
+            $copySpConfigStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+
+        Stop-Function -Message "Could not set $($destProp.ConfigName) to $sConfiguredValue." -Target $sConfigName -ErrorRecord $_
     }
-    end {
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Copy-SqlSpConfigure
-    }
+}
+}
+}
+}
+end {
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Copy-SqlSpConfigure
+}
 }

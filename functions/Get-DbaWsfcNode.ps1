@@ -54,8 +54,8 @@ function Get-DbaWsfcNode {
             $cluster = Get-DbaWsfcCluster -ComputerName $computer -Credential $Credential
             $node = Get-DbaCmObject -Computername $computer -Credential $Credential -Namespace root\MSCluster -ClassName MSCluster_Node
             $node | Add-Member -Force -NotePropertyName ClusterName -NotePropertyValue $cluster.Name
-            $node | Add-Member -Force -NotePropertyName ClusterFqdn -NotePropertyValue $cluster.Fqdn
-            $node | Select-DefaultView -Property ClusterName, ClusterFqdn, Name, PrimaryOwnerName, PrimaryOwnerContact, Dedicated, NodeHighestVersion, NodeLowestVersion
-        }
-    }
+        $node | Add-Member -Force -NotePropertyName ClusterFqdn -NotePropertyValue $cluster.Fqdn
+    $node | Select-DefaultView -Property ClusterName, ClusterFqdn, Name, PrimaryOwnerName, PrimaryOwnerContact, Dedicated, NodeHighestVersion, NodeLowestVersion
+}
+}
 }

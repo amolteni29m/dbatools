@@ -119,36 +119,36 @@ function Get-DbaCpuUsage {
             $processes = Get-DbaProcess -SqlInstance $server
             $threads = Get-DbaCmObject -ComputerName $instance.ComputerName -ClassName Win32_PerfFormattedData_PerfProc_Thread -Credential $Credential | Where-Object { $_.Name -like 'sql*' -and $_.PercentProcessorTime -ge $Threshold }
 
-            if ($server.VersionMajor -eq 8) {
-                $spidcollection = $server.Query("select spid, kpid from sysprocesses")
-            } else {
-                $spidcollection = $server.Query("select t.os_thread_id as kpid, s.session_id as spid
+        if ($server.VersionMajor -eq 8) {
+            $spidcollection = $server.Query("select spid, kpid from sysprocesses")
+        } else {
+            $spidcollection = $server.Query("select t.os_thread_id as kpid, s.session_id as spid
             from sys.dm_exec_sessions s
             join sys.dm_exec_requests er on s.session_id = er.session_id
             join sys.dm_os_workers w on er.task_address = w.task_address
             join sys.dm_os_threads t on w.thread_address = t.thread_address")
-            }
-
-            foreach ($thread in $threads) {
-                $spid = ($spidcollection | Where-Object kpid -eq $thread.IDThread).spid
-                $process = $processes | Where-Object spid -eq $spid
-                $threadwaitreason = $thread.ThreadWaitReason
-                $threadstate = $thread.ThreadState
-                $ThreadStateValue = $threadstates.$threadstate
-                $ThreadWaitReasonValue = $threadwaitreasons.$threadwaitreason
-
-                Add-Member -Force -InputObject $thread -MemberType NoteProperty -Name ComputerName -value $server.ComputerName
-                Add-Member -Force -InputObject $thread -MemberType NoteProperty -Name InstanceName -value $server.ServiceName
-                Add-Member -Force -InputObject $thread -MemberType NoteProperty -Name SqlInstance -value $server.DomainInstanceName
-                Add-Member -Force -InputObject $thread -MemberType NoteProperty -Name Processes -Value ($processes | Where-Object HostProcessID -eq $thread.IDProcess)
-                Add-Member -Force -InputObject $thread -MemberType NoteProperty -Name ThreadStateValue -Value $ThreadStateValue
-                Add-Member -Force -InputObject $thread -MemberType NoteProperty -Name ThreadWaitReasonValue -Value $ThreadWaitReasonValue
-                Add-Member -Force -InputObject $thread -MemberType NoteProperty -Name Process -Value $process
-                Add-Member -Force -InputObject $thread -MemberType NoteProperty -Name Query -Value $process.LastQuery
-                Add-Member -Force -InputObject $thread -MemberType NoteProperty -Name Spid -Value $spid
-
-                Select-DefaultView -InputObject $thread -Property ComputerName, InstanceName, SqlInstance, Name, ContextSwitchesPersec, ElapsedTime, IDProcess, Spid, PercentPrivilegedTime, PercentProcessorTime, PercentUserTime, PriorityBase, PriorityCurrent, StartAddress, ThreadStateValue, ThreadWaitReasonValue, Process, Query
-            }
         }
-    }
+
+        foreach ($thread in $threads) {
+            $spid = ($spidcollection | Where-Object kpid -eq $thread.IDThread).spid
+        $process = $processes | Where-Object spid -eq $spid
+    $threadwaitreason = $thread.ThreadWaitReason
+    $threadstate = $thread.ThreadState
+    $ThreadStateValue = $threadstates.$threadstate
+    $ThreadWaitReasonValue = $threadwaitreasons.$threadwaitreason
+
+    Add-Member -Force -InputObject $thread -MemberType NoteProperty -Name ComputerName -value $server.ComputerName
+    Add-Member -Force -InputObject $thread -MemberType NoteProperty -Name InstanceName -value $server.ServiceName
+    Add-Member -Force -InputObject $thread -MemberType NoteProperty -Name SqlInstance -value $server.DomainInstanceName
+    Add-Member -Force -InputObject $thread -MemberType NoteProperty -Name Processes -Value ($processes | Where-Object HostProcessID -eq $thread.IDProcess)
+Add-Member -Force -InputObject $thread -MemberType NoteProperty -Name ThreadStateValue -Value $ThreadStateValue
+Add-Member -Force -InputObject $thread -MemberType NoteProperty -Name ThreadWaitReasonValue -Value $ThreadWaitReasonValue
+Add-Member -Force -InputObject $thread -MemberType NoteProperty -Name Process -Value $process
+Add-Member -Force -InputObject $thread -MemberType NoteProperty -Name Query -Value $process.LastQuery
+Add-Member -Force -InputObject $thread -MemberType NoteProperty -Name Spid -Value $spid
+
+Select-DefaultView -InputObject $thread -Property ComputerName, InstanceName, SqlInstance, Name, ContextSwitchesPersec, ElapsedTime, IDProcess, Spid, PercentPrivilegedTime, PercentProcessorTime, PercentUserTime, PriorityBase, PriorityCurrent, StartAddress, ThreadStateValue, ThreadWaitReasonValue, Process, Query
+}
+}
+}
 }

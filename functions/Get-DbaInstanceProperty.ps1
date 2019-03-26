@@ -92,63 +92,63 @@ function Get-DbaInstanceProperty {
 
                 if ($InstanceProperty) {
                     $infoProperties = $infoProperties | Where-Object Name -In $InstanceProperty
-                }
-                if ($ExcludeInstanceProperty) {
-                    $infoProperties = $infoProperties | Where-Object Name -NotIn $ExcludeInstanceProperty
-                }
-                foreach ($prop in $infoProperties) {
-                    Add-Member -Force -InputObject $prop -MemberType NoteProperty -Name ComputerName -Value $server.ComputerName
-                    Add-Member -Force -InputObject $prop -MemberType NoteProperty -Name InstanceName -Value $server.ServiceName
-                    Add-Member -Force -InputObject $prop -MemberType NoteProperty -Name SqlInstance -Value $server.DomainInstanceName
-                    Add-Member -Force -InputObject $prop -MemberType NoteProperty -Name PropertyType -Value 'Information'
-                    Select-DefaultView -InputObject $prop -Property ComputerName, InstanceName, SqlInstance, Name, Value, PropertyType
-                }
-            } catch {
-                Stop-Function -Message "Issue gathering information properties for $instance." -Target $instance -ErrorRecord $_ -Continue
             }
-
-            try {
-                $userProperties = $server.UserOptions.Properties
-
-                if ($InstanceProperty) {
-                    $userProperties = $userProperties | Where-Object Name -In $InstanceProperty
-                }
-                if ($ExcludeInstanceProperty) {
-                    $userProperties = $userProperties | Where-Object Name -NotIn $ExcludeInstanceProperty
-                }
-                foreach ($prop in $userProperties) {
-                    Add-Member -Force -InputObject $prop -MemberType NoteProperty -Name ComputerName -Value $server.ComputerName
-                    Add-Member -Force -InputObject $prop -MemberType NoteProperty -Name InstanceName -Value $server.ServiceName
-                    Add-Member -Force -InputObject $prop -MemberType NoteProperty -Name SqlInstance -Value $server.DomainInstanceName
-                    Add-Member -Force -InputObject $prop -MemberType NoteProperty -Name PropertyType -Value 'UserOption'
-                    Select-DefaultView -InputObject $prop -Property ComputerName, InstanceName, SqlInstance, Name, Value, PropertyType
-                }
-            } catch {
-                Stop-Function -Message "Issue gathering user options for $instance." -Target $instance -ErrorRecord $_ -Continue
-            }
-
-            try {
-                $settingProperties = $server.Settings.Properties
-
-                if ($InstanceProperty) {
-                    $settingProperties = $settingProperties | Where-Object Name -In $InstanceProperty
-                }
-                if ($ExcludeInstanceProperty) {
-                    $settingProperties = $settingProperties | Where-Object Name -NotIn $ExcludeInstanceProperty
-                }
-                foreach ($prop in $settingProperties) {
-                    Add-Member -Force -InputObject $prop -MemberType NoteProperty -Name ComputerName -Value $server.ComputerName
-                    Add-Member -Force -InputObject $prop -MemberType NoteProperty -Name InstanceName -Value $server.ServiceName
-                    Add-Member -Force -InputObject $prop -MemberType NoteProperty -Name SqlInstance -Value $server.DomainInstanceName
-                    Add-Member -Force -InputObject $prop -MemberType NoteProperty -Name PropertyType -Value 'Setting'
-                    Select-DefaultView -InputObject $prop -Property ComputerName, InstanceName, SqlInstance, Name, Value, PropertyType
-                }
-            } catch {
-                Stop-Function -Message "Issue gathering settings for $instance." -Target $instance -ErrorRecord $_ -Continue
-            }
+            if ($ExcludeInstanceProperty) {
+                $infoProperties = $infoProperties | Where-Object Name -NotIn $ExcludeInstanceProperty
         }
+        foreach ($prop in $infoProperties) {
+            Add-Member -Force -InputObject $prop -MemberType NoteProperty -Name ComputerName -Value $server.ComputerName
+            Add-Member -Force -InputObject $prop -MemberType NoteProperty -Name InstanceName -Value $server.ServiceName
+            Add-Member -Force -InputObject $prop -MemberType NoteProperty -Name SqlInstance -Value $server.DomainInstanceName
+            Add-Member -Force -InputObject $prop -MemberType NoteProperty -Name PropertyType -Value 'Information'
+            Select-DefaultView -InputObject $prop -Property ComputerName, InstanceName, SqlInstance, Name, Value, PropertyType
+        }
+    } catch {
+        Stop-Function -Message "Issue gathering information properties for $instance." -Target $instance -ErrorRecord $_ -Continue
     }
-    end {
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Get-DbaSqlInstanceProperty
+
+    try {
+        $userProperties = $server.UserOptions.Properties
+
+        if ($InstanceProperty) {
+            $userProperties = $userProperties | Where-Object Name -In $InstanceProperty
     }
+    if ($ExcludeInstanceProperty) {
+        $userProperties = $userProperties | Where-Object Name -NotIn $ExcludeInstanceProperty
+}
+foreach ($prop in $userProperties) {
+    Add-Member -Force -InputObject $prop -MemberType NoteProperty -Name ComputerName -Value $server.ComputerName
+    Add-Member -Force -InputObject $prop -MemberType NoteProperty -Name InstanceName -Value $server.ServiceName
+    Add-Member -Force -InputObject $prop -MemberType NoteProperty -Name SqlInstance -Value $server.DomainInstanceName
+    Add-Member -Force -InputObject $prop -MemberType NoteProperty -Name PropertyType -Value 'UserOption'
+    Select-DefaultView -InputObject $prop -Property ComputerName, InstanceName, SqlInstance, Name, Value, PropertyType
+}
+} catch {
+    Stop-Function -Message "Issue gathering user options for $instance." -Target $instance -ErrorRecord $_ -Continue
+}
+
+try {
+    $settingProperties = $server.Settings.Properties
+
+    if ($InstanceProperty) {
+        $settingProperties = $settingProperties | Where-Object Name -In $InstanceProperty
+}
+if ($ExcludeInstanceProperty) {
+    $settingProperties = $settingProperties | Where-Object Name -NotIn $ExcludeInstanceProperty
+}
+foreach ($prop in $settingProperties) {
+    Add-Member -Force -InputObject $prop -MemberType NoteProperty -Name ComputerName -Value $server.ComputerName
+    Add-Member -Force -InputObject $prop -MemberType NoteProperty -Name InstanceName -Value $server.ServiceName
+    Add-Member -Force -InputObject $prop -MemberType NoteProperty -Name SqlInstance -Value $server.DomainInstanceName
+    Add-Member -Force -InputObject $prop -MemberType NoteProperty -Name PropertyType -Value 'Setting'
+    Select-DefaultView -InputObject $prop -Property ComputerName, InstanceName, SqlInstance, Name, Value, PropertyType
+}
+} catch {
+    Stop-Function -Message "Issue gathering settings for $instance." -Target $instance -ErrorRecord $_ -Continue
+}
+}
+}
+end {
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Get-DbaSqlInstanceProperty
+}
 }

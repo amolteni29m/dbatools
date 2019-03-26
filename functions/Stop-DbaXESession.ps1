@@ -122,15 +122,15 @@ function Stop-DbaXESession {
                 # Filter xesessions based on parameters
                 if ($Session) {
                     $xeSessions = $xeSessions | Where-Object { $_.Name -in $Session }
-                } elseif ($AllSessions) {
-                    $systemSessions = @('AlwaysOn_health', 'system_health', 'telemetry_xevents')
-                    $xeSessions = $xeSessions | Where-Object { $_.Name -notin $systemSessions }
-                }
+            } elseif ($AllSessions) {
+                $systemSessions = @('AlwaysOn_health', 'system_health', 'telemetry_xevents')
+                $xeSessions = $xeSessions | Where-Object { $_.Name -notin $systemSessions }
+        }
 
-                if ($Pscmdlet.ShouldProcess("$instance", "Configuring XEvent Session $xeSessions to Stop")) {
-                    Stop-XESessions $xeSessions
-                }
-            }
+        if ($Pscmdlet.ShouldProcess("$instance", "Configuring XEvent Session $xeSessions to Stop")) {
+            Stop-XESessions $xeSessions
         }
     }
+}
+}
 }

@@ -159,63 +159,63 @@ function Copy-DbaServerAudit {
                                 $copyAuditStatus.Status = "Failed"
                                 $copyAuditStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
 
-                                Stop-Function -Message "Issue dropping audit from destination." -Target $auditName -ErrorRecord $_
-                            }
+                            Stop-Function -Message "Issue dropping audit from destination." -Target $auditName -ErrorRecord $_
                         }
                     }
                 }
+            }
 
-                if ($null -ne ($currentAudit.Filepath) -and -not (Test-DbaPath -SqlInstance $destServer -Path $currentAudit.Filepath)) {
-                    if ($Force -eq $false) {
-                        if ($Pscmdlet.ShouldProcess($destinstance, "$($currentAudit.Filepath) does not exist on $destinstance. Skipping $auditName. Specify -Force to create the directory.")) {
-                            $copyAuditStatus.Status = "Skipped"
-                            $copyAuditStatus.Notes = "$($currentAudit.Filepath) does not exist on $destinstance. Skipping $auditName. Specify -Force to create the directory."
-                            $copyAuditStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-                        }
-                        continue
-                    } else {
-                        Write-Message -Level Verbose -Message "Force specified. Creating directory."
+            if ($null -ne ($currentAudit.Filepath) -and -not (Test-DbaPath -SqlInstance $destServer -Path $currentAudit.Filepath)) {
+                if ($Force -eq $false) {
+                    if ($Pscmdlet.ShouldProcess($destinstance, "$($currentAudit.Filepath) does not exist on $destinstance. Skipping $auditName. Specify -Force to create the directory.")) {
+                        $copyAuditStatus.Status = "Skipped"
+                        $copyAuditStatus.Notes = "$($currentAudit.Filepath) does not exist on $destinstance. Skipping $auditName. Specify -Force to create the directory."
+                        $copyAuditStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+                }
+                continue
+            } else {
+                Write-Message -Level Verbose -Message "Force specified. Creating directory."
 
-                        $destNetBios = Resolve-NetBiosName $destServer
-                        $root = $currentAudit.Filepath.Substring(0, 3)
-                        $rootUnc = Join-AdminUnc $destNetBios $root
+                $destNetBios = Resolve-NetBiosName $destServer
+                $root = $currentAudit.Filepath.Substring(0, 3)
+                $rootUnc = Join-AdminUnc $destNetBios $root
 
-                        if ((Test-Path $rootUnc) -eq $true) {
-                            if ($Pscmdlet.ShouldProcess($destinstance, "Creating directory $($currentAudit.Filepath)")) {
-                                try {
-                                    $null = New-DbaDirectory -SqlInstance $destServer -Path $currentAudit.Filepath -EnableException
-                                } catch {
-                                    Write-Message -Level Warning -Message "Couldn't create directory $($currentAudit.Filepath). Using default data directory."
-                                    $datadir = Get-SqlDefaultPaths $destServer data
-                                    $currentAudit.FilePath = $datadir
-                                }
-                            }
-                        } else {
+                if ((Test-Path $rootUnc) -eq $true) {
+                    if ($Pscmdlet.ShouldProcess($destinstance, "Creating directory $($currentAudit.Filepath)")) {
+                        try {
+                            $null = New-DbaDirectory -SqlInstance $destServer -Path $currentAudit.Filepath -EnableException
+                        } catch {
+                            Write-Message -Level Warning -Message "Couldn't create directory $($currentAudit.Filepath). Using default data directory."
                             $datadir = Get-SqlDefaultPaths $destServer data
                             $currentAudit.FilePath = $datadir
                         }
                     }
-                }
-                if ($Pscmdlet.ShouldProcess($destinstance, "Creating server audit $auditName")) {
-                    try {
-                        Write-Message -Level Verbose -Message "File path $($currentAudit.Filepath) exists on $destinstance."
-                        Write-Message -Level Verbose -Message "Copying server audit $auditName."
-                        $sql = $currentAudit.Script() | Out-String
-                        $destServer.Query($sql)
-                        $copyAuditStatus.Status = "Successful"
-                        $copyAuditStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-                    } catch {
-                        $copyAuditStatus.Status = "Failed"
-                        $copyAuditStatus.Notes = (Get-ErrorMessage -Record $_)
-                        $copyAuditStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-
-                        Stop-Function -Message "Issue creating audit." -Target $auditName -ErrorRecord $_
-                    }
+                } else {
+                    $datadir = Get-SqlDefaultPaths $destServer data
+                    $currentAudit.FilePath = $datadir
                 }
             }
         }
-    }
-    end {
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Copy-SqlAudit
-    }
+        if ($Pscmdlet.ShouldProcess($destinstance, "Creating server audit $auditName")) {
+            try {
+                Write-Message -Level Verbose -Message "File path $($currentAudit.Filepath) exists on $destinstance."
+                Write-Message -Level Verbose -Message "Copying server audit $auditName."
+                $sql = $currentAudit.Script() | Out-String
+            $destServer.Query($sql)
+            $copyAuditStatus.Status = "Successful"
+            $copyAuditStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+    } catch {
+        $copyAuditStatus.Status = "Failed"
+        $copyAuditStatus.Notes = (Get-ErrorMessage -Record $_)
+        $copyAuditStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+
+    Stop-Function -Message "Issue creating audit." -Target $auditName -ErrorRecord $_
+}
+}
+}
+}
+}
+end {
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Copy-SqlAudit
+}
 }

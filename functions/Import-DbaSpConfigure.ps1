@@ -169,68 +169,68 @@ function Import-DbaSpConfigure {
                 foreach ($sourceprop in $sourceserver.Configuration.Properties) {
                     $displayname = $sourceprop.DisplayName
 
-                    $destprop = $destprops | where-object { $_.Displayname -eq $displayname }
-                    if ($null -ne $destprop) {
-                        try {
-                            $destprop.configvalue = $sourceprop.configvalue
-                            $null = $destserver.Query("RECONFIGURE WITH OVERRIDE")
-                            Write-Message -Level Output -Message "updated $($destprop.displayname) to $($sourceprop.configvalue)."
-                        } catch {
-                            Stop-Function -Message "Could not set $($destprop.displayname) to $($sourceprop.configvalue). Feature may not be supported." -ErrorRecord $_ -Continue
-                        }
-                    }
-                }
-                try {
-                    $destserver.Configuration.Alter()
-                } catch {
-                    $needsrestart = $true
-                }
-
-                $sourceserver.Configuration.ShowAdvancedOptions.ConfigValue = $false
-                $sourceserver.Configuration.Alter($true)
-                $destserver.Configuration.ShowAdvancedOptions.ConfigValue = $false
-                $destserver.Configuration.Alter($true)
-
-                if ($needsrestart -eq $true) {
-                    Write-Message -Level Warning -Message "Some configuration options will be updated once SQL Server is restarted."
-                } else {
-                    Write-Message -Level Output -Message "Configuration option has been updated."
-                }
-            }
-
-            if ($Pscmdlet.ShouldProcess($destination, "Removing temp file")) {
-                Remove-Item $sqlfilename -ErrorAction SilentlyContinue
-            }
-
-        } else {
-            if ($Pscmdlet.ShouldProcess($destination, "Importing sp_configure from $Path")) {
-                $server.Configuration.ShowAdvancedOptions.ConfigValue = $true
-                $sql = Get-Content $Path
-                foreach ($line in $sql) {
+                    $destprop = $destprops | Where-Object { $_.Displayname -eq $displayname }
+                if ($null -ne $destprop) {
                     try {
-                        $null = $server.Query($line)
-                        Write-Message -Level Output -Message "Successfully executed $line."
+                        $destprop.configvalue = $sourceprop.configvalue
+                        $null = $destserver.Query("RECONFIGURE WITH OVERRIDE")
+                        Write-Message -Level Output -Message "updated $($destprop.displayname) to $($sourceprop.configvalue)."
                     } catch {
-                        Stop-Function -Message "$line failed. Feature may not be supported." -ErrorRecord $_ -Continue
+                        Stop-Function -Message "Could not set $($destprop.displayname) to $($sourceprop.configvalue). Feature may not be supported." -ErrorRecord $_ -Continue
                     }
                 }
-                $server.Configuration.ShowAdvancedOptions.ConfigValue = $false
+            }
+            try {
+                $destserver.Configuration.Alter()
+            } catch {
+                $needsrestart = $true
+            }
+
+            $sourceserver.Configuration.ShowAdvancedOptions.ConfigValue = $false
+            $sourceserver.Configuration.Alter($true)
+            $destserver.Configuration.ShowAdvancedOptions.ConfigValue = $false
+            $destserver.Configuration.Alter($true)
+
+            if ($needsrestart -eq $true) {
                 Write-Message -Level Warning -Message "Some configuration options will be updated once SQL Server is restarted."
+            } else {
+                Write-Message -Level Output -Message "Configuration option has been updated."
             }
         }
-    }
-    end {
-        if ($Path.length -gt 0) {
-            $server.ConnectionContext.Disconnect()
-        } else {
-            $sourceserver.ConnectionContext.Disconnect()
-            $destserver.ConnectionContext.Disconnect()
+
+        if ($Pscmdlet.ShouldProcess($destination, "Removing temp file")) {
+            Remove-Item $sqlfilename -ErrorAction SilentlyContinue
         }
 
-        If ($Pscmdlet.ShouldProcess("console", "Showing finished message")) {
-            Write-Message -Level Output -Message "SQL Server configuration options migration finished."
+    } else {
+        if ($Pscmdlet.ShouldProcess($destination, "Importing sp_configure from $Path")) {
+            $server.Configuration.ShowAdvancedOptions.ConfigValue = $true
+            $sql = Get-Content $Path
+            foreach ($line in $sql) {
+                try {
+                    $null = $server.Query($line)
+                    Write-Message -Level Output -Message "Successfully executed $line."
+                } catch {
+                    Stop-Function -Message "$line failed. Feature may not be supported." -ErrorRecord $_ -Continue
+                }
+            }
+            $server.Configuration.ShowAdvancedOptions.ConfigValue = $false
+            Write-Message -Level Warning -Message "Some configuration options will be updated once SQL Server is restarted."
         }
-
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Import-SqlSpConfigure
     }
+}
+end {
+    if ($Path.length -gt 0) {
+        $server.ConnectionContext.Disconnect()
+    } else {
+        $sourceserver.ConnectionContext.Disconnect()
+        $destserver.ConnectionContext.Disconnect()
+    }
+
+    If ($Pscmdlet.ShouldProcess("console", "Showing finished message")) {
+        Write-Message -Level Output -Message "SQL Server configuration options migration finished."
+    }
+
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Import-SqlSpConfigure
+}
 }

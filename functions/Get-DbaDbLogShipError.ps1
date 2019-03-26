@@ -178,49 +178,49 @@ DROP TABLE #DatabaseID;"
                 # Filter the results
                 if ($Database) {
                     $results = $results | Where-Object { $_.DatabaseName -in $Database }
-                }
-
-                if ($Action) {
-                    $results = $results | Where-Object { $_.Action -in $Action }
-                }
-
-                if ($DateTimeFrom) {
-                    $results = $results | Where-Object { $_.Logtime -ge $DateTimeFrom }
-                }
-
-                if ($DateTimeTo) {
-                    $results = $results | Where-Object { $_.Logtime -le $DateTimeTo }
-                }
-
-                if ($Primary) {
-                    $results = $results | Where-Object { $_.Instance -eq 'Primary' }
-                }
-
-                if ($Secondary) {
-                    $results = $results | Where-Object { $_.Instance -eq 'Secondary' }
-                }
-
-                foreach ($result in $results) {
-                    [PSCustomObject]@{
-                        ComputerName   = $server.ComputerName
-                        InstanceName   = $server.ServiceName
-                        SqlInstance    = $server.DomainInstanceName
-                        Database       = $result.DatabaseName
-                        Instance       = $result.Instance
-                        Action         = $result.Action
-                        SessionID      = $result.SessionID
-                        SequenceNumber = $result.SequenceNumber
-                        LogTime        = $result.LogTime
-                        Message        = $result.Message
-                    }
-
-                }
-            } else {
-                Write-Message -Message "No log shipping errors found" -Level Verbose
             }
+
+            if ($Action) {
+                $results = $results | Where-Object { $_.Action -in $Action }
         }
+
+        if ($DateTimeFrom) {
+            $results = $results | Where-Object { $_.Logtime -ge $DateTimeFrom }
     }
-    end {
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -Alias Get-DbaLogShippingError
+
+    if ($DateTimeTo) {
+        $results = $results | Where-Object { $_.Logtime -le $DateTimeTo }
+}
+
+if ($Primary) {
+    $results = $results | Where-Object { $_.Instance -eq 'Primary' }
+}
+
+if ($Secondary) {
+    $results = $results | Where-Object { $_.Instance -eq 'Secondary' }
+}
+
+foreach ($result in $results) {
+    [PSCustomObject]@{
+        ComputerName   = $server.ComputerName
+        InstanceName   = $server.ServiceName
+        SqlInstance    = $server.DomainInstanceName
+        Database       = $result.DatabaseName
+        Instance       = $result.Instance
+        Action         = $result.Action
+        SessionID      = $result.SessionID
+        SequenceNumber = $result.SequenceNumber
+        LogTime        = $result.LogTime
+        Message        = $result.Message
     }
+
+}
+} else {
+    Write-Message -Message "No log shipping errors found" -Level Verbose
+}
+}
+}
+end {
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -Alias Get-DbaLogShippingError
+}
 }

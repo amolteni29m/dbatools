@@ -83,41 +83,41 @@ function Get-DbaDbForeignKey {
 
             $databases = $server.Databases | Where-Object IsAccessible
 
-            if ($Database) {
-                $databases = $databases | Where-Object Name -In $Database
-            }
-            if ($ExcludeDatabase) {
-                $databases = $databases | Where-Object Name -NotIn $ExcludeDatabase
-            }
+        if ($Database) {
+            $databases = $databases | Where-Object Name -In $Database
+    }
+    if ($ExcludeDatabase) {
+        $databases = $databases | Where-Object Name -NotIn $ExcludeDatabase
+}
 
-            foreach ($db in $databases) {
-                if (!$db.IsAccessible) {
-                    Write-Message -Level Warning -Message "Database $db is not accessible. Skipping."
-                    continue
-                }
+foreach ($db in $databases) {
+    if (!$db.IsAccessible) {
+        Write-Message -Level Warning -Message "Database $db is not accessible. Skipping."
+        continue
+    }
 
-                foreach ($tbl in $db.Tables) {
-                    if ( (Test-Bound -ParameterName ExcludeSystemTable) -and $tbl.IsSystemObject ) {
-                        continue
-                    }
+    foreach ($tbl in $db.Tables) {
+        if ( (Test-Bound -ParameterName ExcludeSystemTable) -and $tbl.IsSystemObject ) {
+            continue
+        }
 
-                    if ($tbl.ForeignKeys.Count -eq 0) {
-                        Write-Message -Message "No Foreign Keys exist in $tbl table on the $db database on $instance" -Target $tbl -Level Verbose
-                        continue
-                    }
+        if ($tbl.ForeignKeys.Count -eq 0) {
+            Write-Message -Message "No Foreign Keys exist in $tbl table on the $db database on $instance" -Target $tbl -Level Verbose
+            continue
+        }
 
-                    foreach ($fk in $tbl.ForeignKeys) {
-                        Add-Member -Force -InputObject $fk -MemberType NoteProperty -Name ComputerName -value $server.ComputerName
-                        Add-Member -Force -InputObject $fk -MemberType NoteProperty -Name InstanceName -value $server.ServiceName
-                        Add-Member -Force -InputObject $fk -MemberType NoteProperty -Name SqlInstance -value $server.DomainInstanceName
-                        Add-Member -Force -InputObject $fk -MemberType NoteProperty -Name Database -value $db.Name
+        foreach ($fk in $tbl.ForeignKeys) {
+            Add-Member -Force -InputObject $fk -MemberType NoteProperty -Name ComputerName -value $server.ComputerName
+            Add-Member -Force -InputObject $fk -MemberType NoteProperty -Name InstanceName -value $server.ServiceName
+            Add-Member -Force -InputObject $fk -MemberType NoteProperty -Name SqlInstance -value $server.DomainInstanceName
+            Add-Member -Force -InputObject $fk -MemberType NoteProperty -Name Database -value $db.Name
 
-                        $defaults = 'ComputerName', 'InstanceName', 'SqlInstance', 'Database', 'Table', 'ID', 'CreateDate',
-                        'DateLastModified', 'Name', 'IsEnabled', 'IsChecked', 'NotForReplication', 'ReferencedKey', 'ReferencedTable', 'ReferencedTableSchema'
-                        Select-DefaultView -InputObject $fk -Property $defaults
-                    }
-                }
-            }
+            $defaults = 'ComputerName', 'InstanceName', 'SqlInstance', 'Database', 'Table', 'ID', 'CreateDate',
+            'DateLastModified', 'Name', 'IsEnabled', 'IsChecked', 'NotForReplication', 'ReferencedKey', 'ReferencedTable', 'ReferencedTableSchema'
+            Select-DefaultView -InputObject $fk -Property $defaults
         }
     }
+}
+}
+}
 }

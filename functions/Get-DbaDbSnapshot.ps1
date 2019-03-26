@@ -80,36 +80,36 @@ function Get-DbaDbSnapshot {
                 Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $instance -Continue
             }
             $dbs = $server.Databases | Where-Object DatabaseSnapshotBaseName
-            if ($Database) {
-                $dbs = $dbs | Where-Object { $Database -contains $_.DatabaseSnapshotBaseName }
-            }
-            if ($ExcludeDatabase) {
-                $dbs = $dbs | Where-Object { $ExcludeDatabase -notcontains $_.DatabaseSnapshotBaseName }
-            }
-            if ($Snapshot) {
-                $dbs = $dbs | Where-Object { $Snapshot -contains $_.Name }
-            }
-            if (!$Snapshot -and !$Database) {
-                $dbs = $dbs | Where-Object IsDatabaseSnapshot -eq $true | Sort-Object DatabaseSnapshotBaseName, Name
-            }
-            if ($ExcludeSnapshot) {
-                $dbs = $dbs | Where-Object { $ExcludeSnapshot -notcontains $_.Name }
-            }
-            foreach ($db in $dbs) {
-                try {
-                    $BytesOnDisk = $db.Query("SELECT SUM(BytesOnDisk) AS BytesOnDisk FROM fn_virtualfilestats(DB_ID(),NULL) S JOIN sys.databases D on D.database_id = S.dbid", $db.Name)
-                    Add-Member -Force -InputObject $db -MemberType NoteProperty -Name ComputerName -value $server.ComputerName
-                    Add-Member -Force -InputObject $db -MemberType NoteProperty -Name InstanceName -value $server.ServiceName
-                    Add-Member -Force -InputObject $db -MemberType NoteProperty -Name SqlInstance -value $server.DomainInstanceName
-                    Add-Member -Force -InputObject $db -MemberType NoteProperty -Name DiskUsage -value ([dbasize]($BytesOnDisk.BytesOnDisk))
-                    Select-DefaultView -InputObject $db -Property ComputerName, InstanceName, SqlInstance, Name, 'DatabaseSnapshotBaseName as SnapshotOf', CreateDate, DiskUsage
-                } catch {
-                    Stop-Function -Message "Failure" -ErrorRecord $_ -Target $db -Continue
-                }
-            }
-        }
+        if ($Database) {
+            $dbs = $dbs | Where-Object { $Database -contains $_.DatabaseSnapshotBaseName }
     }
-    end {
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -Alias Get-DbaDatabaseSnapshot
+    if ($ExcludeDatabase) {
+        $dbs = $dbs | Where-Object { $ExcludeDatabase -notcontains $_.DatabaseSnapshotBaseName }
+}
+if ($Snapshot) {
+    $dbs = $dbs | Where-Object { $Snapshot -contains $_.Name }
+}
+if (!$Snapshot -and !$Database) {
+    $dbs = $dbs | Where-Object IsDatabaseSnapshot -eq $true | Sort-Object DatabaseSnapshotBaseName, Name
+}
+if ($ExcludeSnapshot) {
+    $dbs = $dbs | Where-Object { $ExcludeSnapshot -notcontains $_.Name }
+}
+foreach ($db in $dbs) {
+    try {
+        $BytesOnDisk = $db.Query("SELECT SUM(BytesOnDisk) AS BytesOnDisk FROM fn_virtualfilestats(DB_ID(),NULL) S JOIN sys.databases D on D.database_id = S.dbid", $db.Name)
+        Add-Member -Force -InputObject $db -MemberType NoteProperty -Name ComputerName -value $server.ComputerName
+        Add-Member -Force -InputObject $db -MemberType NoteProperty -Name InstanceName -value $server.ServiceName
+        Add-Member -Force -InputObject $db -MemberType NoteProperty -Name SqlInstance -value $server.DomainInstanceName
+        Add-Member -Force -InputObject $db -MemberType NoteProperty -Name DiskUsage -value ([dbasize]($BytesOnDisk.BytesOnDisk))
+        Select-DefaultView -InputObject $db -Property ComputerName, InstanceName, SqlInstance, Name, 'DatabaseSnapshotBaseName as SnapshotOf', CreateDate, DiskUsage
+    } catch {
+        Stop-Function -Message "Failure" -ErrorRecord $_ -Target $db -Continue
     }
+}
+}
+}
+end {
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -Alias Get-DbaDatabaseSnapshot
+}
 }

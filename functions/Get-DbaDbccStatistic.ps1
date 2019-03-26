@@ -131,132 +131,132 @@ function Get-DbaDbccStatistic {
 
             if ($Database) {
                 $dbs = $dbs | Where-Object Name -In $Database
+        }
+
+        foreach ($db in $dbs) {
+            Write-Message -Level Verbose -Message "Processing $db on $instance"
+            $queryList = @()
+            if ($db.IsAccessible -eq $false) {
+                Stop-Function -Message "The database $db is not accessible. Skipping." -Continue
             }
 
-            foreach ($db in $dbs) {
-                Write-Message -Level Verbose -Message "Processing $db on $instance"
-                $queryList = @()
-                if ($db.IsAccessible -eq $false) {
-                    Stop-Function -Message "The database $db is not accessible. Skipping." -Continue
+            if ((Test-Bound -ParameterName Object) -and (Test-Bound -ParameterName Target)) {
+                $query = $StringBuilder.ToString()
+                $query = $query.Replace('#options#', "'$Object', '$Target'")
+
+                $queryList += New-Object -TypeName PSObject -Property @{Object = $Object;
+                    Target                                                     = $Target;
+                    Query                                                      = $query
                 }
-
-                if ((Test-Bound -ParameterName Object) -and (Test-Bound -ParameterName Target)) {
+            } elseif (Test-Bound -ParameterName Object) {
+                $whereFilter = " WHERE (Object = '$object' or name = '$object')"
+                $statListFiltered = $statList + $whereFilter
+                Write-Message -Level Verbose -Message "Query to execute: $statListFiltered"
+                $statListData = $db.Query($statListFiltered)
+                foreach ($statisticObj in  $statListData) {
                     $query = $StringBuilder.ToString()
-                    $query = $query.Replace('#options#', "'$Object', '$Target'")
-
-                    $queryList += New-Object -TypeName PSObject -Property @{Object = $Object;
-                        Target                                                     = $Target;
+                    $query = $query.Replace('#options#', "'$($statisticObj.Object)', '$($statisticObj.Target)'")
+                    $queryList += New-Object -TypeName PSObject -Property @{Object = $statisticObj.Object;
+                        Target                                                     = $statisticObj.Target;
                         Query                                                      = $query
                     }
-                } elseif (Test-Bound -ParameterName Object) {
-                    $whereFilter = " WHERE (Object = '$object' or name = '$object')"
-                    $statListFiltered = $statList + $whereFilter
-                    Write-Message -Level Verbose -Message "Query to execute: $statListFiltered"
-                    $statListData = $db.Query($statListFiltered)
-                    foreach ($statisticObj in  $statListData) {
-                        $query = $StringBuilder.ToString()
-                        $query = $query.Replace('#options#', "'$($statisticObj.Object)', '$($statisticObj.Target)'")
-                        $queryList += New-Object -TypeName PSObject -Property @{Object = $statisticObj.Object;
-                            Target                                                     = $statisticObj.Target;
-                            Query                                                      = $query
-                        }
-                    }
-                } else {
-                    $statListData = $db.Query($statList)
-                    foreach ($statisticObj in  $statListData) {
-                        $query = $StringBuilder.ToString()
-                        $query = $query.Replace('#options#', "'$($statisticObj.Object)', '$($statisticObj.Target)'")
-                        $queryList += New-Object -TypeName PSObject -Property @{Object = $statisticObj.Object;
-                            Target                                                     = $statisticObj.Target;
-                            Query                                                      = $query
-                        }
-                    }
                 }
-
-                try {
-                    foreach ($queryObj in $queryList ) {
-                        Write-Message -Message "Running statement $($queryObj.Query)" -Level Verbose
-                        $results = $server | Invoke-DbaQuery  -Query $queryObj.Query -Database $db.Name -MessagesToOutput
-
-                        if ($Option -eq 'StatHeader') {
-                            foreach ($row in $results) {
-                                [PSCustomObject]@{
-                                    ComputerName           = $server.ComputerName
-                                    InstanceName           = $server.ServiceName
-                                    SqlInstance            = $server.DomainInstanceName
-                                    Database               = $db.Name
-                                    Object                 = $queryObj.Object
-                                    Target                 = $queryObj.Target
-                                    Cmd                    = $queryObj.Query
-                                    Name                   = $row[0]
-                                    Updated                = $row[1]
-                                    Rows                   = $row[2]
-                                    RowsSampled            = $row[3]
-                                    Steps                  = $row[4]
-                                    Density                = $row[5]
-                                    AverageKeyLength       = $row[6]
-                                    StringIndex            = $row[7]
-                                    FilterExpression       = $row[8]
-                                    UnfilteredRows         = $row[9]
-                                    PersistedSamplePercent = $row[10]
-                                }
-                            }
-                        }
-                        if ($Option -eq 'DensityVector') {
-                            foreach ($row in $results) {
-                                [PSCustomObject]@{
-                                    ComputerName  = $server.ComputerName
-                                    InstanceName  = $server.ServiceName
-                                    SqlInstance   = $server.DomainInstanceName
-                                    Database      = $db.Name
-                                    Object        = $queryObj.Object
-                                    Target        = $queryObj.Target
-                                    Cmd           = $queryObj.Query
-                                    AllDensity    = $row[0].ToString()
-                                    AverageLength = $row[1]
-                                    Columns       = $row[2]
-                                }
-                            }
-                        }
-                        if ($Option -eq 'Histogram') {
-                            foreach ($row in $results) {
-                                [PSCustomObject]@{
-                                    ComputerName      = $server.ComputerName
-                                    InstanceName      = $server.ServiceName
-                                    SqlInstance       = $server.DomainInstanceName
-                                    Database          = $db.Name
-                                    Object            = $queryObj.Object
-                                    Target            = $queryObj.Target
-                                    Cmd               = $queryObj.Query
-                                    RangeHiKey        = $row[0]
-                                    RangeRows         = $row[1]
-                                    EqualRows         = $row[2]
-                                    DistinctRangeRows = $row[3]
-                                    AverageRangeRows  = $row[4]
-                                }
-                            }
-                        }
-                        if ($Option -eq 'StatsStream') {
-                            foreach ($row in $results) {
-                                [PSCustomObject]@{
-                                    ComputerName = $server.ComputerName
-                                    InstanceName = $server.ServiceName
-                                    SqlInstance  = $server.DomainInstanceName
-                                    Database     = $db.Name
-                                    Object       = $queryObj.Object
-                                    Target       = $queryObj.Target
-                                    Cmd          = $queryObj.Query
-                                    StatsStream  = $row[0]
-                                    Rows         = $row[1]
-                                    DataPages    = $row[2]
-                                }
-                            }
-                        }
+            } else {
+                $statListData = $db.Query($statList)
+                foreach ($statisticObj in  $statListData) {
+                    $query = $StringBuilder.ToString()
+                    $query = $query.Replace('#options#', "'$($statisticObj.Object)', '$($statisticObj.Target)'")
+                    $queryList += New-Object -TypeName PSObject -Property @{Object = $statisticObj.Object;
+                        Target                                                     = $statisticObj.Target;
+                        Query                                                      = $query
                     }
-                } catch {
-                    Stop-Function -Message "Error capturing data on $db" -Target $instance -ErrorRecord $_ -Exception $_.Exception -Continue
                 }
             }
+
+            try {
+                foreach ($queryObj in $queryList ) {
+                    Write-Message -Message "Running statement $($queryObj.Query)" -Level Verbose
+                    $results = $server | Invoke-DbaQuery  -Query $queryObj.Query -Database $db.Name -MessagesToOutput
+
+                if ($Option -eq 'StatHeader') {
+                    foreach ($row in $results) {
+                        [PSCustomObject]@{
+                            ComputerName           = $server.ComputerName
+                            InstanceName           = $server.ServiceName
+                            SqlInstance            = $server.DomainInstanceName
+                            Database               = $db.Name
+                            Object                 = $queryObj.Object
+                            Target                 = $queryObj.Target
+                            Cmd                    = $queryObj.Query
+                            Name                   = $row[0]
+                            Updated                = $row[1]
+                            Rows                   = $row[2]
+                            RowsSampled            = $row[3]
+                            Steps                  = $row[4]
+                            Density                = $row[5]
+                            AverageKeyLength       = $row[6]
+                            StringIndex            = $row[7]
+                            FilterExpression       = $row[8]
+                            UnfilteredRows         = $row[9]
+                            PersistedSamplePercent = $row[10]
+                        }
+                    }
+                }
+                if ($Option -eq 'DensityVector') {
+                    foreach ($row in $results) {
+                        [PSCustomObject]@{
+                            ComputerName  = $server.ComputerName
+                            InstanceName  = $server.ServiceName
+                            SqlInstance   = $server.DomainInstanceName
+                            Database      = $db.Name
+                            Object        = $queryObj.Object
+                            Target        = $queryObj.Target
+                            Cmd           = $queryObj.Query
+                            AllDensity    = $row[0].ToString()
+                            AverageLength = $row[1]
+                            Columns       = $row[2]
+                        }
+                    }
+                }
+                if ($Option -eq 'Histogram') {
+                    foreach ($row in $results) {
+                        [PSCustomObject]@{
+                            ComputerName      = $server.ComputerName
+                            InstanceName      = $server.ServiceName
+                            SqlInstance       = $server.DomainInstanceName
+                            Database          = $db.Name
+                            Object            = $queryObj.Object
+                            Target            = $queryObj.Target
+                            Cmd               = $queryObj.Query
+                            RangeHiKey        = $row[0]
+                            RangeRows         = $row[1]
+                            EqualRows         = $row[2]
+                            DistinctRangeRows = $row[3]
+                            AverageRangeRows  = $row[4]
+                        }
+                    }
+                }
+                if ($Option -eq 'StatsStream') {
+                    foreach ($row in $results) {
+                        [PSCustomObject]@{
+                            ComputerName = $server.ComputerName
+                            InstanceName = $server.ServiceName
+                            SqlInstance  = $server.DomainInstanceName
+                            Database     = $db.Name
+                            Object       = $queryObj.Object
+                            Target       = $queryObj.Target
+                            Cmd          = $queryObj.Query
+                            StatsStream  = $row[0]
+                            Rows         = $row[1]
+                            DataPages    = $row[2]
+                        }
+                    }
+                }
+            }
+        } catch {
+            Stop-Function -Message "Error capturing data on $db" -Target $instance -ErrorRecord $_ -Exception $_.Exception -Continue
         }
     }
+}
+}
 }

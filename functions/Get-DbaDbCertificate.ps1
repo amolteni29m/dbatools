@@ -100,20 +100,20 @@ function Get-DbaDbCertificate {
 
             if ($Certificate) {
                 $certs = $certs | Where-Object Name -in $Certificate
-            }
-
-            if ($Subject) {
-                $certs = $certs | Where-Object Subject -in $Subject
-            }
-
-            foreach ($cert in $certs) {
-                Add-Member -Force -InputObject $cert -MemberType NoteProperty -Name ComputerName -value $db.ComputerName
-                Add-Member -Force -InputObject $cert -MemberType NoteProperty -Name InstanceName -value $db.InstanceName
-                Add-Member -Force -InputObject $cert -MemberType NoteProperty -Name SqlInstance -value $db.SqlInstance
-                Add-Member -Force -InputObject $cert -MemberType NoteProperty -Name Database -value $db.Name
-
-                Select-DefaultView -InputObject $cert -Property ComputerName, InstanceName, SqlInstance, Database, Name, Subject, StartDate, ActiveForServiceBrokerDialog, ExpirationDate, Issuer, LastBackupDate, Owner, PrivateKeyEncryptionType, Serial
-            }
         }
+
+        if ($Subject) {
+            $certs = $certs | Where-Object Subject -in $Subject
     }
+
+    foreach ($cert in $certs) {
+        Add-Member -Force -InputObject $cert -MemberType NoteProperty -Name ComputerName -value $db.ComputerName
+        Add-Member -Force -InputObject $cert -MemberType NoteProperty -Name InstanceName -value $db.InstanceName
+        Add-Member -Force -InputObject $cert -MemberType NoteProperty -Name SqlInstance -value $db.SqlInstance
+        Add-Member -Force -InputObject $cert -MemberType NoteProperty -Name Database -value $db.Name
+
+        Select-DefaultView -InputObject $cert -Property ComputerName, InstanceName, SqlInstance, Database, Name, Subject, StartDate, ActiveForServiceBrokerDialog, ExpirationDate, Issuer, LastBackupDate, Owner, PrivateKeyEncryptionType, Serial
+    }
+}
+}
 }

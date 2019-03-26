@@ -116,36 +116,36 @@ function Add-DbaComputerCertificate {
 
             Write-Message -Level Verbose -Message "Searching Cert:\$Store\$Folder"
             Get-ChildItem "Cert:\$Store\$Folder" -Recurse | Where-Object { $_.Thumbprint -eq $cert.Thumbprint }
-        }
-        #endregion Remoting Script
     }
-    process {
-        if (Test-FunctionInterrupt) { return }
+    #endregion Remoting Script
+}
+process {
+    if (Test-FunctionInterrupt) { return }
 
-        if (-not $Certificate) {
-            Stop-Function -Message "You must specify either Certificate or Path" -Category InvalidArgument
-            return
+    if (-not $Certificate) {
+        Stop-Function -Message "You must specify either Certificate or Path" -Category InvalidArgument
+        return
+    }
+
+    foreach ($cert in $Certificate) {
+
+        try {
+            $certData = $cert.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::PFX, $SecurePassword)
+        } catch {
+            Stop-Function -Message "Can't export certificate" -ErrorRecord $_ -Continue
         }
 
-        foreach ($cert in $Certificate) {
+        foreach ($computer in $ComputerName) {
 
-            try {
-                $certData = $cert.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::PFX, $SecurePassword)
-            } catch {
-                Stop-Function -Message "Can't export certificate" -ErrorRecord $_ -Continue
-            }
-
-            foreach ($computer in $ComputerName) {
-
-                if ($PSCmdlet.ShouldProcess("local", "Connecting to $computer to import cert")) {
-                    try {
-                        Invoke-Command2 -ComputerName $computer -Credential $Credential -ArgumentList $certdata, $SecurePassword, $Store, $Folder -ScriptBlock $scriptblock -ErrorAction Stop |
-                            Select-DefaultView -Property FriendlyName, DnsNameList, Thumbprint, NotBefore, NotAfter, Subject, Issuer
-                    } catch {
-                        Stop-Function -Message "Failure" -ErrorRecord $_ -Target $computer -Continue
-                    }
+            if ($PSCmdlet.ShouldProcess("local", "Connecting to $computer to import cert")) {
+                try {
+                    Invoke-Command2 -ComputerName $computer -Credential $Credential -ArgumentList $certdata, $SecurePassword, $Store, $Folder -ScriptBlock $scriptblock -ErrorAction Stop |
+                        Select-DefaultView -Property FriendlyName, DnsNameList, Thumbprint, NotBefore, NotAfter, Subject, Issuer
+                } catch {
+                    Stop-Function -Message "Failure" -ErrorRecord $_ -Target $computer -Continue
                 }
             }
         }
     }
+}
 }

@@ -137,50 +137,50 @@ function New-DbaEndpoint {
                 $thisport = (Get-DbaEndPoint -SqlInstance $server).Protocol.Tcp
                 $measure = $thisport | Measure-Object ListenerPort -Maximum
 
-                if ($thisport.ListenerPort -eq 0) {
-                    $tcpPort = 5022
-                } elseif ($measure.Maximum) {
-                    $maxPort = $measure.Maximum
-                    #choose a random port that is greater than the current max port
-                    $tcpPort = $maxPort + (New-Object Random).Next(1, 500)
-                } else {
-                    $maxPort = 5000
-                    #choose a random port that is greater than the current max port
-                    $tcpPort = $maxPort + (New-Object Random).Next(1, 500)
-                }
+            if ($thisport.ListenerPort -eq 0) {
+                $tcpPort = 5022
+            } elseif ($measure.Maximum) {
+                $maxPort = $measure.Maximum
+                #choose a random port that is greater than the current max port
+                $tcpPort = $maxPort + (New-Object Random).Next(1, 500)
+            } else {
+                $maxPort = 5000
+                #choose a random port that is greater than the current max port
+                $tcpPort = $maxPort + (New-Object Random).Next(1, 500)
             }
+        }
 
-            if ($Pscmdlet.ShouldProcess($server.Name, "Creating endpoint $Name of type $Type using protocol $Protocol and if TCP then using Port $tcpPort")) {
-                try {
-                    $endpoint = New-Object Microsoft.SqlServer.Management.Smo.EndPoint $server, $Name
-                    $endpoint.ProtocolType = [Microsoft.SqlServer.Management.Smo.ProtocolType]::$Protocol
-                    $endpoint.EndpointType = [Microsoft.SqlServer.Management.Smo.EndpointType]::$Type
-                    $endpoint.Owner = $Owner
-                    if ($Protocol -eq "TCP") {
-                        $endpoint.Protocol.Tcp.ListenerPort = $tcpPort
-                        $endpoint.Payload.DatabaseMirroring.ServerMirroringRole = [Microsoft.SqlServer.Management.Smo.ServerMirroringRole]::$Role
-                        if (Test-Bound -ParameterName SslPort) {
-                            $endpoint.Protocol.Tcp.SslPort = $SslPort
-                        }
-
-                        $endpoint.Payload.DatabaseMirroring.EndpointEncryption = [Microsoft.SqlServer.Management.Smo.EndpointEncryption]::$EndpointEncryption
-                        $endpoint.Payload.DatabaseMirroring.EndpointEncryptionAlgorithm = [Microsoft.SqlServer.Management.Smo.EndpointEncryptionAlgorithm]::$EncryptionAlgorithm
-
-                    }
-                    if ($Certificate) {
-                        $outscript = $endpoint.Script()
-                        $outscript = $outscript.Replace("ROLE = ALL,", "ROLE = ALL, AUTHENTICATION = CERTIFICATE $cert,")
-                        $server.Query($outscript)
-                    } else {
-                        $null = $endpoint.Create()
+        if ($Pscmdlet.ShouldProcess($server.Name, "Creating endpoint $Name of type $Type using protocol $Protocol and if TCP then using Port $tcpPort")) {
+            try {
+                $endpoint = New-Object Microsoft.SqlServer.Management.Smo.EndPoint $server, $Name
+                $endpoint.ProtocolType = [Microsoft.SqlServer.Management.Smo.ProtocolType]::$Protocol
+                $endpoint.EndpointType = [Microsoft.SqlServer.Management.Smo.EndpointType]::$Type
+                $endpoint.Owner = $Owner
+                if ($Protocol -eq "TCP") {
+                    $endpoint.Protocol.Tcp.ListenerPort = $tcpPort
+                    $endpoint.Payload.DatabaseMirroring.ServerMirroringRole = [Microsoft.SqlServer.Management.Smo.ServerMirroringRole]::$Role
+                    if (Test-Bound -ParameterName SslPort) {
+                        $endpoint.Protocol.Tcp.SslPort = $SslPort
                     }
 
-                    $server.Endpoints.Refresh()
-                    Get-DbaEndpoint -SqlInstance $server -Endpoint $name
-                } catch {
-                    Stop-Function -Message "Failure" -ErrorRecord $_ -Continue
+                    $endpoint.Payload.DatabaseMirroring.EndpointEncryption = [Microsoft.SqlServer.Management.Smo.EndpointEncryption]::$EndpointEncryption
+                    $endpoint.Payload.DatabaseMirroring.EndpointEncryptionAlgorithm = [Microsoft.SqlServer.Management.Smo.EndpointEncryptionAlgorithm]::$EncryptionAlgorithm
+
                 }
+                if ($Certificate) {
+                    $outscript = $endpoint.Script()
+                    $outscript = $outscript.Replace("ROLE = ALL,", "ROLE = ALL, AUTHENTICATION = CERTIFICATE $cert,")
+                    $server.Query($outscript)
+                } else {
+                    $null = $endpoint.Create()
+                }
+
+                $server.Endpoints.Refresh()
+                Get-DbaEndpoint -SqlInstance $server -Endpoint $name
+            } catch {
+                Stop-Function -Message "Failure" -ErrorRecord $_ -Continue
             }
         }
     }
+}
 }

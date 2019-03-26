@@ -120,67 +120,67 @@ function Copy-DbaAgentJobCategory {
             process {
 
                 $serverJobCategories = $sourceServer.JobServer.JobCategories | Where-Object ID -ge 100
-                $destJobCategories = $destServer.JobServer.JobCategories | Where-Object ID -ge 100
+            $destJobCategories = $destServer.JobServer.JobCategories | Where-Object ID -ge 100
 
-                foreach ($jobCategory in $serverJobCategories) {
-                    $categoryName = $jobCategory.Name
+        foreach ($jobCategory in $serverJobCategories) {
+            $categoryName = $jobCategory.Name
 
-                    $copyJobCategoryStatus = [pscustomobject]@{
-                        SourceServer      = $sourceServer.Name
-                        DestinationServer = $destServer.Name
-                        Name              = $categoryName
-                        Type              = "Agent Job Category"
-                        Status            = $null
-                        Notes             = $null
-                        DateTime          = [Sqlcollaborative.Dbatools.Utility.DbaDateTime](Get-Date)
-                    }
+            $copyJobCategoryStatus = [pscustomobject]@{
+                SourceServer      = $sourceServer.Name
+                DestinationServer = $destServer.Name
+                Name              = $categoryName
+                Type              = "Agent Job Category"
+                Status            = $null
+                Notes             = $null
+                DateTime          = [Sqlcollaborative.Dbatools.Utility.DbaDateTime](Get-Date)
+            }
 
-                    if ($jobCategories.Count -gt 0 -and $jobCategories -notcontains $categoryName) {
-                        continue
-                    }
+            if ($jobCategories.Count -gt 0 -and $jobCategories -notcontains $categoryName) {
+                continue
+            }
 
-                    if ($destJobCategories.Name -contains $jobCategory.name) {
-                        if ($force -eq $false) {
-                            $copyJobCategoryStatus.Status = "Skipped"
-                            $copyJobCategoryStatus.Notes = "Already exists on destination"
-                            $copyJobCategoryStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-                            Write-Message -Level Verbose -Message "Job category $categoryName exists at destination. Use -Force to drop and migrate."
-                            continue
-                        } else {
-                            if ($Pscmdlet.ShouldProcess($destinstance, "Dropping job category $categoryName")) {
-                                try {
-                                    Write-Message -Level Verbose -Message "Dropping Job category $categoryName"
-                                    $destServer.JobServer.JobCategories[$categoryName].Drop()
-                                } catch {
-                                    $copyJobCategoryStatus.Status = "Failed"
-                                    $copyJobCategoryStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-                                    Stop-Function -Message "Issue dropping job category" -Target $categoryName -ErrorRecord $_ -Continue
-                                }
-                            }
-                        }
-                    }
-
-                    if ($Pscmdlet.ShouldProcess($destinstance, "Creating Job category $categoryName")) {
-                        try {
-                            Write-Message -Level Verbose -Message "Copying Job category $categoryName"
-                            $sql = $jobCategory.Script() | Out-String
-                            Write-Message -Level Debug -Message "SQL Statement: $sql"
-                            $destServer.Query($sql)
-
-                            $copyJobCategoryStatus.Status = "Successful"
-                            $copyJobCategoryStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-                        } catch {
-                            $copyJobCategoryStatus.Status = "Failed"
-                            $copyJobCategoryStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-                            Stop-Function -Message "Issue copying job category" -Target $categoryName -ErrorRecord $_
-                        }
-                    }
+            if ($destJobCategories.Name -contains $jobCategory.name) {
+                if ($force -eq $false) {
+                    $copyJobCategoryStatus.Status = "Skipped"
+                    $copyJobCategoryStatus.Notes = "Already exists on destination"
+                    $copyJobCategoryStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+                Write-Message -Level Verbose -Message "Job category $categoryName exists at destination. Use -Force to drop and migrate."
+                continue
+            } else {
+                if ($Pscmdlet.ShouldProcess($destinstance, "Dropping job category $categoryName")) {
+                    try {
+                        Write-Message -Level Verbose -Message "Dropping Job category $categoryName"
+                        $destServer.JobServer.JobCategories[$categoryName].Drop()
+                    } catch {
+                        $copyJobCategoryStatus.Status = "Failed"
+                        $copyJobCategoryStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+                    Stop-Function -Message "Issue dropping job category" -Target $categoryName -ErrorRecord $_ -Continue
                 }
             }
         }
+    }
 
-        function Copy-OperatorCategory {
-            <#
+    if ($Pscmdlet.ShouldProcess($destinstance, "Creating Job category $categoryName")) {
+        try {
+            Write-Message -Level Verbose -Message "Copying Job category $categoryName"
+            $sql = $jobCategory.Script() | Out-String
+        Write-Message -Level Debug -Message "SQL Statement: $sql"
+        $destServer.Query($sql)
+
+        $copyJobCategoryStatus.Status = "Successful"
+        $copyJobCategoryStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+} catch {
+    $copyJobCategoryStatus.Status = "Failed"
+    $copyJobCategoryStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+Stop-Function -Message "Issue copying job category" -Target $categoryName -ErrorRecord $_
+}
+}
+}
+}
+}
+
+function Copy-OperatorCategory {
+    <#
                 .SYNOPSIS
                     Copy-OperatorCategory migrates operator categories from one SQL Server to another.
 
@@ -189,77 +189,77 @@ function Copy-DbaAgentJobCategory {
 
                     If the associated credential for the category does not exist on the destination, it will be skipped. If the operator category already exists on the destination, it will be skipped unless -Force is used.
             #>
-            [CmdletBinding(DefaultParameterSetName = "Default", SupportsShouldProcess)]
-            param (
-                [string[]]$operatorCategories
-            )
-            process {
-                $serverOperatorCategories = $sourceServer.JobServer.OperatorCategories | Where-Object ID -ge 100
-                $destOperatorCategories = $destServer.JobServer.OperatorCategories | Where-Object ID -ge 100
+    [CmdletBinding(DefaultParameterSetName = "Default", SupportsShouldProcess)]
+    param (
+        [string[]]$operatorCategories
+    )
+    process {
+        $serverOperatorCategories = $sourceServer.JobServer.OperatorCategories | Where-Object ID -ge 100
+    $destOperatorCategories = $destServer.JobServer.OperatorCategories | Where-Object ID -ge 100
 
-                foreach ($operatorCategory in $serverOperatorCategories) {
-                    $categoryName = $operatorCategory.Name
+foreach ($operatorCategory in $serverOperatorCategories) {
+    $categoryName = $operatorCategory.Name
 
-                    $copyOperatorCategoryStatus = [pscustomobject]@{
-                        SourceServer      = $sourceServer.Name
-                        DestinationServer = $destServer.Name
-                        Type              = "Agent Operator Category"
-                        Name              = $categoryName
-                        Status            = $null
-                        Notes             = $null
-                        DateTime          = [Sqlcollaborative.Dbatools.Utility.DbaDateTime](Get-Date)
-                    }
+    $copyOperatorCategoryStatus = [pscustomobject]@{
+        SourceServer      = $sourceServer.Name
+        DestinationServer = $destServer.Name
+        Type              = "Agent Operator Category"
+        Name              = $categoryName
+        Status            = $null
+        Notes             = $null
+        DateTime          = [Sqlcollaborative.Dbatools.Utility.DbaDateTime](Get-Date)
+    }
 
-                    if ($operatorCategories.Count -gt 0 -and $operatorCategories -notcontains $categoryName) {
-                        continue
-                    }
+    if ($operatorCategories.Count -gt 0 -and $operatorCategories -notcontains $categoryName) {
+        continue
+    }
 
-                    if ($destOperatorCategories.Name -contains $operatorCategory.Name) {
-                        if ($force -eq $false) {
-                            $copyOperatorCategoryStatus.Status = "Skipped"
-                            $copyOperatorCategoryStatus.Notes = "Already exists on destination"
-                            $copyOperatorCategoryStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-                            Write-Message -Level Verbose -Message "Operator category $categoryName exists at destination. Use -Force to drop and migrate."
-                            continue
-                        } else {
-                            if ($Pscmdlet.ShouldProcess($destinstance, "Dropping operator category $categoryName and recreating")) {
-                                try {
-                                    Write-Message -Level Verbose -Message "Dropping Operator category $categoryName"
-                                    $destServer.JobServer.OperatorCategories[$categoryName].Drop()
-                                    Write-Message -Level Verbose -Message "Copying Operator category $categoryName"
-                                    $sql = $operatorCategory.Script() | Out-String
-                                    Write-Message -Level Debug -Message $sql
-                                    $destServer.Query($sql)
-                                } catch {
-                                    $copyOperatorCategoryStatus.Status = "Failed"
-                                    $copyOperatorCategoryStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-                                    Stop-Function -Message "Issue dropping operator category" -Target $categoryName -ErrorRecord $_
-                                }
-                            }
-                        }
-                    } else {
-                        if ($Pscmdlet.ShouldProcess($destinstance, "Creating Operator category $categoryName")) {
-                            try {
-                                Write-Message -Level Verbose -Message "Copying Operator category $categoryName"
-                                $sql = $operatorCategory.Script() | Out-String
-                                Write-Message -Level Debug -Message $sql
-                                $destServer.Query($sql)
+    if ($destOperatorCategories.Name -contains $operatorCategory.Name) {
+        if ($force -eq $false) {
+            $copyOperatorCategoryStatus.Status = "Skipped"
+            $copyOperatorCategoryStatus.Notes = "Already exists on destination"
+            $copyOperatorCategoryStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+        Write-Message -Level Verbose -Message "Operator category $categoryName exists at destination. Use -Force to drop and migrate."
+        continue
+    } else {
+        if ($Pscmdlet.ShouldProcess($destinstance, "Dropping operator category $categoryName and recreating")) {
+            try {
+                Write-Message -Level Verbose -Message "Dropping Operator category $categoryName"
+                $destServer.JobServer.OperatorCategories[$categoryName].Drop()
+                Write-Message -Level Verbose -Message "Copying Operator category $categoryName"
+                $sql = $operatorCategory.Script() | Out-String
+            Write-Message -Level Debug -Message $sql
+            $destServer.Query($sql)
+        } catch {
+            $copyOperatorCategoryStatus.Status = "Failed"
+            $copyOperatorCategoryStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+        Stop-Function -Message "Issue dropping operator category" -Target $categoryName -ErrorRecord $_
+    }
+}
+}
+} else {
+    if ($Pscmdlet.ShouldProcess($destinstance, "Creating Operator category $categoryName")) {
+        try {
+            Write-Message -Level Verbose -Message "Copying Operator category $categoryName"
+            $sql = $operatorCategory.Script() | Out-String
+        Write-Message -Level Debug -Message $sql
+        $destServer.Query($sql)
 
-                                $copyOperatorCategoryStatus.Status = "Successful"
-                                $copyOperatorCategoryStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-                            } catch {
-                                $copyOperatorCategoryStatus.Status = "Failed"
-                                $copyOperatorCategoryStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-                                Stop-Function -Message "Issue copying operator category" -Target $categoryName -ErrorRecord $_
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        $copyOperatorCategoryStatus.Status = "Successful"
+        $copyOperatorCategoryStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+} catch {
+    $copyOperatorCategoryStatus.Status = "Failed"
+    $copyOperatorCategoryStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+Stop-Function -Message "Issue copying operator category" -Target $categoryName -ErrorRecord $_
+}
+}
+}
+}
+}
+}
 
-        function Copy-AlertCategory {
-            <#
+function Copy-AlertCategory {
+    <#
                 .SYNOPSIS
                     Copy-AlertCategory migrates alert categories from one SQL Server to another.
 
@@ -268,135 +268,135 @@ function Copy-DbaAgentJobCategory {
 
                     If the associated credential for the category does not exist on the destination, it will be skipped. If the alert category already exists on the destination, it will be skipped unless -Force is used.
             #>
-            [CmdletBinding(DefaultParameterSetName = "Default", SupportsShouldProcess)]
-            param (
-                [string[]]$AlertCategories
-            )
+    [CmdletBinding(DefaultParameterSetName = "Default", SupportsShouldProcess)]
+    param (
+        [string[]]$AlertCategories
+    )
 
-            process {
-                if ($sourceServer.VersionMajor -lt 9 -or $destServer.VersionMajor -lt 9) {
-                    throw "Server AlertCategories are only supported in SQL Server 2005 and above. Quitting."
-                }
-
-                $serverAlertCategories = $sourceServer.JobServer.AlertCategories | Where-Object ID -ge 100
-                $destAlertCategories = $destServer.JobServer.AlertCategories | Where-Object ID -ge 100
-
-                foreach ($alertCategory in $serverAlertCategories) {
-                    $categoryName = $alertCategory.Name
-
-                    $copyAlertCategoryStatus = [pscustomobject]@{
-                        SourceServer      = $sourceServer.Name
-                        DestinationServer = $destServer.Name
-                        Type              = "Agent Alert Category"
-                        Name              = $categoryName
-                        Status            = $null
-                        Notes             = $null
-                        DateTime          = [Sqlcollaborative.Dbatools.Utility.DbaDateTime](Get-Date)
-                    }
-
-                    if ($alertCategories.Length -gt 0 -and $alertCategories -notcontains $categoryName) {
-                        continue
-                    }
-
-                    if ($destAlertCategories.Name -contains $alertCategory.name) {
-                        if ($force -eq $false) {
-                            $copyAlertCategoryStatus.Status = "Skipped"
-                            $copyAlertCategoryStatus.Notes = "Already exists on destination"
-                            $copyAlertCategoryStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-                            Write-Message -Level Verbose -Message "Alert category $categoryName exists at destination. Use -Force to drop and migrate."
-                            continue
-                        } else {
-                            if ($Pscmdlet.ShouldProcess($destinstance, "Dropping alert category $categoryName and recreating")) {
-                                try {
-                                    Write-Message -Level Verbose -Message "Dropping Alert category $categoryName"
-                                    $destServer.JobServer.AlertCategories[$categoryName].Drop()
-                                    Write-Message -Level Verbose -Message "Copying Alert category $categoryName"
-                                    $sql = $alertcategory.Script() | Out-String
-                                    Write-Message -Level Debug -Message "SQL Statement: $sql"
-                                    $destServer.Query($sql)
-                                } catch {
-                                    $copyAlertCategoryStatus.Status = "Failed"
-                                    $copyAlertCategoryStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-                                    Stop-Function -Message "Issue dropping alert category" -Target $categoryName -ErrorRecord $_
-                                }
-                            }
-                        }
-                    } else {
-                        if ($Pscmdlet.ShouldProcess($destinstance, "Creating Alert category $categoryName")) {
-                            try {
-                                Write-Message -Level Verbose -Message "Copying Alert category $categoryName"
-                                $sql = $alertCategory.Script() | Out-String
-                                Write-Message -Level Debug -Message $sql
-                                $destServer.Query($sql)
-
-                                $copyAlertCategoryStatus.Status = "Successful"
-                                $copyAlertCategoryStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-                            } catch {
-                                $copyAlertCategoryStatus.Status = "Failed"
-                                $copyAlertCategoryStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-                                Stop-Function -Message "Issue creating alert category" -Target $categoryName -ErrorRecord $_
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        try {
-            $sourceServer = Connect-SqlInstance -SqlInstance $Source -SqlCredential $SourceSqlCredential
-        } catch {
-            Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $Source
-            return
-        }
-    }
     process {
-        if (Test-FunctionInterrupt) { return }
-        foreach ($destinstance in $Destination) {
-            try {
-                $destServer = Connect-SqlInstance -SqlInstance $destinstance -SqlCredential $DestinationSqlCredential
-            } catch {
-                Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $destinstance -Continue
-            }
-
-            if ($CategoryType.count -gt 0) {
-
-                switch ($CategoryType) {
-                    "Job" {
-                        Copy-JobCategory
-                    }
-
-                    "Alert" {
-                        Copy-AlertCategory
-                    }
-
-                    "Operator" {
-                        Copy-OperatorCategory
-                    }
-                }
-                continue
-            }
-
-            if (($OperatorCategory.Count + $AlertCategory.Count + $jobCategory.Count) -gt 0) {
-
-                if ($OperatorCategory.Count -gt 0) {
-                    Copy-OperatorCategory -OperatorCategories $OperatorCategory
-                }
-
-                if ($AlertCategory.Count -gt 0) {
-                    Copy-AlertCategory -AlertCategories $AlertCategory
-                }
-
-                if ($jobCategory.Count -gt 0) {
-                    Copy-JobCategory -JobCategories $jobCategory
-                }
-                continue
-            }
-            Copy-OperatorCategory
-            Copy-AlertCategory
-            Copy-JobCategory
+        if ($sourceServer.VersionMajor -lt 9 -or $destServer.VersionMajor -lt 9) {
+            throw "Server AlertCategories are only supported in SQL Server 2005 and above. Quitting."
         }
+
+        $serverAlertCategories = $sourceServer.JobServer.AlertCategories | Where-Object ID -ge 100
+    $destAlertCategories = $destServer.JobServer.AlertCategories | Where-Object ID -ge 100
+
+foreach ($alertCategory in $serverAlertCategories) {
+    $categoryName = $alertCategory.Name
+
+    $copyAlertCategoryStatus = [pscustomobject]@{
+        SourceServer      = $sourceServer.Name
+        DestinationServer = $destServer.Name
+        Type              = "Agent Alert Category"
+        Name              = $categoryName
+        Status            = $null
+        Notes             = $null
+        DateTime          = [Sqlcollaborative.Dbatools.Utility.DbaDateTime](Get-Date)
     }
-    end {
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Copy-SqlAgentCategory
+
+    if ($alertCategories.Length -gt 0 -and $alertCategories -notcontains $categoryName) {
+        continue
     }
+
+    if ($destAlertCategories.Name -contains $alertCategory.name) {
+        if ($force -eq $false) {
+            $copyAlertCategoryStatus.Status = "Skipped"
+            $copyAlertCategoryStatus.Notes = "Already exists on destination"
+            $copyAlertCategoryStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+        Write-Message -Level Verbose -Message "Alert category $categoryName exists at destination. Use -Force to drop and migrate."
+        continue
+    } else {
+        if ($Pscmdlet.ShouldProcess($destinstance, "Dropping alert category $categoryName and recreating")) {
+            try {
+                Write-Message -Level Verbose -Message "Dropping Alert category $categoryName"
+                $destServer.JobServer.AlertCategories[$categoryName].Drop()
+                Write-Message -Level Verbose -Message "Copying Alert category $categoryName"
+                $sql = $alertcategory.Script() | Out-String
+            Write-Message -Level Debug -Message "SQL Statement: $sql"
+            $destServer.Query($sql)
+        } catch {
+            $copyAlertCategoryStatus.Status = "Failed"
+            $copyAlertCategoryStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+        Stop-Function -Message "Issue dropping alert category" -Target $categoryName -ErrorRecord $_
+    }
+}
+}
+} else {
+    if ($Pscmdlet.ShouldProcess($destinstance, "Creating Alert category $categoryName")) {
+        try {
+            Write-Message -Level Verbose -Message "Copying Alert category $categoryName"
+            $sql = $alertCategory.Script() | Out-String
+        Write-Message -Level Debug -Message $sql
+        $destServer.Query($sql)
+
+        $copyAlertCategoryStatus.Status = "Successful"
+        $copyAlertCategoryStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+} catch {
+    $copyAlertCategoryStatus.Status = "Failed"
+    $copyAlertCategoryStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+Stop-Function -Message "Issue creating alert category" -Target $categoryName -ErrorRecord $_
+}
+}
+}
+}
+}
+}
+
+try {
+    $sourceServer = Connect-SqlInstance -SqlInstance $Source -SqlCredential $SourceSqlCredential
+} catch {
+    Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $Source
+    return
+}
+}
+process {
+    if (Test-FunctionInterrupt) { return }
+    foreach ($destinstance in $Destination) {
+        try {
+            $destServer = Connect-SqlInstance -SqlInstance $destinstance -SqlCredential $DestinationSqlCredential
+        } catch {
+            Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $destinstance -Continue
+        }
+
+        if ($CategoryType.count -gt 0) {
+
+            switch ($CategoryType) {
+                "Job" {
+                    Copy-JobCategory
+                }
+
+                "Alert" {
+                    Copy-AlertCategory
+                }
+
+                "Operator" {
+                    Copy-OperatorCategory
+                }
+            }
+            continue
+        }
+
+        if (($OperatorCategory.Count + $AlertCategory.Count + $jobCategory.Count) -gt 0) {
+
+            if ($OperatorCategory.Count -gt 0) {
+                Copy-OperatorCategory -OperatorCategories $OperatorCategory
+            }
+
+            if ($AlertCategory.Count -gt 0) {
+                Copy-AlertCategory -AlertCategories $AlertCategory
+            }
+
+            if ($jobCategory.Count -gt 0) {
+                Copy-JobCategory -JobCategories $jobCategory
+            }
+            continue
+        }
+        Copy-OperatorCategory
+        Copy-AlertCategory
+        Copy-JobCategory
+    }
+}
+end {
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Copy-SqlAgentCategory
+}
 }

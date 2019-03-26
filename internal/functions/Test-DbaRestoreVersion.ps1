@@ -46,47 +46,47 @@ function Test-DbaRestoreVersion {
         [switch]$SystemDatabaseRestore
     )
     $RestoreVersion = ($FilteredRestoreFiles.SoftwareVersionMajor | Measure-Object -average).average
-    Write-Message -Level Verbose -Message "RestoreVersion is $RestoreVersion"
-    #Test to make sure we don't have an upgrade mid backup chain, there's a reason I'm paranoid..
-    if ([int]$RestoreVersion -ne $RestoreVersion) {
-        Write-Message -Level Warning -Message "Version number change during backups - $RestoreVersion"
+Write-Message -Level Verbose -Message "RestoreVersion is $RestoreVersion"
+#Test to make sure we don't have an upgrade mid backup chain, there's a reason I'm paranoid..
+if ([int]$RestoreVersion -ne $RestoreVersion) {
+    Write-Message -Level Warning -Message "Version number change during backups - $RestoreVersion"
+    return $false
+    break
+}
+#Can't restore backwards
+try {
+    if ($SqlInstance -isnot [Microsoft.SqlServer.Management.Smo.SqlSmoObject]) {
+        $Newconnection = $true
+        $Server = Connect-SqlInstance -SqlInstance $SqlInstance -SqlCredential $SqlCredential
+    } else {
+        $server = $SqlInstance
+    }
+} catch {
+    Write-Message -Level Warning -Message "Cannot connect to $SqlInstance"
+    break
+}
+
+if ($SystemDatabaseRestore) {
+    if ($RestoreVersion -ne $Server.VersionMajor) {
+        Write-Message -Level Warning -Message "For System Database restore versions must match)"
         return $false
         break
     }
-    #Can't restore backwards
-    try {
-        if ($SqlInstance -isnot [Microsoft.SqlServer.Management.Smo.SqlSmoObject]) {
-            $Newconnection = $true
-            $Server = Connect-SqlInstance -SqlInstance $SqlInstance -SqlCredential $SqlCredential
-        } else {
-            $server = $SqlInstance
-        }
-    } catch {
-        Write-Message -Level Warning -Message "Cannot connect to $SqlInstance"
+} else {
+    if ($RestoreVersion -gt $Server.VersionMajor) {
+        Write-Message -Level Warning -Message "Backups are from a newer version of SQL Server than $($Server.Name)"
+        return $false
         break
     }
 
-    if ($SystemDatabaseRestore) {
-        if ($RestoreVersion -ne $Server.VersionMajor) {
-            Write-Message -Level Warning -Message "For System Database restore versions must match)"
-            return $false
-            break
-        }
-    } else {
-        if ($RestoreVersion -gt $Server.VersionMajor) {
-            Write-Message -Level Warning -Message "Backups are from a newer version of SQL Server than $($Server.Name)"
-            return $false
-            break
-        }
-
-        if (($Server.VersionMajor -gt 10 -and $RestoreVersion -lt 9)  ) {
-            Write-Message -Level Warning -Message "This version - $RestoreVersion - too old to restore on to $($Server.Name)"
-            return $false
-            break
-        }
+    if (($Server.VersionMajor -gt 10 -and $RestoreVersion -lt 9)  ) {
+        Write-Message -Level Warning -Message "This version - $RestoreVersion - too old to restore on to $($Server.Name)"
+        return $false
+        break
     }
-    if ($Newconnection) {
-        $server.ConnectionContext.Disconnect()
-    }
-    return $True
+}
+if ($Newconnection) {
+    $server.ConnectionContext.Disconnect()
+}
+return $True
 }

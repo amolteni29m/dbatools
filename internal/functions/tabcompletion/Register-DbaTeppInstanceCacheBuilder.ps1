@@ -32,7 +32,7 @@ function Register-DbaTeppInstanceCacheBuilder {
 
         .NOTES
             Additional information about the function.
-       #>
+    #>
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]

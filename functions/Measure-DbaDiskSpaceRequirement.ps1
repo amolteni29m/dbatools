@@ -91,8 +91,8 @@ function Measure-DbaDiskSpaceRequirement {
         [switch]$EnableException
     )
     begin {
-        $local:cacheMP = @{}
-        $local:cacheDP = @{}
+        $local:cacheMP = @{ }
+        $local:cacheDP = @{ }
         function Get-MountPoint {
             [CmdletBinding()]
             param(
@@ -101,7 +101,7 @@ function Measure-DbaDiskSpaceRequirement {
                 [PSCredential]$credential
             )
             Get-DbaCmObject -Class Win32_MountPoint -ComputerName $computerName -Credential $credential |
-                Select-Object @{n = 'Mountpoint'; e = {$_.Directory.split('=')[1].Replace('"', '').Replace('\\', '\')}}
+                Select-Object @{n = 'Mountpoint'; e = { $_.Directory.split('=')[1].Replace('"', '').Replace('\\', '\') } }
         }
         function Get-MountPointFromPath {
             [CmdletBinding()]
@@ -126,171 +126,171 @@ function Measure-DbaDiskSpaceRequirement {
                 return '?'
             }
             foreach ($m in ($cacheMP[$computerName] | Sort-Object -Property Mountpoint -Descending)) {
-                if ($path -like "$($m.Mountpoint)*") {
-                    return $m.Mountpoint
-                }
+            if ($path -like "$($m.Mountpoint)*") {
+                return $m.Mountpoint
             }
-            Write-Message -Level Warning -Message "Path $path can't be found in any MountPoints of $computerName"
         }
-        function Get-MountPointFromDefaultPath {
-            [CmdletBinding()]
-            param(
-                [Parameter(Mandatory)]
-                [ValidateSet('Log', 'Data')]
-                $DefaultPathType,
-                [Parameter(Mandatory)]
-                $SqlInstance,
-                [PSCredential]$SqlCredential,
-                # Could probably use the computer defined in SqlInstance but info was already available from the caller
-                $computerName,
-                [PSCredential]$Credential
-            )
-            if (!$cacheDP[$SqlInstance]) {
-                try {
-                    $cacheDP.Add($SqlInstance, (Get-DbaDefaultPath -SqlInstance $SqlInstance -SqlCredential $SqlCredential -EnableException))
-                    Write-Message -Level Verbose -Message "cacheDP[$SqlInstance] is now cached"
-                } catch {
-                    Stop-Function -Message "Can't connect to $SqlInstance" -Continue
-                    $cacheDP.Add($SqlInstance, '?')
-                    return '?'
-                }
-            }
-            if ($cacheDP[$SqlInstance] -eq '?') {
+        Write-Message -Level Warning -Message "Path $path can't be found in any MountPoints of $computerName"
+    }
+    function Get-MountPointFromDefaultPath {
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory)]
+            [ValidateSet('Log', 'Data')]
+            $DefaultPathType,
+            [Parameter(Mandatory)]
+            $SqlInstance,
+            [PSCredential]$SqlCredential,
+            # Could probably use the computer defined in SqlInstance but info was already available from the caller
+            $computerName,
+            [PSCredential]$Credential
+        )
+        if (!$cacheDP[$SqlInstance]) {
+            try {
+                $cacheDP.Add($SqlInstance, (Get-DbaDefaultPath -SqlInstance $SqlInstance -SqlCredential $SqlCredential -EnableException))
+                Write-Message -Level Verbose -Message "cacheDP[$SqlInstance] is now cached"
+            } catch {
+                Stop-Function -Message "Can't connect to $SqlInstance" -Continue
+                $cacheDP.Add($SqlInstance, '?')
                 return '?'
             }
-            if (!$computerName) {
-                $computerName = $cacheDP[$SqlInstance].ComputerName
-            }
-            if (!$cacheMP[$computerName]) {
-                try {
-                    $cacheMP.Add($computerName, (Get-MountPoint -computerName $computerName -Credential $Credential))
-                } catch {
-                    Stop-Function -Message "Can't connect to $computerName." -Continue
-                    $cacheMP.Add($computerName, '?')
-                    return '?'
-                }
-            }
-            if ($DefaultPathType -eq 'Log') {
-                $path = $cacheDP[$SqlInstance].Log
-            } else {
-                $path = $cacheDP[$SqlInstance].Data
-            }
-            foreach ($m in ($cacheMP[$computerName] | Sort-Object -Property Mountpoint -Descending)) {
-                if ($path -like "$($m.Mountpoint)*") {
-                    return $m.Mountpoint
-                }
+        }
+        if ($cacheDP[$SqlInstance] -eq '?') {
+            return '?'
+        }
+        if (!$computerName) {
+            $computerName = $cacheDP[$SqlInstance].ComputerName
+        }
+        if (!$cacheMP[$computerName]) {
+            try {
+                $cacheMP.Add($computerName, (Get-MountPoint -computerName $computerName -Credential $Credential))
+            } catch {
+                Stop-Function -Message "Can't connect to $computerName." -Continue
+                $cacheMP.Add($computerName, '?')
+                return '?'
             }
         }
-    }
-    process {
-        try {
-            $sourceServer = Connect-SqlInstance -SqlInstance $Source -SqlCredential $SourceSqlCredential
-        } catch {
-            Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $Source
-        }
-
-        try {
-            $destServer = Connect-SqlInstance -SqlInstance $Destination -SqlCredential $DestinationSqlCredential
-        } catch {
-            Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $Destination
-        }
-
-        if (Test-Bound 'DestinationDatabase' -not) {
-            $DestinationDatabase = $Database
-        }
-        Write-Message -Level Verbose -Message "$Source.[$Database] -> $Destination.[$DestinationDatabase]"
-
-        $sourceDb = Get-DbaDatabase -SqlInstance $sourceServer -Database $Database -SqlCredential $SourceSqlCredential
-        if (Test-Bound 'Database' -not) {
-            Stop-Function -Message "Database [$Database] MUST exist on Source Instance $Source." -ErrorRecord $_
-        }
-        $sourceFiles = @($sourceDb.FileGroups.Files | Select-Object Name, FileName, Size, @{n = 'Type'; e = {'Data'}})
-        $sourceFiles += @($sourceDb.LogFiles        | Select-Object Name, FileName, Size, @{n = 'Type'; e = {'Log'}})
-
-        if ($destDb = Get-DbaDatabase -SqlInstance $destServer -Database $DestinationDatabase -SqlCredential $DestinationSqlCredential) {
-            $destFiles = @($destDb.FileGroups.Files | Select-Object Name, FileName, Size, @{n = 'Type'; e = {'Data'}})
-            $destFiles += @($destDb.LogFiles        | Select-Object Name, FileName, Size, @{n = 'Type'; e = {'Log'}})
-            $computerName = $destDb.ComputerName
+        if ($DefaultPathType -eq 'Log') {
+            $path = $cacheDP[$SqlInstance].Log
         } else {
-            Write-Message -Level Verbose -Message "Database [$DestinationDatabase] does not exist on Destination Instance $Destination."
-            $computerName = $destServer.ComputerName
+            $path = $cacheDP[$SqlInstance].Data
         }
-
-        foreach ($sourceFile in $sourceFiles) {
-            foreach ($destFile in $destFiles) {
-                if (($found = ($sourceFile.Name -eq $destFile.Name))) {
-                    # Files found on both sides
-                    [PSCustomObject]@{
-                        SourceComputerName      = $sourceServer.ComputerName
-                        SourceInstance          = $sourceServer.ServiceName
-                        SourceSqlInstance       = $sourceServer.DomainInstanceName
-                        DestinationComputerName = $destServer.ComputerName
-                        DestinationInstance     = $destServer.ServiceName
-                        DestinationSqlInstance  = $destServer.DomainInstanceName
-                        SourceDatabase          = $sourceDb.Name
-                        SourceLogicalName       = $sourceFile.Name
-                        SourceFileName          = $sourceFile.FileName
-                        SourceFileSize          = [DbaSize]($sourceFile.Size * 1000)
-                        DestinationDatabase     = $destDb.Name
-                        DestinationLogicalName  = $destFile.Name
-                        DestinationFileName     = $destFile.FileName
-                        DestinationFileSize     = [DbaSize]($destFile.Size * 1000) * -1
-                        DifferenceSize          = [DbaSize]( ($sourceFile.Size * 1000) - ($destFile.Size * 1000) )
-                        MountPoint              = Get-MountPointFromPath -Path $destFile.Filename -ComputerName $computerName -Credential $Credential
-                        FileLocation            = 'Source and Destination'
-                    } | Select-DefaultView -ExcludeProperty SourceComputerName, SourceInstance, DestinationInstance, DestinationLogicalName
-                    break
-                }
-            }
-            if (!$found) {
-                # Files on source but not on destination
-                [PSCustomObject]@{
-                    SourceComputerName      = $sourceServer.ComputerName
-                    SourceInstance          = $sourceServer.ServiceName
-                    SourceSqlInstance       = $sourceServer.DomainInstanceName
-                    DestinationComputerName = $destServer.ComputerName
-                    DestinationInstance     = $destServer.ServiceName
-                    DestinationSqlInstance  = $destServer.DomainInstanceName
-                    SourceDatabase          = $sourceDb.Name
-                    SourceLogicalName       = $sourceFile.Name
-                    SourceFileName          = $sourceFile.FileName
-                    SourceFileSize          = [DbaSize]($sourceFile.Size * 1000)
-                    DestinationDatabase     = $DestinationDatabase
-                    DestinationLogicalName  = $null
-                    DestinationFileName     = $null
-                    DestinationFileSize     = [DbaSize]0
-                    DifferenceSize          = [DbaSize]($sourceFile.Size * 1000)
-                    MountPoint              = Get-MountPointFromDefaultPath -DefaultPathType $sourceFile.Type -SqlInstance $Destination `
-                        -SqlCredential $DestinationSqlCredential -computerName $computerName -credential $Credential
-                    FileLocation            = 'Only on Source'
-                } | Select-DefaultView -ExcludeProperty SourceComputerName, SourceInstance, DestinationInstance, DestinationLogicalName
-            }
+        foreach ($m in ($cacheMP[$computerName] | Sort-Object -Property Mountpoint -Descending)) {
+        if ($path -like "$($m.Mountpoint)*") {
+            return $m.Mountpoint
         }
-        if ($destDb) {
-            # Files on destination but not on source (strange scenario but possible)
-            $destFilesNotSource = Compare-Object -ReferenceObject $destFiles -DifferenceObject $sourceFiles -Property Name -PassThru
-            foreach ($destFileNotSource in $destFilesNotSource) {
-                [PSCustomObject]@{
-                    SourceComputerName      = $sourceServer.ComputerName
-                    SourceInstance          = $sourceServer.ServiceName
-                    SourceSqlInstance       = $sourceServer.DomainInstanceName
-                    DestinationComputerName = $destServer.ComputerName
-                    DestinationInstance     = $destServer.ServiceName
-                    DestinationSqlInstance  = $destServer.DomainInstanceName
-                    SourceDatabaseName      = $Database
-                    SourceLogicalName       = $null
-                    SourceFileName          = $null
-                    SourceFileSize          = [DbaSize]0
-                    DestinationDatabaseName = $destDb.Name
-                    DestinationLogicalName  = $destFileNotSource.Name
-                    DestinationFileName     = $destFile.FileName
-                    DestinationFileSize     = [DbaSize]($destFileNotSource.Size * 1000) * -1
-                    DifferenceSize          = [DbaSize]($destFileNotSource.Size * 1000) * -1
-                    MountPoint              = Get-MountPointFromPath -Path $destFileNotSource.Filename -ComputerName $computerName -Credential $Credential
-                    FileLocation            = 'Only on Destination'
-                } | Select-DefaultView -ExcludeProperty SourceComputerName, SourceInstance, DestinationInstance, DestinationLogicalName
-            }
-        }
-        $DestinationDatabase = $null
     }
+}
+}
+process {
+    try {
+        $sourceServer = Connect-SqlInstance -SqlInstance $Source -SqlCredential $SourceSqlCredential
+    } catch {
+        Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $Source
+    }
+
+    try {
+        $destServer = Connect-SqlInstance -SqlInstance $Destination -SqlCredential $DestinationSqlCredential
+    } catch {
+        Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $Destination
+    }
+
+    if (Test-Bound 'DestinationDatabase' -not) {
+        $DestinationDatabase = $Database
+    }
+    Write-Message -Level Verbose -Message "$Source.[$Database] -> $Destination.[$DestinationDatabase]"
+
+    $sourceDb = Get-DbaDatabase -SqlInstance $sourceServer -Database $Database -SqlCredential $SourceSqlCredential
+    if (Test-Bound 'Database' -not) {
+        Stop-Function -Message "Database [$Database] MUST exist on Source Instance $Source." -ErrorRecord $_
+    }
+    $sourceFiles = @($sourceDb.FileGroups.Files | Select-Object Name, FileName, Size, @{n = 'Type'; e = { 'Data' } })
+$sourceFiles += @($sourceDb.LogFiles | Select-Object Name, FileName, Size, @{n = 'Type'; e = { 'Log' } })
+
+if ($destDb = Get-DbaDatabase -SqlInstance $destServer -Database $DestinationDatabase -SqlCredential $DestinationSqlCredential) {
+    $destFiles = @($destDb.FileGroups.Files | Select-Object Name, FileName, Size, @{n = 'Type'; e = { 'Data' } })
+$destFiles += @($destDb.LogFiles | Select-Object Name, FileName, Size, @{n = 'Type'; e = { 'Log' } })
+$computerName = $destDb.ComputerName
+} else {
+    Write-Message -Level Verbose -Message "Database [$DestinationDatabase] does not exist on Destination Instance $Destination."
+    $computerName = $destServer.ComputerName
+}
+
+foreach ($sourceFile in $sourceFiles) {
+    foreach ($destFile in $destFiles) {
+        if (($found = ($sourceFile.Name -eq $destFile.Name))) {
+            # Files found on both sides
+            [PSCustomObject]@{
+                SourceComputerName      = $sourceServer.ComputerName
+                SourceInstance          = $sourceServer.ServiceName
+                SourceSqlInstance       = $sourceServer.DomainInstanceName
+                DestinationComputerName = $destServer.ComputerName
+                DestinationInstance     = $destServer.ServiceName
+                DestinationSqlInstance  = $destServer.DomainInstanceName
+                SourceDatabase          = $sourceDb.Name
+                SourceLogicalName       = $sourceFile.Name
+                SourceFileName          = $sourceFile.FileName
+                SourceFileSize          = [DbaSize]($sourceFile.Size * 1000)
+                DestinationDatabase     = $destDb.Name
+                DestinationLogicalName  = $destFile.Name
+                DestinationFileName     = $destFile.FileName
+                DestinationFileSize     = [DbaSize]($destFile.Size * 1000) * -1
+                DifferenceSize          = [DbaSize]( ($sourceFile.Size * 1000) - ($destFile.Size * 1000) )
+                MountPoint              = Get-MountPointFromPath -Path $destFile.Filename -ComputerName $computerName -Credential $Credential
+                FileLocation            = 'Source and Destination'
+            } | Select-DefaultView -ExcludeProperty SourceComputerName, SourceInstance, DestinationInstance, DestinationLogicalName
+        break
+    }
+}
+if (!$found) {
+    # Files on source but not on destination
+    [PSCustomObject]@{
+        SourceComputerName      = $sourceServer.ComputerName
+        SourceInstance          = $sourceServer.ServiceName
+        SourceSqlInstance       = $sourceServer.DomainInstanceName
+        DestinationComputerName = $destServer.ComputerName
+        DestinationInstance     = $destServer.ServiceName
+        DestinationSqlInstance  = $destServer.DomainInstanceName
+        SourceDatabase          = $sourceDb.Name
+        SourceLogicalName       = $sourceFile.Name
+        SourceFileName          = $sourceFile.FileName
+        SourceFileSize          = [DbaSize]($sourceFile.Size * 1000)
+        DestinationDatabase     = $DestinationDatabase
+        DestinationLogicalName  = $null
+        DestinationFileName     = $null
+        DestinationFileSize     = [DbaSize]0
+        DifferenceSize          = [DbaSize]($sourceFile.Size * 1000)
+        MountPoint              = Get-MountPointFromDefaultPath -DefaultPathType $sourceFile.Type -SqlInstance $Destination `
+            -SqlCredential $DestinationSqlCredential -computerName $computerName -credential $Credential
+        FileLocation            = 'Only on Source'
+    } | Select-DefaultView -ExcludeProperty SourceComputerName, SourceInstance, DestinationInstance, DestinationLogicalName
+}
+}
+if ($destDb) {
+    # Files on destination but not on source (strange scenario but possible)
+    $destFilesNotSource = Compare-Object -ReferenceObject $destFiles -DifferenceObject $sourceFiles -Property Name -PassThru
+    foreach ($destFileNotSource in $destFilesNotSource) {
+        [PSCustomObject]@{
+            SourceComputerName      = $sourceServer.ComputerName
+            SourceInstance          = $sourceServer.ServiceName
+            SourceSqlInstance       = $sourceServer.DomainInstanceName
+            DestinationComputerName = $destServer.ComputerName
+            DestinationInstance     = $destServer.ServiceName
+            DestinationSqlInstance  = $destServer.DomainInstanceName
+            SourceDatabaseName      = $Database
+            SourceLogicalName       = $null
+            SourceFileName          = $null
+            SourceFileSize          = [DbaSize]0
+            DestinationDatabaseName = $destDb.Name
+            DestinationLogicalName  = $destFileNotSource.Name
+            DestinationFileName     = $destFile.FileName
+            DestinationFileSize     = [DbaSize]($destFileNotSource.Size * 1000) * -1
+            DifferenceSize          = [DbaSize]($destFileNotSource.Size * 1000) * -1
+            MountPoint              = Get-MountPointFromPath -Path $destFileNotSource.Filename -ComputerName $computerName -Credential $Credential
+            FileLocation            = 'Only on Destination'
+        } | Select-DefaultView -ExcludeProperty SourceComputerName, SourceInstance, DestinationInstance, DestinationLogicalName
+}
+}
+$DestinationDatabase = $null
+}
 }

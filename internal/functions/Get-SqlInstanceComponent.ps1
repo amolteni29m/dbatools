@@ -273,7 +273,7 @@ function Get-SQLInstanceComponent {
                 foreach ($componentName in $Component) {
                     $componentRegKeyName = $componentNameMap |
                         Where-Object { $_.ComponentName -eq $componentName } |
-                        Select-Object -ExpandProperty RegKeyName;
+                            Select-Object -ExpandProperty RegKeyName;
                     $regKey = $reg.OpenSubKey("$regPath\\Instance Names\\{0}" -f $componentRegKeyName);
                     if ($regKey) {
                         foreach ($regValueName in $regKey.GetValueNames()) {
@@ -281,38 +281,38 @@ function Get-SQLInstanceComponent {
                             if ($componentRegKeyName -eq 'RS' -and $regValueName -eq 'SSRS') { continue }  #filtering out SSRS2017+ - not supported
                             $result = Get-SQLInstanceDetail -RegPath $regPath -Reg $reg -RegKey $regKey -Instance $regValueName;
                             $result | Add-Member -Type NoteProperty -Name InstanceType -Value ($componentNameMap | Where-Object { $_.ComponentName -eq $componentName }).DisplayName -PassThru
-                        }
-                    }
                 }
-            } elseif ($regKey.GetValueNames() -contains 'InstalledInstances') {
-                $isCluster = $false;
-                $regKey.GetValue('InstalledInstances') | ForEach-Object {
-                    Get-SQLInstanceDetail -RegPath $regPath -Reg $reg -RegKey $regKey -Instance $_;
-                };
-            } else {
-                throw "Failed to find any instance names on $env:computername"
             }
         }
-    }
-    process {
-        foreach ($computer in $ComputerName) {
-            $results = Invoke-Command2 -ComputerName $computer -ScriptBlock $regScript -Credential $Credential -ErrorAction Stop -Raw -ArgumentList @($Component) -RequiredPSVersion 3.0
+    } elseif ($regKey.GetValueNames() -contains 'InstalledInstances') {
+        $isCluster = $false;
+        $regKey.GetValue('InstalledInstances') | ForEach-Object {
+            Get-SQLInstanceDetail -RegPath $regPath -Reg $reg -RegKey $regKey -Instance $_;
+        };
+} else {
+    throw "Failed to find any instance names on $env:computername"
+}
+}
+}
+process {
+    foreach ($computer in $ComputerName) {
+        $results = Invoke-Command2 -ComputerName $computer -ScriptBlock $regScript -Credential $Credential -ErrorAction Stop -Raw -ArgumentList @($Component) -RequiredPSVersion 3.0
 
-            # Log is stored in the log property, pile it all into the debug log
-            foreach ($logEntry in $results.Log) {
-                Write-Message -Level Debug -Message $logEntry
-            }
-            foreach ($result in $results) {
-                #Replace first decimal of the minor build with a 0, since we're using build numbers here
-                #Refer to https://sqlserverbuilds.blogspot.com/
-                Write-Message -Level Debug -Message "Converting version $($result.Version) to [version]"
-                $newVersion = New-Object -TypeName System.Version -ArgumentList ([string]$result.Version)
-                $newVersion = New-Object -TypeName System.Version -ArgumentList ($newVersion.Major , ($newVersion.Minor - $newVersion.Minor % 10), $newVersion.Build)
-                Write-Message -Level Debug -Message "Converted version $($result.Version) to $newVersion"
-                #Find a proper build reference and replace Version property
-                $result.Version = Get-DbaBuildReference -Build $newVersion -EnableException
-                $result | Select-Object -ExcludeProperty Log
-            }
+        # Log is stored in the log property, pile it all into the debug log
+        foreach ($logEntry in $results.Log) {
+            Write-Message -Level Debug -Message $logEntry
         }
+        foreach ($result in $results) {
+            #Replace first decimal of the minor build with a 0, since we're using build numbers here
+            #Refer to https://sqlserverbuilds.blogspot.com/
+            Write-Message -Level Debug -Message "Converting version $($result.Version) to [version]"
+            $newVersion = New-Object -TypeName System.Version -ArgumentList ([string]$result.Version)
+            $newVersion = New-Object -TypeName System.Version -ArgumentList ($newVersion.Major , ($newVersion.Minor - $newVersion.Minor % 10), $newVersion.Build)
+            Write-Message -Level Debug -Message "Converted version $($result.Version) to $newVersion"
+            #Find a proper build reference and replace Version property
+            $result.Version = Get-DbaBuildReference -Build $newVersion -EnableException
+            $result | Select-Object -ExcludeProperty Log
     }
+}
+}
 }

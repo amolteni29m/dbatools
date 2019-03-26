@@ -246,99 +246,99 @@ function Invoke-DbaWhoIsActive {
 
     begin {
         $passedparams = $psboundparameters.Keys | Where-Object { 'Silent', 'SqlServer', 'SqlCredential', 'OutputAs', 'ServerInstance', 'SqlInstance', 'Database' -notcontains $_ }
-        $localparams = $psboundparameters
-    }
+    $localparams = $psboundparameters
+}
 
-    process {
+process {
 
-        foreach ($instance in $sqlinstance) {
-            try {
-                $server = Connect-SqlInstance -SqlInstance $instance -SqlCredential $sqlcredential -MinimumVersion 9
-            } catch {
-                Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $instance -Continue
+    foreach ($instance in $sqlinstance) {
+        try {
+            $server = Connect-SqlInstance -SqlInstance $instance -SqlCredential $sqlcredential -MinimumVersion 9
+        } catch {
+            Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $instance -Continue
+        }
+
+        if ($server.VersionMajor -lt 9) {
+            throw "sp_WhoIsActive is only supported in SQL Server 2005 and above"
+        }
+
+        $paramdictionary = @{
+            Filter             = '@filter'
+            FilterType         = '@filter_type'
+            NotFilter          = 'not_filter'
+            NotFilterType      = '@not_filter_type'
+            ShowOwnSpid        = '@show_own_spid'
+            ShowSystemSpids    = '@show_system_spids'
+            ShowSleepingSpids  = '@show_sleeping_spids'
+            GetFullInnerText   = '@get_full_inner_text'
+            GetPlans           = '@get_plans'
+            GetOuterCommand    = '@get_outer_command'
+            GetTransactionInfo = '@get_transaction_info'
+            GetTaskInfo        = '@get_task_info'
+            GetLocks           = '@get_locks '
+            GetAverageTime     = '@get_avg_time'
+            GetAdditonalInfo   = '@get_additional_info'
+            FindBlockLeaders   = '@find_block_leaders'
+            DeltaInterval      = '@delta_interval'
+            OutputColumnList   = '@output_column_list'
+            SortOrder          = '@sort_order'
+            FormatOutput       = '@format_output '
+            DestinationTable   = '@destination_table '
+            ReturnSchema       = '@return_schema'
+            Schema             = '@schema'
+            Help               = '@help'
+        }
+
+        Write-Message -Level Verbose -Message "Collecting sp_whoisactive data from server: $instance"
+        try {
+            $sqlconnection = New-Object System.Data.SqlClient.SqlConnection
+            $sqlconnection.ConnectionString = $server.ConnectionContext.ConnectionString
+            $sqlconnection.Open()
+
+            if ($Database) {
+                # database is being returned as something weird. change it to string without using a method then trim.
+                $Database = "$Database"
+                $Database = $Database.Trim()
+                $sqlconnection.ChangeDatabase($Database)
             }
 
-            if ($server.VersionMajor -lt 9) {
-                throw "sp_WhoIsActive is only supported in SQL Server 2005 and above"
-            }
+            $sqlcommand = New-Object System.Data.SqlClient.SqlCommand
+            $sqlcommand.CommandType = "StoredProcedure"
+            $sqlcommand.CommandText = "dbo.sp_WhoIsActive"
+            $sqlcommand.Connection = $sqlconnection
 
-            $paramdictionary = @{
-                Filter             = '@filter'
-                FilterType         = '@filter_type'
-                NotFilter          = 'not_filter'
-                NotFilterType      = '@not_filter_type'
-                ShowOwnSpid        = '@show_own_spid'
-                ShowSystemSpids    = '@show_system_spids'
-                ShowSleepingSpids  = '@show_sleeping_spids'
-                GetFullInnerText   = '@get_full_inner_text'
-                GetPlans           = '@get_plans'
-                GetOuterCommand    = '@get_outer_command'
-                GetTransactionInfo = '@get_transaction_info'
-                GetTaskInfo        = '@get_task_info'
-                GetLocks           = '@get_locks '
-                GetAverageTime     = '@get_avg_time'
-                GetAdditonalInfo   = '@get_additional_info'
-                FindBlockLeaders   = '@find_block_leaders'
-                DeltaInterval      = '@delta_interval'
-                OutputColumnList   = '@output_column_list'
-                SortOrder          = '@sort_order'
-                FormatOutput       = '@format_output '
-                DestinationTable   = '@destination_table '
-                ReturnSchema       = '@return_schema'
-                Schema             = '@schema'
-                Help               = '@help'
-            }
+            foreach ($param in $passedparams) {
+                Write-Message -Level Verbose -Message "Check parameter '$param'"
 
-            Write-Message -Level Verbose -Message "Collecting sp_whoisactive data from server: $instance"
-            try {
-                $sqlconnection = New-Object System.Data.SqlClient.SqlConnection
-                $sqlconnection.ConnectionString = $server.ConnectionContext.ConnectionString
-                $sqlconnection.Open()
+                $sqlparam = $paramdictionary[$param]
 
-                if ($Database) {
-                    # database is being returned as something weird. change it to string without using a method then trim.
-                    $Database = "$Database"
-                    $Database = $Database.Trim()
-                    $sqlconnection.ChangeDatabase($Database)
-                }
+                if ($sqlparam) {
 
-                $sqlcommand = New-Object System.Data.SqlClient.SqlCommand
-                $sqlcommand.CommandType = "StoredProcedure"
-                $sqlcommand.CommandText = "dbo.sp_WhoIsActive"
-                $sqlcommand.Connection = $sqlconnection
+                    $value = $localparams[$param]
 
-                foreach ($param in $passedparams) {
-                    Write-Message -Level Verbose -Message "Check parameter '$param'"
-
-                    $sqlparam = $paramdictionary[$param]
-
-                    if ($sqlparam) {
-
-                        $value = $localparams[$param]
-
-                        switch ($value) {
-                            $true { $value = 1 }
-                            $false { $value = 0 }
-                        }
-                        Write-Message -Level Verbose -Message "Adding parameter '$sqlparam' with value '$value'"
-                        [Void]$sqlcommand.Parameters.AddWithValue($sqlparam, $value)
+                    switch ($value) {
+                        $true { $value = 1 }
+                        $false { $value = 0 }
                     }
-                }
-
-                $datatable = New-Object system.Data.DataSet
-                $dataadapter = New-Object system.Data.SqlClient.SqlDataAdapter($sqlcommand)
-                $dataadapter.fill($datatable) | Out-Null
-                $datatable.Tables.Rows
-            } catch {
-                if ($_.Exception.InnerException -Like "*Could not find*") {
-                    Stop-Function -Message "sp_whoisactive not found, please install using Install-DbaWhoIsActive." -Continue
-                } else {
-                    Stop-Function -Message "Invalid query." -Continue
+                    Write-Message -Level Verbose -Message "Adding parameter '$sqlparam' with value '$value'"
+                    [Void]$sqlcommand.Parameters.AddWithValue($sqlparam, $value)
                 }
             }
+
+            $datatable = New-Object system.Data.DataSet
+            $dataadapter = New-Object system.Data.SqlClient.SqlDataAdapter($sqlcommand)
+            $dataadapter.fill($datatable) | Out-Null
+        $datatable.Tables.Rows
+    } catch {
+        if ($_.Exception.InnerException -Like "*Could not find*") {
+            Stop-Function -Message "sp_whoisactive not found, please install using Install-DbaWhoIsActive." -Continue
+        } else {
+            Stop-Function -Message "Invalid query." -Continue
         }
     }
-    end {
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Show-SqlWhoIsActive -CustomMessage "Show-SqlWhoIsActive is no longer supported. Use Invoke-DbaWhoIsActive | Out-GridView for similar results."
-    }
+}
+}
+end {
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Show-SqlWhoIsActive -CustomMessage "Show-SqlWhoIsActive is no longer supported. Use Invoke-DbaWhoIsActive | Out-GridView for similar results."
+}
 }

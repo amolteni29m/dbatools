@@ -173,296 +173,296 @@ function Invoke-DbaDiagnosticQuery {
 
             $ParsedScript | Select-Object QueryNr, QueryName, DBSpecific, Description | Out-GridView -Title "Diagnostic Query Overview" -OutputMode Multiple | Sort-Object QueryNr | Select-Object -ExpandProperty QueryName
 
-        }
+}
 
-        Write-Message -Level Verbose -Message "Interpreting DMV Script Collections"
+Write-Message -Level Verbose -Message "Interpreting DMV Script Collections"
 
-        $module = Get-Module -Name dbatools
-        $base = $module.ModuleBase
+$module = Get-Module -Name dbatools
+$base = $module.ModuleBase
 
-        if (!$Path) {
-            $Path = "$base\bin\diagnosticquery"
-        }
+if (!$Path) {
+    $Path = "$base\bin\diagnosticquery"
+}
 
-        $scriptversions = @()
-        $scriptfiles = Get-ChildItem "$Path\SQLServerDiagnosticQueries_*_*.sql"
+$scriptversions = @()
+$scriptfiles = Get-ChildItem "$Path\SQLServerDiagnosticQueries_*_*.sql"
 
-        if (!$scriptfiles) {
-            Write-Message -Level Warning -Message "Diagnostic scripts not found in $Path. Using the ones within the module."
+if (!$scriptfiles) {
+    Write-Message -Level Warning -Message "Diagnostic scripts not found in $Path. Using the ones within the module."
 
-            $Path = "$base\bin\diagnosticquery"
+    $Path = "$base\bin\diagnosticquery"
 
-            $scriptfiles = Get-ChildItem "$base\bin\diagnosticquery\SQLServerDiagnosticQueries_*_*.sql"
-            if (!$scriptfiles) {
-                Stop-Function -Message "Unable to download scripts, do you have an internet connection? $_" -ErrorRecord $_
-                return
-            }
-        }
-
-        [int[]]$filesort = $null
-
-        foreach ($file in $scriptfiles) {
-            $filesort += $file.BaseName.Split("_")[2]
-        }
-
-        $currentdate = $filesort | Sort-Object -Descending | Select-Object -First 1
-
-        foreach ($file in $scriptfiles) {
-            if ($file.BaseName.Split("_")[2] -eq $currentdate) {
-                $parsedscript = Invoke-DbaDiagnosticQueryScriptParser -filename $file.fullname -ExcludeQueryTextColumn:$ExcludeQueryTextColumn -ExcludePlanColumn:$ExcludePlanColumn -NoColumnParsing:$NoColumnParsing
-
-                $newscript = [pscustomobject]@{
-                    Version = $file.Basename.Split("_")[1]
-                    Script  = $parsedscript
-                }
-                $scriptversions += $newscript
-            }
-        }
+    $scriptfiles = Get-ChildItem "$base\bin\diagnosticquery\SQLServerDiagnosticQueries_*_*.sql"
+    if (!$scriptfiles) {
+        Stop-Function -Message "Unable to download scripts, do you have an internet connection? $_" -ErrorRecord $_
+        return
     }
+}
 
-    process {
-        if (Test-FunctionInterrupt) { return }
+[int[]]$filesort = $null
 
-        foreach ($instance in $SqlInstance) {
-            $counter = 0
-            try {
-                $server = Connect-SqlInstance -SqlInstance $instance -SqlCredential $sqlcredential
-            } catch {
-                Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $instance -Continue
+foreach ($file in $scriptfiles) {
+    $filesort += $file.BaseName.Split("_")[2]
+}
+
+$currentdate = $filesort | Sort-Object -Descending | Select-Object -First 1
+
+foreach ($file in $scriptfiles) {
+    if ($file.BaseName.Split("_")[2] -eq $currentdate) {
+        $parsedscript = Invoke-DbaDiagnosticQueryScriptParser -filename $file.fullname -ExcludeQueryTextColumn:$ExcludeQueryTextColumn -ExcludePlanColumn:$ExcludePlanColumn -NoColumnParsing:$NoColumnParsing
+
+        $newscript = [pscustomobject]@{
+            Version = $file.Basename.Split("_")[1]
+            Script  = $parsedscript
+        }
+        $scriptversions += $newscript
+    }
+}
+}
+
+process {
+    if (Test-FunctionInterrupt) { return }
+
+    foreach ($instance in $SqlInstance) {
+        $counter = 0
+        try {
+            $server = Connect-SqlInstance -SqlInstance $instance -SqlCredential $sqlcredential
+        } catch {
+            Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $instance -Continue
+        }
+
+        Write-Message -Level Verbose -Message "Collecting diagnostic query data from server: $instance"
+
+        if ($server.VersionMinor -eq 50) {
+            $version = "2008R2"
+        } else {
+            $version = switch ($server.VersionMajor) {
+                9 { "2005" }
+                10 { "2008" }
+                11 { "2012" }
+                12 { "2014" }
+                13 { "2016" }
+                14 { "2017" }
             }
+        }
 
-            Write-Message -Level Verbose -Message "Collecting diagnostic query data from server: $instance"
+        if ($version -eq "2016" -and $server.VersionMinor -gt 5026 ) {
+            $version = "2016SP2"
+        }
 
-            if ($server.VersionMinor -eq 50) {
-                $version = "2008R2"
+        if ($server.DatabaseEngineType -eq "SqlAzureDatabase") {
+            $version = "AzureSQLDatabase"
+        }
+
+        if (!$instanceOnly) {
+            if (-not $Database) {
+                $databases = (Get-DbaDatabase -SqlInstance $server -ExcludeSystem -ExcludeDatabase $ExcludeDatabase).Name
             } else {
-                $version = switch ($server.VersionMajor) {
-                    9 { "2005" }
-                    10 { "2008" }
-                    11 { "2012" }
-                    12 { "2014" }
-                    13 { "2016" }
-                    14 { "2017" }
-                }
-            }
-
-            if ($version -eq "2016" -and $server.VersionMinor -gt 5026 ) {
-                $version = "2016SP2"
-            }
-
-            if ($server.DatabaseEngineType -eq "SqlAzureDatabase") {
-                $version = "AzureSQLDatabase"
-            }
-
-            if (!$instanceOnly) {
-                if (-not $Database) {
-                    $databases = (Get-DbaDatabase -SqlInstance $server -ExcludeSystem -ExcludeDatabase $ExcludeDatabase).Name
-                } else {
-                    $databases = (Get-DbaDatabase -SqlInstance $server -ExcludeSystem -Database $Database -ExcludeDatabase $ExcludeDatabase).Name
-                }
-            }
-
-            $parsedscript = $scriptversions | Where-Object -Property Version -eq $version | Select-Object -ExpandProperty Script
-
-            if ($null -eq $first) { $first = $true }
-            if ($UseSelectionHelper -and $first) {
-                $QueryName = Invoke-DiagnosticQuerySelectionHelper $parsedscript
-                $first = $false
-                if ($QueryName.Count -eq 0) {
-                    Write-Message -Level Output -Message "No query selected through SelectionHelper, halting script execution"
-                    return
-                }
-            }
-
-            if ($QueryName.Count -eq 0) {
-                $QueryName = $parsedscript | Select-Object -ExpandProperty QueryName
-            }
-
-            if ($ExcludeQuery) {
-                $QueryName = Compare-Object -ReferenceObject $QueryName -DifferenceObject $ExcludeQuery | Where-Object SideIndicator -eq "<=" | Select-Object -ExpandProperty InputObject
-            }
-
-            #since some database level queries can take longer (such as fragmentation) calculate progress with database specific queries * count of databases to run against into context
-            $CountOfDatabases = ($databases).Count
-
-            if ($QueryName.Count -ne 0) {
-                #if running all queries, then calculate total to run by instance queries count + (db specific count * databases to run each against)
-                $countDBSpecific = @($parsedscript | Where-Object {$_.QueryName -in $QueryName -and $_.DBSpecific -eq $true}).Count
-                $countInstanceSpecific = @($parsedscript | Where-Object {$_.QueryName -in $QueryName -and $_.DBSpecific -eq $false}).Count
-            } else {
-                #if narrowing queries to database specific, calculate total to process based on instance queries count + (db specific count * databases to run each against)
-                $countDBSpecific = @($parsedscript | Where-Object DBSpecific).Count
-                $countInstanceSpecific = @($parsedscript | Where-Object DBSpecific -eq $false).Count
-
-            }
-            if (!$instanceonly -and !$DatabaseSpecific -and !$QueryName) {
-                $scriptcount = $countInstanceSpecific + ($countDBSpecific * $CountOfDatabases )
-            } elseif ($instanceOnly) {
-                $scriptcount = $countInstanceSpecific
-            } elseif ($DatabaseSpecific) {
-                $scriptcount = $countDBSpecific * $CountOfDatabases
-            } elseif ($QueryName.Count -ne 0) {
-                $scriptcount = $countInstanceSpecific + ($countDBSpecific * $CountOfDatabases )
-
-
-            }
-            
-            foreach ($scriptpart in $parsedscript) {
-                # ensure results are null with each part, otherwise duplicated information may be returned
-                $result = $null
-                if (($QueryName.Count -ne 0) -and ($QueryName -notcontains $scriptpart.QueryName)) { continue }
-                if (!$scriptpart.DBSpecific -and !$DatabaseSpecific) {
-                    if ($ExportQueries) {
-                        $null = New-Item -Path $OutputPath -ItemType Directory -Force
-                        $FileName = Remove-InvalidFileNameChars ('{0}.sql' -f $Scriptpart.QueryName)
-                        $FullName = Join-Path $OutputPath $FileName
-                        Write-Message -Level Verbose -Message  "Creating file: $FullName"
-                        $scriptPart.Text | out-file -FilePath $FullName -Encoding UTF8 -force
-                        continue
-                    }
-
-                    if ($PSCmdlet.ShouldProcess($instance, $scriptpart.QueryName)) {
-
-                        if (-not $EnableException) {
-                            $Counter++
-                            Write-Progress -Id $ProgressId -ParentId 0 -Activity "Collecting diagnostic query data from $instance" -Status "Processing $counter of $scriptcount" -CurrentOperation $scriptpart.QueryName -PercentComplete (($counter / $scriptcount) * 100)
-                        }
-
-                        try {
-                            $result = $server.Query($scriptpart.Text)
-                            Write-Message -Level Verbose -Message "Processed $($scriptpart.QueryName) on $instance"
-                            if (-not $result) {
-                                [pscustomobject]@{
-                                    ComputerName     = $server.ComputerName
-                                    InstanceName     = $server.ServiceName
-                                    SqlInstance      = $server.DomainInstanceName
-                                    Number           = $scriptpart.QueryNr
-                                    Name             = $scriptpart.QueryName
-                                    Description      = $scriptpart.Description
-                                    DatabaseSpecific = $scriptpart.DBSpecific
-                                    Database         = $null
-                                    Notes            = "Empty Result for this Query"
-                                    Result           = $null
-                                }
-                                Write-Message -Level Verbose -Message ("Empty result for Query {0} - {1} - {2}" -f $scriptpart.QueryNr, $scriptpart.QueryName, $scriptpart.Description)
-                            }
-                        } catch {
-                            Write-Message -Level Verbose -Message ('Some error has occurred on Server: {0} - Script: {1}, result unavailable' -f $instance, $scriptpart.QueryName) -Target $instance -ErrorRecord $_
-                        }
-                        if ($result) {
-                            [pscustomobject]@{
-                                ComputerName     = $server.ComputerName
-                                InstanceName     = $server.ServiceName
-                                SqlInstance      = $server.DomainInstanceName
-                                Number           = $scriptpart.QueryNr
-                                Name             = $scriptpart.QueryName
-                                Description      = $scriptpart.Description
-                                DatabaseSpecific = $scriptpart.DBSpecific
-                                Database         = $null
-                                Notes            = $null
-                                #Result           = Select-DefaultView -InputObject $result -Property *
-                                #Not using Select-DefaultView because excluding the fields below doesn't seem to work
-                                Result           = $result | Select-Object * -ExcludeProperty 'Item', 'RowError', 'RowState', 'Table', 'ItemArray', 'HasErrors'
-                            }
-
-                        }
-                    } else {
-                        # if running WhatIf, then return the queries that would be run as an object, not just whatif output
-
-                        [pscustomobject]@{
-                            ComputerName     = $server.ComputerName
-                            InstanceName     = $server.ServiceName
-                            SqlInstance      = $server.DomainInstanceName
-                            Number           = $scriptpart.QueryNr
-                            Name             = $scriptpart.QueryName
-                            Description      = $scriptpart.Description
-                            DatabaseSpecific = $scriptpart.DBSpecific
-                            Database         = $null
-                            Notes            = "WhatIf - Bypassed Execution"
-                            Result           = $null
-                        }
-                    }
-
-                } elseif ($scriptpart.DBSpecific -and !$instanceOnly) {
-
-                    foreach ($currentdb in $databases) {
-                        if ($ExportQueries) {
-                            $null = New-Item -Path $OutputPath -ItemType Directory -Force
-                            $FileName = Remove-InvalidFileNameChars ('{0}-{1}-{2}.sql' -f $server.DomainInstanceName, $currentDb, $Scriptpart.QueryName)
-                            $FullName = Join-Path $OutputPath $FileName
-                            Write-Message -Level Verbose -Message  "Creating file: $FullName"
-                            $scriptPart.Text | out-file -FilePath $FullName -encoding UTF8 -force
-                            continue
-                        }
-
-
-                        if ($PSCmdlet.ShouldProcess(('{0} ({1})' -f $instance, $currentDb), $scriptpart.QueryName)) {
-
-                            if (-not $EnableException) {
-                                $Counter++
-                                Write-Progress -Id $ProgressId -ParentId 0 -Activity "Collecting diagnostic query data from $($currentDb) on $instance" -Status ('Processing {0} of {1}' -f $counter, $scriptcount) -CurrentOperation $scriptpart.QueryName -PercentComplete (($Counter / $scriptcount) * 100)
-                            }
-
-                            Write-Message -Level Verbose -Message "Collecting diagnostic query data from $($currentDb) for $($scriptpart.QueryName) on $instance"
-                            try {
-                                $result = $server.Query($scriptpart.Text, $currentDb)
-                                if (-not $result) {
-                                    [pscustomobject]@{
-                                        ComputerName     = $server.ComputerName
-                                        InstanceName     = $server.ServiceName
-                                        SqlInstance      = $server.DomainInstanceName
-                                        Number           = $scriptpart.QueryNr
-                                        Name             = $scriptpart.QueryName
-                                        Description      = $scriptpart.Description
-                                        DatabaseSpecific = $scriptpart.DBSpecific
-                                        Database         = $currentdb
-                                        Notes            = "Empty Result for this Query"
-                                        Result           = $null
-                                    }
-                                    Write-Message -Level Verbose -Message ("Empty result for Query {0} - {1} - {2}" -f $scriptpart.QueryNr, $scriptpart.QueryName, $scriptpart.Description) -Target $scriptpart -ErrorRecord $_
-                                }
-                            } catch {
-                                Write-Message -Level Verbose -Message ('Some error has occurred on Server: {0} - Script: {1} - Database: {2}, result will not be saved' -f $instance, $scriptpart.QueryName, $currentDb) -Target $currentdb -ErrorRecord $_
-                            }
-
-                            if ($result) {
-                                [pscustomobject]@{
-                                    ComputerName     = $server.ComputerName
-                                    InstanceName     = $server.ServiceName
-                                    SqlInstance      = $server.DomainInstanceName
-                                    Number           = $scriptpart.QueryNr
-                                    Name             = $scriptpart.QueryName
-                                    Description      = $scriptpart.Description
-                                    DatabaseSpecific = $scriptpart.DBSpecific
-                                    Database         = $currentDb
-                                    Notes            = $null
-                                    #Result           = Select-DefaultView -InputObject $result -Property *
-                                    #Not using Select-DefaultView because excluding the fields below doesn't seem to work
-                                    Result           = $result | Select-Object * -ExcludeProperty 'Item', 'RowError', 'RowState', 'Table', 'ItemArray', 'HasErrors'
-                                }
-                            }
-                        } else {
-                            # if running WhatIf, then return the queries that would be run as an object, not just whatif output
-
-                            [pscustomobject]@{
-                                ComputerName     = $server.ComputerName
-                                InstanceName     = $server.ServiceName
-                                SqlInstance      = $server.DomainInstanceName
-                                Number           = $scriptpart.QueryNr
-                                Name             = $scriptpart.QueryName
-                                Description      = $scriptpart.Description
-                                DatabaseSpecific = $scriptpart.DBSpecific
-                                Database         = $null
-                                Notes            = "WhatIf - Bypassed Execution"
-                                Result           = $null
-                            }
-                        }
-                    }
-                }
+                $databases = (Get-DbaDatabase -SqlInstance $server -ExcludeSystem -Database $Database -ExcludeDatabase $ExcludeDatabase).Name
             }
         }
+
+        $parsedscript = $scriptversions | Where-Object -Property Version -eq $version | Select-Object -ExpandProperty Script
+
+if ($null -eq $first) { $first = $true }
+if ($UseSelectionHelper -and $first) {
+    $QueryName = Invoke-DiagnosticQuerySelectionHelper $parsedscript
+    $first = $false
+    if ($QueryName.Count -eq 0) {
+        Write-Message -Level Output -Message "No query selected through SelectionHelper, halting script execution"
+        return
     }
-    end {
-        Write-Progress -Id $ProgressId -Activity 'Invoke-DbaDiagnosticQuery' -Completed
+}
+
+if ($QueryName.Count -eq 0) {
+    $QueryName = $parsedscript | Select-Object -ExpandProperty QueryName
+}
+
+if ($ExcludeQuery) {
+    $QueryName = Compare-Object -ReferenceObject $QueryName -DifferenceObject $ExcludeQuery | Where-Object SideIndicator -eq "<=" | Select-Object -ExpandProperty InputObject
+}
+
+#since some database level queries can take longer (such as fragmentation) calculate progress with database specific queries * count of databases to run against into context
+$CountOfDatabases = ($databases).Count
+
+if ($QueryName.Count -ne 0) {
+    #if running all queries, then calculate total to run by instance queries count + (db specific count * databases to run each against)
+    $countDBSpecific = @($parsedscript | Where-Object { $_.QueryName -in $QueryName -and $_.DBSpecific -eq $true }).Count
+$countInstanceSpecific = @($parsedscript | Where-Object { $_.QueryName -in $QueryName -and $_.DBSpecific -eq $false }).Count
+} else {
+    #if narrowing queries to database specific, calculate total to process based on instance queries count + (db specific count * databases to run each against)
+    $countDBSpecific = @($parsedscript | Where-Object DBSpecific).Count
+$countInstanceSpecific = @($parsedscript | Where-Object DBSpecific -eq $false).Count
+
+}
+if (!$instanceonly -and !$DatabaseSpecific -and !$QueryName) {
+    $scriptcount = $countInstanceSpecific + ($countDBSpecific * $CountOfDatabases )
+} elseif ($instanceOnly) {
+    $scriptcount = $countInstanceSpecific
+} elseif ($DatabaseSpecific) {
+    $scriptcount = $countDBSpecific * $CountOfDatabases
+} elseif ($QueryName.Count -ne 0) {
+    $scriptcount = $countInstanceSpecific + ($countDBSpecific * $CountOfDatabases )
+
+
+}
+
+foreach ($scriptpart in $parsedscript) {
+    # ensure results are null with each part, otherwise duplicated information may be returned
+    $result = $null
+    if (($QueryName.Count -ne 0) -and ($QueryName -notcontains $scriptpart.QueryName)) { continue }
+    if (!$scriptpart.DBSpecific -and !$DatabaseSpecific) {
+        if ($ExportQueries) {
+            $null = New-Item -Path $OutputPath -ItemType Directory -Force
+            $FileName = Remove-InvalidFileNameChars ('{0}.sql' -f $Scriptpart.QueryName)
+            $FullName = Join-Path $OutputPath $FileName
+            Write-Message -Level Verbose -Message  "Creating file: $FullName"
+            $scriptPart.Text | Out-File -FilePath $FullName -Encoding UTF8 -force
+        continue
     }
+
+    if ($PSCmdlet.ShouldProcess($instance, $scriptpart.QueryName)) {
+
+        if (-not $EnableException) {
+            $Counter++
+            Write-Progress -Id $ProgressId -ParentId 0 -Activity "Collecting diagnostic query data from $instance" -Status "Processing $counter of $scriptcount" -CurrentOperation $scriptpart.QueryName -PercentComplete (($counter / $scriptcount) * 100)
+        }
+
+        try {
+            $result = $server.Query($scriptpart.Text)
+            Write-Message -Level Verbose -Message "Processed $($scriptpart.QueryName) on $instance"
+            if (-not $result) {
+                [pscustomobject]@{
+                    ComputerName     = $server.ComputerName
+                    InstanceName     = $server.ServiceName
+                    SqlInstance      = $server.DomainInstanceName
+                    Number           = $scriptpart.QueryNr
+                    Name             = $scriptpart.QueryName
+                    Description      = $scriptpart.Description
+                    DatabaseSpecific = $scriptpart.DBSpecific
+                    Database         = $null
+                    Notes            = "Empty Result for this Query"
+                    Result           = $null
+                }
+                Write-Message -Level Verbose -Message ("Empty result for Query {0} - {1} - {2}" -f $scriptpart.QueryNr, $scriptpart.QueryName, $scriptpart.Description)
+            }
+        } catch {
+            Write-Message -Level Verbose -Message ('Some error has occurred on Server: {0} - Script: {1}, result unavailable' -f $instance, $scriptpart.QueryName) -Target $instance -ErrorRecord $_
+        }
+        if ($result) {
+            [pscustomobject]@{
+                ComputerName     = $server.ComputerName
+                InstanceName     = $server.ServiceName
+                SqlInstance      = $server.DomainInstanceName
+                Number           = $scriptpart.QueryNr
+                Name             = $scriptpart.QueryName
+                Description      = $scriptpart.Description
+                DatabaseSpecific = $scriptpart.DBSpecific
+                Database         = $null
+                Notes            = $null
+                #Result           = Select-DefaultView -InputObject $result -Property *
+                #Not using Select-DefaultView because excluding the fields below doesn't seem to work
+                Result           = $result | Select-Object * -ExcludeProperty 'Item', 'RowError', 'RowState', 'Table', 'ItemArray', 'HasErrors'
+        }
+
+    }
+} else {
+    # if running WhatIf, then return the queries that would be run as an object, not just whatif output
+
+    [pscustomobject]@{
+        ComputerName     = $server.ComputerName
+        InstanceName     = $server.ServiceName
+        SqlInstance      = $server.DomainInstanceName
+        Number           = $scriptpart.QueryNr
+        Name             = $scriptpart.QueryName
+        Description      = $scriptpart.Description
+        DatabaseSpecific = $scriptpart.DBSpecific
+        Database         = $null
+        Notes            = "WhatIf - Bypassed Execution"
+        Result           = $null
+    }
+}
+
+} elseif ($scriptpart.DBSpecific -and !$instanceOnly) {
+
+    foreach ($currentdb in $databases) {
+        if ($ExportQueries) {
+            $null = New-Item -Path $OutputPath -ItemType Directory -Force
+            $FileName = Remove-InvalidFileNameChars ('{0}-{1}-{2}.sql' -f $server.DomainInstanceName, $currentDb, $Scriptpart.QueryName)
+            $FullName = Join-Path $OutputPath $FileName
+            Write-Message -Level Verbose -Message  "Creating file: $FullName"
+            $scriptPart.Text | Out-File -FilePath $FullName -encoding UTF8 -force
+        continue
+    }
+
+
+    if ($PSCmdlet.ShouldProcess(('{0} ({1})' -f $instance, $currentDb), $scriptpart.QueryName)) {
+
+        if (-not $EnableException) {
+            $Counter++
+            Write-Progress -Id $ProgressId -ParentId 0 -Activity "Collecting diagnostic query data from $($currentDb) on $instance" -Status ('Processing {0} of {1}' -f $counter, $scriptcount) -CurrentOperation $scriptpart.QueryName -PercentComplete (($Counter / $scriptcount) * 100)
+        }
+
+        Write-Message -Level Verbose -Message "Collecting diagnostic query data from $($currentDb) for $($scriptpart.QueryName) on $instance"
+        try {
+            $result = $server.Query($scriptpart.Text, $currentDb)
+            if (-not $result) {
+                [pscustomobject]@{
+                    ComputerName     = $server.ComputerName
+                    InstanceName     = $server.ServiceName
+                    SqlInstance      = $server.DomainInstanceName
+                    Number           = $scriptpart.QueryNr
+                    Name             = $scriptpart.QueryName
+                    Description      = $scriptpart.Description
+                    DatabaseSpecific = $scriptpart.DBSpecific
+                    Database         = $currentdb
+                    Notes            = "Empty Result for this Query"
+                    Result           = $null
+                }
+                Write-Message -Level Verbose -Message ("Empty result for Query {0} - {1} - {2}" -f $scriptpart.QueryNr, $scriptpart.QueryName, $scriptpart.Description) -Target $scriptpart -ErrorRecord $_
+            }
+        } catch {
+            Write-Message -Level Verbose -Message ('Some error has occurred on Server: {0} - Script: {1} - Database: {2}, result will not be saved' -f $instance, $scriptpart.QueryName, $currentDb) -Target $currentdb -ErrorRecord $_
+        }
+
+        if ($result) {
+            [pscustomobject]@{
+                ComputerName     = $server.ComputerName
+                InstanceName     = $server.ServiceName
+                SqlInstance      = $server.DomainInstanceName
+                Number           = $scriptpart.QueryNr
+                Name             = $scriptpart.QueryName
+                Description      = $scriptpart.Description
+                DatabaseSpecific = $scriptpart.DBSpecific
+                Database         = $currentDb
+                Notes            = $null
+                #Result           = Select-DefaultView -InputObject $result -Property *
+                #Not using Select-DefaultView because excluding the fields below doesn't seem to work
+                Result           = $result | Select-Object * -ExcludeProperty 'Item', 'RowError', 'RowState', 'Table', 'ItemArray', 'HasErrors'
+        }
+    }
+} else {
+    # if running WhatIf, then return the queries that would be run as an object, not just whatif output
+
+    [pscustomobject]@{
+        ComputerName     = $server.ComputerName
+        InstanceName     = $server.ServiceName
+        SqlInstance      = $server.DomainInstanceName
+        Number           = $scriptpart.QueryNr
+        Name             = $scriptpart.QueryName
+        Description      = $scriptpart.Description
+        DatabaseSpecific = $scriptpart.DBSpecific
+        Database         = $null
+        Notes            = "WhatIf - Bypassed Execution"
+        Result           = $null
+    }
+}
+}
+}
+}
+}
+}
+end {
+    Write-Progress -Id $ProgressId -Activity 'Invoke-DbaDiagnosticQuery' -Completed
+}
 }

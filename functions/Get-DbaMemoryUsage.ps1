@@ -87,18 +87,18 @@ function Get-DbaMemoryUsage {
                 $availablecounters = (Get-Counter -ListSet '*sql*:Memory Manager*' -ErrorAction SilentlyContinue).paths
                 (Get-Counter -Counter $availablecounters -ErrorAction SilentlyContinue).countersamples |
                     Where-Object { $_.Path -match $Memcounters } |
-                    ForEach-Object {
-                    $instance = (($_.Path.split("\")[-2]).replace("mssql`$", "")).split(':')[0]
-                    if ($instance -eq 'sqlserver') { $instance = 'mssqlserver' }
-                    [PSCustomObject]@{
-                        ComputerName    = $env:computername
-                        SqlInstance     = $instance
-                        CounterInstance = (($_.Path.split("\")[-2]).replace("mssql`$", "")).split(':')[1]
-                        Counter         = $_.Path.split("\")[-1]
-                        Pages           = $null
-                        Memory          = $_.cookedvalue / 1024
-                    }
-                }
+                        ForEach-Object {
+                            $instance = (($_.Path.split("\")[-2]).replace("mssql`$", "")).split(':')[0]
+                            if ($instance -eq 'sqlserver') { $instance = 'mssqlserver' }
+                            [PSCustomObject]@{
+                                ComputerName    = $env:computername
+                                SqlInstance     = $instance
+                                CounterInstance = (($_.Path.split("\")[-2]).replace("mssql`$", "")).split(':')[1]
+                                Counter         = $_.Path.split("\")[-1]
+                                Pages           = $null
+                                Memory          = $_.cookedvalue / 1024
+                            }
+                        }
             } catch {
                 <# DO NOT use Write-Message as this is inside of a script block #>
                 Write-Verbose -Message "No Memory Manager Counters on $Computer"
@@ -109,18 +109,18 @@ function Get-DbaMemoryUsage {
                 $availablecounters = (Get-Counter -ListSet '*sql*:Plan Cache*' -ErrorAction SilentlyContinue).paths
                 (Get-Counter -Counter $availablecounters -ErrorAction SilentlyContinue).countersamples |
                     Where-Object { $_.Path -match $Plancounters } |
-                    ForEach-Object {
-                    $instance = (($_.Path.split("\")[-2]).replace("mssql`$", "")).split(':')[0]
-                    if ($instance -eq 'sqlserver') { $instance = 'mssqlserver' }
-                    [PSCustomObject]@{
-                        ComputerName    = $env:computername
-                        SqlInstance     = $instance
-                        CounterInstance = (($_.Path.split("\")[-2]).replace("mssql`$", "")).split(':')[1]
-                        Counter         = $_.Path.split("\")[-1]
-                        Pages           = $_.cookedvalue
-                        Memory          = $_.cookedvalue * 8192 / 1048576
-                    }
-                }
+                        ForEach-Object {
+                            $instance = (($_.Path.split("\")[-2]).replace("mssql`$", "")).split(':')[0]
+                            if ($instance -eq 'sqlserver') { $instance = 'mssqlserver' }
+                            [PSCustomObject]@{
+                                ComputerName    = $env:computername
+                                SqlInstance     = $instance
+                                CounterInstance = (($_.Path.split("\")[-2]).replace("mssql`$", "")).split(':')[1]
+                                Counter         = $_.Path.split("\")[-1]
+                                Pages           = $_.cookedvalue
+                                Memory          = $_.cookedvalue * 8192 / 1048576
+                            }
+                        }
             } catch {
                 <# DO NOT use Write-Message as this is inside of a script block #>
                 Write-Verbose -Message "No Plan Cache Counters on $Computer"
@@ -131,18 +131,18 @@ function Get-DbaMemoryUsage {
                 $availablecounters = (Get-Counter -ListSet "*Buffer Manager*" -ErrorAction SilentlyContinue).paths
                 (Get-Counter -Counter $availablecounters -ErrorAction SilentlyContinue).countersamples |
                     Where-Object { $_.Path -match $BufManpagecounters } |
-                    ForEach-Object {
-                    $instance = (($_.Path.split("\")[-2]).replace("mssql`$", "")).split(':')[0]
-                    if ($instance -eq 'sqlserver') { $instance = 'mssqlserver' }
-                    [PSCustomObject]@{
-                        ComputerName    = $env:computername
-                        SqlInstance     = $instance
-                        CounterInstance = (($_.Path.split("\")[-2]).replace("mssql`$", "")).split(':')[1]
-                        Counter         = $_.Path.split("\")[-1]
-                        Pages           = $_.cookedvalue
-                        Memory          = $_.cookedvalue * 8192 / 1048576.0
-                    }
-                }
+                        ForEach-Object {
+                            $instance = (($_.Path.split("\")[-2]).replace("mssql`$", "")).split(':')[0]
+                            if ($instance -eq 'sqlserver') { $instance = 'mssqlserver' }
+                            [PSCustomObject]@{
+                                ComputerName    = $env:computername
+                                SqlInstance     = $instance
+                                CounterInstance = (($_.Path.split("\")[-2]).replace("mssql`$", "")).split(':')[1]
+                                Counter         = $_.Path.split("\")[-1]
+                                Pages           = $_.cookedvalue
+                                Memory          = $_.cookedvalue * 8192 / 1048576.0
+                            }
+                        }
             } catch {
                 <# DO NOT use Write-Message as this is inside of a script block #>
                 Write-Verbose -Message "No Buffer Manager Counters on $Computer"
@@ -153,18 +153,18 @@ function Get-DbaMemoryUsage {
                 $availablecounters = (Get-Counter -ListSet "MSAS*:Memory" -ErrorAction SilentlyContinue).paths
                 (Get-Counter -Counter $availablecounters -ErrorAction SilentlyContinue).countersamples |
                     Where-Object { $_.Path -match $SSAScounters } |
-                    ForEach-Object {
-                    $instance = (($_.Path.split("\")[-2]).replace("mssql`$", "")).split(':')[0]
-                    if ($instance -eq 'sqlserver') { $instance = 'mssqlserver' }
-                    [PSCustomObject]@{
-                        ComputerName    = $env:COMPUTERNAME
-                        SqlInstance     = $instance
-                        CounterInstance = (($_.Path.split("\")[-2]).replace("mssql`$", "")).split(':')[1]
-                        Counter         = $_.Path.split("\")[-1]
-                        Pages           = $null
-                        Memory          = $_.cookedvalue / 1024
-                    }
-                }
+                        ForEach-Object {
+                            $instance = (($_.Path.split("\")[-2]).replace("mssql`$", "")).split(':')[0]
+                            if ($instance -eq 'sqlserver') { $instance = 'mssqlserver' }
+                            [PSCustomObject]@{
+                                ComputerName    = $env:COMPUTERNAME
+                                SqlInstance     = $instance
+                                CounterInstance = (($_.Path.split("\")[-2]).replace("mssql`$", "")).split(':')[1]
+                                Counter         = $_.Path.split("\")[-1]
+                                Pages           = $null
+                                Memory          = $_.cookedvalue / 1024
+                            }
+                        }
             } catch {
                 <# DO NOT use Write-Message as this is inside of a script block #>
                 Write-Verbose -Message "No SSAS Counters on $Computer"
@@ -175,18 +175,18 @@ function Get-DbaMemoryUsage {
                 $availablecounters = (Get-Counter -ListSet "*SSIS*" -ErrorAction SilentlyContinue).paths
                 (Get-Counter -Counter $availablecounters -ErrorAction SilentlyContinue).countersamples |
                     Where-Object { $_.Path -match $SSIScounters } |
-                    ForEach-Object {
-                    $instance = (($_.Path.split("\")[-2]).replace("mssql`$", "")).split(':')[0]
-                    if ($instance -eq 'sqlserver') { $instance = 'mssqlserver' }
-                    [PSCustomObject]@{
-                        ComputerName    = $env:computername
-                        SqlInstance     = $instance
-                        CounterInstance = (($_.Path.split("\")[-2]).replace("mssql`$", "")).split(':')[1]
-                        Counter         = $_.Path.split("\")[-1]
-                        Pages           = $null
-                        Memory          = $_.cookedvalue / 1024 / 1024
-                    }
-                }
+                        ForEach-Object {
+                            $instance = (($_.Path.split("\")[-2]).replace("mssql`$", "")).split(':')[0]
+                            if ($instance -eq 'sqlserver') { $instance = 'mssqlserver' }
+                            [PSCustomObject]@{
+                                ComputerName    = $env:computername
+                                SqlInstance     = $instance
+                                CounterInstance = (($_.Path.split("\")[-2]).replace("mssql`$", "")).split(':')[1]
+                                Counter         = $_.Path.split("\")[-1]
+                                Pages           = $null
+                                Memory          = $_.cookedvalue / 1024 / 1024
+                            }
+                        }
             } catch {
                 <# DO NOT use Write-Message as this is inside of a script block #>
                 Write-Verbose -Message "No SSIS Counters on $Computer"

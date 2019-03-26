@@ -54,8 +54,8 @@ function Get-DbaWsfcNetworkInterface {
             $cluster = Get-DbaWsfcCluster -ComputerName $computer -Credential $Credential
             $network = Get-DbaCmObject -Computername $computer -Credential $Credential -Namespace root\MSCluster -ClassName MSCluster_NetworkInterface
             $network | Add-Member -Force -NotePropertyName ClusterName -NotePropertyValue $cluster.Name
-            $network | Add-Member -Force -NotePropertyName ClusterFqdn -NotePropertyValue $cluster.Fqdn
-            $network | Select-DefaultView -Property ClusterName, ClusterFqdn, Name, Network, Node, Adapter, Address, DhcpEnabled, IPv4Addresses, IPv6Addresses, IPv6Addresses
-        }
-    }
+        $network | Add-Member -Force -NotePropertyName ClusterFqdn -NotePropertyValue $cluster.Fqdn
+    $network | Select-DefaultView -Property ClusterName, ClusterFqdn, Name, Network, Node, Adapter, Address, DhcpEnabled, IPv4Addresses, IPv6Addresses, IPv6Addresses
+}
+}
 }

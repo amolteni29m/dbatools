@@ -193,115 +193,115 @@ function Get-DbaUserPermission {
 
             if ($Database) {
                 $dbs = $dbs | Where-Object { $Database -contains $_.Name }
-            }
+        }
 
-            if ($ExcludeDatabase) {
-                $dbs = $dbs | Where-Object Name -NotIn $ExcludeDatabase
-            }
+        if ($ExcludeDatabase) {
+            $dbs = $dbs | Where-Object Name -NotIn $ExcludeDatabase
+    }
 
-            if ($ExcludeSystemDatabase) {
-                $dbs = $dbs | Where-Object IsSystemObject -eq $false
-            }
+    if ($ExcludeSystemDatabase) {
+        $dbs = $dbs | Where-Object IsSystemObject -eq $false
+}
 
-            #reset $serverDT
-            $serverDT = $null
+#reset $serverDT
+$serverDT = $null
 
-            foreach ($db in $dbs) {
-                Write-Message -Level Verbose -Message "Processing $db on $instance"
+foreach ($db in $dbs) {
+    Write-Message -Level Verbose -Message "Processing $db on $instance"
 
-                $db.ExecuteNonQuery($endSQL)
+    $db.ExecuteNonQuery($endSQL)
 
-                if ($db.IsAccessible -eq $false) {
-                    Stop-Function -Message "The database $db is not accessible" -Continue
-                }
+    if ($db.IsAccessible -eq $false) {
+        Stop-Function -Message "The database $db is not accessible" -Continue
+    }
 
-                $sql = [System.IO.File]::ReadAllText("$script:PSModuleRoot\bin\stig.sql")
-                $sql = $sql.Replace("<TARGETDB>", $db.Name)
+    $sql = [System.IO.File]::ReadAllText("$script:PSModuleRoot\bin\stig.sql")
+    $sql = $sql.Replace("<TARGETDB>", $db.Name)
 
-                #Create objects in active database
-                Write-Message -Level Verbose -Message "Creating objects"
-                try {
-                    $db.ExecuteNonQuery($sql)
-                } catch {
-                    # here to avoid an empty catch
-                    $null = 1
-                } # sometimes it complains about not being able to drop the stig schema if the person Ctrl-C'd before.
+    #Create objects in active database
+    Write-Message -Level Verbose -Message "Creating objects"
+    try {
+        $db.ExecuteNonQuery($sql)
+    } catch {
+        # here to avoid an empty catch
+        $null = 1
+    } # sometimes it complains about not being able to drop the stig schema if the person Ctrl-C'd before.
 
-                #Grab permissions data
-                if (-not $serverDT) {
-                    Write-Message -Level Verbose -Message "Building data table for server objects"
+    #Grab permissions data
+    if (-not $serverDT) {
+        Write-Message -Level Verbose -Message "Building data table for server objects"
 
-                    try {
-                        $serverDT = $db.Query($serverSQL)
-                    } catch {
-                        # here to avoid an empty catch
-                        $null = 1
-                    }
+        try {
+            $serverDT = $db.Query($serverSQL)
+        } catch {
+            # here to avoid an empty catch
+            $null = 1
+        }
 
-                    foreach ($row in $serverDT) {
-                        [PSCustomObject]@{
-                            ComputerName       = $server.ComputerName
-                            InstanceName       = $server.ServiceName
-                            SqlInstance        = $server.DomainInstanceName
-                            Object             = 'SERVER'
-                            Type               = $row.Type
-                            Member             = $row.Member
-                            RoleSecurableClass = $row.'Role/Securable/Class'
-                            SchemaOwner        = $row.'Schema/Owner'
-                            Securable          = $row.Securable
-                            GranteeType        = $row.'Grantee Type'
-                            Grantee            = $row.Grantee
-                            Permission         = $row.Permission
-                            State              = $row.State
-                            Grantor            = $row.Grantor
-                            GrantorType        = $row.'Grantor Type'
-                            SourceView         = $row.'Source View'
-                        }
-                    }
-                }
-
-                Write-Message -Level Verbose -Message "Building data table for $db objects"
-                try {
-                    $dbDT = $db.Query($dbSQL)
-                } catch {
-                    # here to avoid an empty catch
-                    $null = 1
-                }
-
-                foreach ($row in $dbDT) {
-                    [PSCustomObject]@{
-                        ComputerName       = $server.ComputerName
-                        InstanceName       = $server.ServiceName
-                        SqlInstance        = $server.DomainInstanceName
-                        Object             = $db.Name
-                        Type               = $row.Type
-                        Member             = $row.Member
-                        RoleSecurableClass = $row.'Role/Securable/Class'
-                        SchemaOwner        = $row.'Schema/Owner'
-                        Securable          = $row.Securable
-                        GranteeType        = $row.'Grantee Type'
-                        Grantee            = $row.Grantee
-                        Permission         = $row.Permission
-                        State              = $row.State
-                        Grantor            = $row.Grantor
-                        GrantorType        = $row.'Grantor Type'
-                        SourceView         = $row.'Source View'
-                    }
-                }
-
-                #Delete objects
-                Write-Message -Level Verbose -Message "Deleting objects"
-                try {
-                    $tempdb.ExecuteNonQuery($endSQL)
-                } catch {
-                    # here to avoid an empty catch
-                    $null = 1
-                }
-                #Sashay Away
+        foreach ($row in $serverDT) {
+            [PSCustomObject]@{
+                ComputerName       = $server.ComputerName
+                InstanceName       = $server.ServiceName
+                SqlInstance        = $server.DomainInstanceName
+                Object             = 'SERVER'
+                Type               = $row.Type
+                Member             = $row.Member
+                RoleSecurableClass = $row.'Role/Securable/Class'
+                SchemaOwner        = $row.'Schema/Owner'
+                Securable          = $row.Securable
+                GranteeType        = $row.'Grantee Type'
+                Grantee            = $row.Grantee
+                Permission         = $row.Permission
+                State              = $row.State
+                Grantor            = $row.Grantor
+                GrantorType        = $row.'Grantor Type'
+                SourceView         = $row.'Source View'
             }
         }
     }
-    end {
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Get-DbaUserLevelPermission
+
+    Write-Message -Level Verbose -Message "Building data table for $db objects"
+    try {
+        $dbDT = $db.Query($dbSQL)
+    } catch {
+        # here to avoid an empty catch
+        $null = 1
     }
+
+    foreach ($row in $dbDT) {
+        [PSCustomObject]@{
+            ComputerName       = $server.ComputerName
+            InstanceName       = $server.ServiceName
+            SqlInstance        = $server.DomainInstanceName
+            Object             = $db.Name
+            Type               = $row.Type
+            Member             = $row.Member
+            RoleSecurableClass = $row.'Role/Securable/Class'
+            SchemaOwner        = $row.'Schema/Owner'
+            Securable          = $row.Securable
+            GranteeType        = $row.'Grantee Type'
+            Grantee            = $row.Grantee
+            Permission         = $row.Permission
+            State              = $row.State
+            Grantor            = $row.Grantor
+            GrantorType        = $row.'Grantor Type'
+            SourceView         = $row.'Source View'
+        }
+    }
+
+    #Delete objects
+    Write-Message -Level Verbose -Message "Deleting objects"
+    try {
+        $tempdb.ExecuteNonQuery($endSQL)
+    } catch {
+        # here to avoid an empty catch
+        $null = 1
+    }
+    #Sashay Away
+}
+}
+}
+end {
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Get-DbaUserLevelPermission
+}
 }

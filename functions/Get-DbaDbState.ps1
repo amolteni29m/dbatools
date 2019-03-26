@@ -98,37 +98,37 @@ FROM sys.databases
             }
             $dbStates = $server.Query($DbStatesQuery)
             $dbs = $dbStates | Where-Object { @('master', 'model', 'msdb', 'tempdb', 'distribution') -notcontains $_.Name }
-            if ($Database) {
-                $dbs = $dbs | Where-Object Name -In $Database
-            }
-            if ($ExcludeDatabase) {
-                $dbs = $dbs | Where-Object Name -NotIn $ExcludeDatabase
-            }
-            # "normal" hashtable doesn't account for case sensitivity
-            $dbStatesHash = New-Object -TypeName System.Collections.Hashtable
-            foreach ($db in $dbStates) {
-                $dbStatesHash.Add($db.Name, [pscustomobject]@{
-                        Access = $db.Access
-                        Status = $db.Status
-                        RW     = $db.RW
-                    })
-            }
-            foreach ($db in $dbs) {
-                $db_status = $dbStatesHash[$db.Name]
-                [PSCustomObject]@{
-                    SqlInstance  = $server.Name
-                    InstanceName = $server.ServiceName
-                    ComputerName = $server.ComputerName
-                    DatabaseName = $db.Name
-                    RW           = $db_status.RW
-                    Status       = $db_status.Status
-                    Access       = $db_status.Access
-                    Database     = $server.Databases[$db.Name]
-                } | Select-DefaultView -ExcludeProperty Database
-            }
-        }
+        if ($Database) {
+            $dbs = $dbs | Where-Object Name -In $Database
     }
-    end {
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Get-DbaDatabaseState
-    }
+    if ($ExcludeDatabase) {
+        $dbs = $dbs | Where-Object Name -NotIn $ExcludeDatabase
+}
+# "normal" hashtable doesn't account for case sensitivity
+$dbStatesHash = New-Object -TypeName System.Collections.Hashtable
+foreach ($db in $dbStates) {
+    $dbStatesHash.Add($db.Name, [pscustomobject]@{
+            Access = $db.Access
+            Status = $db.Status
+            RW     = $db.RW
+        })
+}
+foreach ($db in $dbs) {
+    $db_status = $dbStatesHash[$db.Name]
+    [PSCustomObject]@{
+        SqlInstance  = $server.Name
+        InstanceName = $server.ServiceName
+        ComputerName = $server.ComputerName
+        DatabaseName = $db.Name
+        RW           = $db_status.RW
+        Status       = $db_status.Status
+        Access       = $db_status.Access
+        Database     = $server.Databases[$db.Name]
+    } | Select-DefaultView -ExcludeProperty Database
+}
+}
+}
+end {
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Get-DbaDatabaseState
+}
 }

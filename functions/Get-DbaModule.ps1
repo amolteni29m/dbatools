@@ -140,41 +140,41 @@ function Get-DbaModule {
 
             if ($Database) {
                 $databases = $databases | Where-Object Name -In $Database
-            }
-            if ($ExcludeDatabase) {
-                $databases = $databases | Where-Object Name -NotIn $ExcludeDatabase
-            }
-
-
-            foreach ($db in $databases) {
-
-                Write-Message -Level Verbose -Message "Processing $db on $instance"
-
-                if ($db.IsAccessible -eq $false) {
-                    Stop-Function -Message "The database $db is not accessible. Skipping database." -Target $db -Continue
-                }
-
-                foreach ($row in $server.Query($sql, $db.name)) {
-                    [PSCustomObject]@{
-                        ComputerName  = $server.ComputerName
-                        InstanceName  = $server.ServiceName
-                        SqlInstance   = $server.DomainInstanceName
-                        Database      = $row.DatabaseName
-                        Name          = $row.ModuleName
-                        ObjectID      = $row.object_id
-                        SchemaName    = $row.SchemaName
-                        Type          = $row.type_desc
-                        CreateDate    = $row.create_date
-                        ModifyDate    = $row.modify_date
-                        IsMsShipped   = $row.is_ms_shipped
-                        ExecIsStartUp = $row.startup
-                        Definition    = $row.definition
-                    } | Select-DefaultView -ExcludeProperty Definition
-                }
-            }
         }
+        if ($ExcludeDatabase) {
+            $databases = $databases | Where-Object Name -NotIn $ExcludeDatabase
     }
-    end {
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Get-DbaSqlModule
+
+
+    foreach ($db in $databases) {
+
+        Write-Message -Level Verbose -Message "Processing $db on $instance"
+
+        if ($db.IsAccessible -eq $false) {
+            Stop-Function -Message "The database $db is not accessible. Skipping database." -Target $db -Continue
+        }
+
+        foreach ($row in $server.Query($sql, $db.name)) {
+            [PSCustomObject]@{
+                ComputerName  = $server.ComputerName
+                InstanceName  = $server.ServiceName
+                SqlInstance   = $server.DomainInstanceName
+                Database      = $row.DatabaseName
+                Name          = $row.ModuleName
+                ObjectID      = $row.object_id
+                SchemaName    = $row.SchemaName
+                Type          = $row.type_desc
+                CreateDate    = $row.create_date
+                ModifyDate    = $row.modify_date
+                IsMsShipped   = $row.is_ms_shipped
+                ExecIsStartUp = $row.startup
+                Definition    = $row.definition
+            } | Select-DefaultView -ExcludeProperty Definition
     }
+}
+}
+}
+end {
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Get-DbaSqlModule
+}
 }

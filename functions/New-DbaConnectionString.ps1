@@ -205,117 +205,117 @@ function New-DbaConnectionString {
                     if ($instance.InputObject.GetType() -eq [Microsoft.SqlServer.Management.Smo.Server]) {
                         $connstring = $instance.InputObject.ConnectionContext.ConnectionString
                         if ($Database) {
-                            $olddb = $connstring -split ';' | Where-Object { $_.StartsWith("Initial Catalog")}
-                            $newdb = "Initial Catalog=$Database"
-                            if ($olddb) {
-                                $connstring = $connstring.Replace("$olddb", "$newdb")
-                            } else {
-                                $connstring = "$connstring;$newdb;"
-                            }
+                            $olddb = $connstring -split ';' | Where-Object { $_.StartsWith("Initial Catalog") }
+                        $newdb = "Initial Catalog=$Database"
+                        if ($olddb) {
+                            $connstring = $connstring.Replace("$olddb", "$newdb")
+                        } else {
+                            $connstring = "$connstring;$newdb;"
                         }
-                        $connstring
-                        continue
-                    } else {
-                        $isAzure = $true
-
-                        if (-not (Test-Bound -ParameterName ConnectTimeout)) {
-                            $ConnectTimeout = 30
-                        }
-
-                        if (-not (Test-Bound -ParameterName ClientName)) {
-                            $ClientName = "dbatools PowerShell module - dbatools.io"
-
-                        }
-                        $EncryptConnection = $true
-                        $instance = [DbaInstanceParameter]"tcp:$($instance.ComputerName),$($instance.Port)"
                     }
-                }
-
-                if ($instance.GetType() -eq [Microsoft.SqlServer.Management.Smo.Server]) {
-                    return $instance.ConnectionContext.ConnectionString
+                    $connstring
+                    continue
                 } else {
-                    $guid = [System.Guid]::NewGuid()
-                    $server = New-Object Microsoft.SqlServer.Management.Smo.Server $guid
+                    $isAzure = $true
 
-                    if ($AppendConnectionString) {
-                        $connstring = $server.ConnectionContext.ConnectionString
-                        $server.ConnectionContext.ConnectionString = "$connstring;$appendconnectionstring"
-                        $server.ConnectionContext.ConnectionString
-                    } else {
+                    if (-not (Test-Bound -ParameterName ConnectTimeout)) {
+                        $ConnectTimeout = 30
+                    }
 
-                        $server.ConnectionContext.ApplicationName = $clientname
+                    if (-not (Test-Bound -ParameterName ClientName)) {
+                        $ClientName = "dbatools PowerShell module - dbatools.io"
 
-                        if ($AccessToken) { $server.ConnectionContext.AccessToken = $AccessToken }
-                        if ($BatchSeparator) { $server.ConnectionContext.BatchSeparator = $BatchSeparator }
-                        if ($ConnectTimeout) { $server.ConnectionContext.ConnectTimeout = $ConnectTimeout }
-                        if ($Database) { $server.ConnectionContext.DatabaseName = $Database }
-                        if ($EncryptConnection) { $server.ConnectionContext.EncryptConnection = $true }
-                        if ($IsActiveDirectoryUniversalAuth) { $server.ConnectionContext.IsActiveDirectoryUniversalAuth = $true }
-                        if ($LockTimeout) { $server.ConnectionContext.LockTimeout = $LockTimeout }
-                        if ($MaxPoolSize) { $server.ConnectionContext.MaxPoolSize = $MaxPoolSize }
-                        if ($MinPoolSize) { $server.ConnectionContext.MinPoolSize = $MinPoolSize }
-                        if ($MultipleActiveResultSets) { $server.ConnectionContext.MultipleActiveResultSets = $true }
-                        if ($NetworkProtocol) { $server.ConnectionContext.NetworkProtocol = $NetworkProtocol }
-                        if ($NonPooledConnection) { $server.ConnectionContext.NonPooledConnection = $true }
-                        if ($PacketSize) { $server.ConnectionContext.PacketSize = $PacketSize }
-                        if ($PooledConnectionLifetime) { $server.ConnectionContext.PooledConnectionLifetime = $PooledConnectionLifetime }
-                        if ($StatementTimeout) { $server.ConnectionContext.StatementTimeout = $StatementTimeout }
-                        if ($SqlExecutionModes) { $server.ConnectionContext.SqlExecutionModes = $SqlExecutionModes }
-                        if ($TrustServerCertificate) { $server.ConnectionContext.TrustServerCertificate = $true }
-                        if ($WorkstationId) { $server.ConnectionContext.WorkstationId = $WorkstationId }
+                    }
+                    $EncryptConnection = $true
+                    $instance = [DbaInstanceParameter]"tcp:$($instance.ComputerName),$($instance.Port)"
+                }
+            }
 
-                        if ($null -ne $Credential.username) {
-                            $username = ($Credential.username).TrimStart("\")
+            if ($instance.GetType() -eq [Microsoft.SqlServer.Management.Smo.Server]) {
+                return $instance.ConnectionContext.ConnectionString
+            } else {
+                $guid = [System.Guid]::NewGuid()
+                $server = New-Object Microsoft.SqlServer.Management.Smo.Server $guid
 
-                            if ($username -like "*\*") {
-                                $username = $username.Split("\")[1]
-                                #Variable marked as unused by PSScriptAnalyzer
-                                #$authtype = "Windows Authentication with Credential"
-                                $server.ConnectionContext.LoginSecure = $true
-                                $server.ConnectionContext.ConnectAsUser = $true
-                                $server.ConnectionContext.ConnectAsUserName = $username
-                                $server.ConnectionContext.ConnectAsUserPassword = ($Credential).GetNetworkCredential().Password
+                if ($AppendConnectionString) {
+                    $connstring = $server.ConnectionContext.ConnectionString
+                    $server.ConnectionContext.ConnectionString = "$connstring;$appendconnectionstring"
+                    $server.ConnectionContext.ConnectionString
+                } else {
+
+                    $server.ConnectionContext.ApplicationName = $clientname
+
+                    if ($AccessToken) { $server.ConnectionContext.AccessToken = $AccessToken }
+                    if ($BatchSeparator) { $server.ConnectionContext.BatchSeparator = $BatchSeparator }
+                    if ($ConnectTimeout) { $server.ConnectionContext.ConnectTimeout = $ConnectTimeout }
+                    if ($Database) { $server.ConnectionContext.DatabaseName = $Database }
+                    if ($EncryptConnection) { $server.ConnectionContext.EncryptConnection = $true }
+                    if ($IsActiveDirectoryUniversalAuth) { $server.ConnectionContext.IsActiveDirectoryUniversalAuth = $true }
+                    if ($LockTimeout) { $server.ConnectionContext.LockTimeout = $LockTimeout }
+                    if ($MaxPoolSize) { $server.ConnectionContext.MaxPoolSize = $MaxPoolSize }
+                    if ($MinPoolSize) { $server.ConnectionContext.MinPoolSize = $MinPoolSize }
+                    if ($MultipleActiveResultSets) { $server.ConnectionContext.MultipleActiveResultSets = $true }
+                    if ($NetworkProtocol) { $server.ConnectionContext.NetworkProtocol = $NetworkProtocol }
+                    if ($NonPooledConnection) { $server.ConnectionContext.NonPooledConnection = $true }
+                    if ($PacketSize) { $server.ConnectionContext.PacketSize = $PacketSize }
+                    if ($PooledConnectionLifetime) { $server.ConnectionContext.PooledConnectionLifetime = $PooledConnectionLifetime }
+                    if ($StatementTimeout) { $server.ConnectionContext.StatementTimeout = $StatementTimeout }
+                    if ($SqlExecutionModes) { $server.ConnectionContext.SqlExecutionModes = $SqlExecutionModes }
+                    if ($TrustServerCertificate) { $server.ConnectionContext.TrustServerCertificate = $true }
+                    if ($WorkstationId) { $server.ConnectionContext.WorkstationId = $WorkstationId }
+
+                    if ($null -ne $Credential.username) {
+                        $username = ($Credential.username).TrimStart("\")
+
+                        if ($username -like "*\*") {
+                            $username = $username.Split("\")[1]
+                            #Variable marked as unused by PSScriptAnalyzer
+                            #$authtype = "Windows Authentication with Credential"
+                            $server.ConnectionContext.LoginSecure = $true
+                            $server.ConnectionContext.ConnectAsUser = $true
+                            $server.ConnectionContext.ConnectAsUserName = $username
+                            $server.ConnectionContext.ConnectAsUserPassword = ($Credential).GetNetworkCredential().Password
+                        } else {
+                            #Variable marked as unused by PSScriptAnalyzer
+                            #$authtype = "SQL Authentication"
+                            $server.ConnectionContext.LoginSecure = $false
+                            $server.ConnectionContext.set_Login($username)
+                            $server.ConnectionContext.set_SecurePassword($Credential.Password)
+                        }
+                    }
+
+                    $connstring = $server.ConnectionContext.ConnectionString
+                    if ($MultiSubnetFailover) { $connstring = "$connstring;MultiSubnetFailover=True" }
+                    if ($FailoverPartner) { $connstring = "$connstring;Failover Partner=$FailoverPartner" }
+                    if ($ApplicationIntent) { $connstring = "$connstring;ApplicationIntent=$ApplicationIntent;" }
+
+                    if ($isAzure) {
+                        if ($Credential) {
+                            if ($Credential.UserName -like "*\*" -or $Credential.UserName -like "*@*") {
+                                $connstring = "$connstring;Authentication=`"Active Directory Password`""
                             } else {
-                                #Variable marked as unused by PSScriptAnalyzer
-                                #$authtype = "SQL Authentication"
+                                $username = ($Credential.username).TrimStart("\")
                                 $server.ConnectionContext.LoginSecure = $false
                                 $server.ConnectionContext.set_Login($username)
                                 $server.ConnectionContext.set_SecurePassword($Credential.Password)
                             }
+                        } else {
+                            $connstring = $connstring.Replace("Integrated Security=True;", "")
+                            $connstring = "$connstring;Authentication=`"Active Directory Integrated`""
                         }
-
-                        $connstring = $server.ConnectionContext.ConnectionString
-                        if ($MultiSubnetFailover) { $connstring = "$connstring;MultiSubnetFailover=True" }
-                        if ($FailoverPartner) { $connstring = "$connstring;Failover Partner=$FailoverPartner" }
-                        if ($ApplicationIntent) { $connstring = "$connstring;ApplicationIntent=$ApplicationIntent;" }
-
-                        if ($isAzure) {
-                            if ($Credential) {
-                                if ($Credential.UserName -like "*\*" -or $Credential.UserName -like "*@*") {
-                                    $connstring = "$connstring;Authentication=`"Active Directory Password`""
-                                } else {
-                                    $username = ($Credential.username).TrimStart("\")
-                                    $server.ConnectionContext.LoginSecure = $false
-                                    $server.ConnectionContext.set_Login($username)
-                                    $server.ConnectionContext.set_SecurePassword($Credential.Password)
-                                }
-                            } else {
-                                $connstring = $connstring.Replace("Integrated Security=True;", "")
-                                $connstring = "$connstring;Authentication=`"Active Directory Integrated`""
-                            }
-                        }
-
-                        if ($connstring -ne $server.ConnectionContext.ConnectionString) {
-                            $server.ConnectionContext.ConnectionString = $connstring
-                        }
-
-                        ($server.ConnectionContext.ConnectionString).Replace($guid, $instance)
                     }
+
+                    if ($connstring -ne $server.ConnectionContext.ConnectionString) {
+                        $server.ConnectionContext.ConnectionString = $connstring
+                    }
+
+                    ($server.ConnectionContext.ConnectionString).Replace($guid, $instance)
                 }
             }
         }
     }
-    end {
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias New-DbaSqlConnectionString
-    }
+}
+end {
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias New-DbaSqlConnectionString
+}
 }

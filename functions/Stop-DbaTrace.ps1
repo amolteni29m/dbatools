@@ -115,13 +115,13 @@ function Stop-DbaTrace {
                             DroppedEventCount = $null
                             Parent            = $server
                         } | Select-DefaultView -Property 'ComputerName', 'InstanceName', 'SqlInstance', 'Id', 'IsRunning'
-                    }
-                    $output
-                } catch {
-                    Stop-Function -Message "Failure" -ErrorRecord $_ -Target $server -Continue
-                    return
                 }
+                $output
+            } catch {
+                Stop-Function -Message "Failure" -ErrorRecord $_ -Target $server -Continue
+                return
             }
         }
     }
+}
 }

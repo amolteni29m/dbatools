@@ -47,29 +47,29 @@ function Get-DbaWsfcDisk {
     process {
         foreach ($computer in $computername) {
             $resources = Get-DbaWsfcResource -ComputerName $computer -Credential $Credential | Where-Object Type -eq 'Physical Disk'
-            foreach ($resource in $resources) {
-                $disks = $resource | Get-CimAssociatedInstance -ResultClassName MSCluster_Disk
-                foreach ($disk in $disks) {
-                    $diskpart = $disk | Get-CimAssociatedInstance -ResultClassName MSCluster_DiskPartition
-                    [pscustomobject]@{
-                        ClusterName     = $resource.ClusterName
-                        ClusterFqdn     = $resource.ClusterFqdn
-                        ResourceGroup   = $resource.OwnerGroup
-                        Disk            = $resource.Name
-                        State           = $resource.State
-                        FileSystem      = $diskpart.FileSystem
-                        Path            = $diskpart.Path
-                        Label           = $diskpart.VolumeLabel
-                        Size            = [dbasize]($diskpart.TotalSize * 1MB)
-                        Free            = [dbasize]($diskpart.FreeSpace * 1MB)
-                        MountPoints     = $diskpart.MountPoints
-                        SerialNumber    = $diskpart.SerialNumber
-                        ClusterDisk     = $disk
-                        ClusterDiskPart = $diskpart
-                        ClusterResource = $resource
-                    } | Select-DefaultView -ExcludeProperty ClusterDisk, ClusterDiskPart, ClusterResource
-                }
-            }
-        }
-    }
+        foreach ($resource in $resources) {
+            $disks = $resource | Get-CimAssociatedInstance -ResultClassName MSCluster_Disk
+        foreach ($disk in $disks) {
+            $diskpart = $disk | Get-CimAssociatedInstance -ResultClassName MSCluster_DiskPartition
+        [pscustomobject]@{
+            ClusterName     = $resource.ClusterName
+            ClusterFqdn     = $resource.ClusterFqdn
+            ResourceGroup   = $resource.OwnerGroup
+            Disk            = $resource.Name
+            State           = $resource.State
+            FileSystem      = $diskpart.FileSystem
+            Path            = $diskpart.Path
+            Label           = $diskpart.VolumeLabel
+            Size            = [dbasize]($diskpart.TotalSize * 1MB)
+            Free            = [dbasize]($diskpart.FreeSpace * 1MB)
+            MountPoints     = $diskpart.MountPoints
+            SerialNumber    = $diskpart.SerialNumber
+            ClusterDisk     = $disk
+            ClusterDiskPart = $diskpart
+            ClusterResource = $resource
+        } | Select-DefaultView -ExcludeProperty ClusterDisk, ClusterDiskPart, ClusterResource
+}
+}
+}
+}
 }

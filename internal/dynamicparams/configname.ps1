@@ -33,26 +33,26 @@ $ScriptBlock = {
 
     try {
         [DbaInstanceParameter]$parServer = $server | Select-Object -First 1
-    } catch {
-        return
-    }
+} catch {
+    return
+}
 
-    if ([Sqlcollaborative.Dbatools.TabExpansion.TabExpansionHost]::Cache["configname"][$parServer.FullSmoName.ToLower()]) {
-        foreach ($name in ([Sqlcollaborative.Dbatools.TabExpansion.TabExpansionHost]::Cache["configname"][$parServer.FullSmoName.ToLower()] | Where-DbaObject -Like "$wordToComplete*")) {
-            New-DbaTeppCompletionResult -CompletionText $name -ToolTip $name
-        }
-        return
-    }
+if ([Sqlcollaborative.Dbatools.TabExpansion.TabExpansionHost]::Cache["configname"][$parServer.FullSmoName.ToLower()]) {
+    foreach ($name in ([Sqlcollaborative.Dbatools.TabExpansion.TabExpansionHost]::Cache["configname"][$parServer.FullSmoName.ToLower()] | Where-DbaObject -Like "$wordToComplete*")) {
+    New-DbaTeppCompletionResult -CompletionText $name -ToolTip $name
+}
+return
+}
 
-    try {
-        $serverObject = Connect-SqlInstance -SqlInstance $parServer -SqlCredential $fakeBoundParameter['SqlCredential'] -ErrorAction Stop
-        foreach ($name in ([Sqlcollaborative.Dbatools.TabExpansion.TabExpansionHost]::Cache["configname"][$parServer.FullSmoName.ToLower()] | Where-DbaObject -Like "$wordToComplete*")) {
-            New-DbaTeppCompletionResult -CompletionText $name -ToolTip $name
-        }
-        return
-    } catch {
-        return
-    }
+try {
+    $serverObject = Connect-SqlInstance -SqlInstance $parServer -SqlCredential $fakeBoundParameter['SqlCredential'] -ErrorAction Stop
+    foreach ($name in ([Sqlcollaborative.Dbatools.TabExpansion.TabExpansionHost]::Cache["configname"][$parServer.FullSmoName.ToLower()] | Where-DbaObject -Like "$wordToComplete*")) {
+    New-DbaTeppCompletionResult -CompletionText $name -ToolTip $name
+}
+return
+} catch {
+    return
+}
 }
 
 Register-DbaTeppScriptblock -ScriptBlock $ScriptBlock -Name ConfigName

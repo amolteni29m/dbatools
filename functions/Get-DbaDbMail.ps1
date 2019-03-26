@@ -69,9 +69,9 @@ function Get-DbaDbMail {
                 Add-Member -Force -InputObject $mailserver -MemberType NoteProperty -Name InstanceName -value $server.ServiceName
                 Add-Member -Force -InputObject $mailserver -MemberType NoteProperty -Name SqlInstance -value $server.DomainInstanceName
                 $mailserver | Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, Profiles, Accounts, ConfigurationValues, Properties
-            } catch {
-                Stop-Function -Message "Failure" -ErrorRecord $_ -Continue
-            }
+        } catch {
+            Stop-Function -Message "Failure" -ErrorRecord $_ -Continue
         }
     }
+}
 }

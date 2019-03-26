@@ -130,7 +130,7 @@ function Resolve-DbaNetworkName {
             }
             return
         }
-        
+
         if (-not (Test-Windows -NoWarn)) {
             Write-Message -Level Verbose -Message "Non-Windows client detected. Turbo (DNS resolution only) set to $true"
             $Turbo = $true
@@ -148,129 +148,129 @@ function Resolve-DbaNetworkName {
                 Write-Message -Level VeryVerbose -Message "Resolving $cName using .NET.Dns GetHostEntry"
                 $resolved = [System.Net.Dns]::GetHostEntry($cName)
                 $ipaddresses = $resolved.AddressList | Sort-Object -Property AddressFamily # prioritize IPv4
-                $ipaddress = $ipaddresses[0].IPAddressToString
-            } catch {
-                Stop-Function -Message "DNS name $cName not found" -Continue -ErrorRecord $_
-            }
+            $ipaddress = $ipaddresses[0].IPAddressToString
+        } catch {
+            Stop-Function -Message "DNS name $cName not found" -Continue -ErrorRecord $_
+        }
 
-            # try to resolve IP into a hostname
+        # try to resolve IP into a hostname
+        try {
+            Write-Message -Level VeryVerbose -Message "Resolving $ipaddress using .NET.Dns GetHostByAddress"
+            $fqdn = [System.Net.Dns]::GetHostByAddress($ipaddress).HostName
+        } catch {
+            Write-Message -Level Debug -Message "Failed to resolve $ipaddress using .NET.Dns GetHostByAddress"
+            $fqdn = $resolved.HostName
+        }
+
+        $dnsDomain = Get-ComputerDomainName -FQDN $fqdn -ComputerName $cName
+        # augment fqdn if needed
+        if ($fqdn -notmatch "\." -and $dnsDomain) {
+            $fqdn = "$fqdn.$dnsdomain"
+        }
+        $hostname = $fqdn.Split(".")[0]
+
+        # create an output object with some preliminary data gathered so far
+        $result = [PSCustomObject]@{
+            InputName        = $computer
+            ComputerName     = $hostname.ToUpper()
+            IPAddress        = $ipaddress
+            DNSHostname      = $hostname
+            DNSDomain        = $dnsdomain
+            Domain           = $dnsdomain
+            DNSHostEntry     = $fqdn
+            FQDN             = $fqdn
+            FullComputerName = $cName
+        }
+        if ($Turbo) {
+            # that's a finish line for a Turbo mode
+            return $result
+        }
+
+        # finding out which IP to use by pinging all of them. The first to respond is the one.
+        $ping = New-Object System.Net.NetworkInformation.Ping
+        $timeout = 1000 #milliseconds
+        foreach ($ip in $ipaddresses) {
+            $reply = $ping.Send($ip, $timeout)
+            if ($reply.Status -eq 'Success') {
+                $ipaddress = $ip.IPAddressToString
+                break
+            }
+        }
+        $result.IPAddress = $ipaddress
+
+        # re-try DNS reverse zone lookup if the IP to use is not the first one
+        if ($ipaddresses[0].IPAddressToString -ne $ipaddress) {
             try {
                 Write-Message -Level VeryVerbose -Message "Resolving $ipaddress using .NET.Dns GetHostByAddress"
                 $fqdn = [System.Net.Dns]::GetHostByAddress($ipaddress).HostName
+                # re-adjust DNS domain again
+                $dnsDomain = Get-ComputerDomainName -FQDN $fqdn -ComputerName $cName
+                # augment fqdn if needed
+                if ($fqdn -notmatch "\." -and $dnsDomain) {
+                    $fqdn = "$fqdn.$dnsdomain"
+                }
+                $hostname = $fqdn.Split(".")[0]
+
+                # update result fields accordingly
+                $result.ComputerName = $hostname.ToUpper()
+                $result.DNSHostname = $hostname
+                $result.DNSDomain = $dnsdomain
+                $result.Domain = $dnsdomain
+                $result.DNSHostEntry = $fqdn
+                $result.FQDN = $fqdn
             } catch {
-                Write-Message -Level Debug -Message "Failed to resolve $ipaddress using .NET.Dns GetHostByAddress"
-                $fqdn = $resolved.HostName
+                Write-Message -Level VeryVerbose -Message "Failed to obtain a new name from $ipaddress, re-using $fqdn"
             }
-
-            $dnsDomain = Get-ComputerDomainName -FQDN $fqdn -ComputerName $cName
-            # augment fqdn if needed
-            if ($fqdn -notmatch "\." -and $dnsDomain) {
-                $fqdn = "$fqdn.$dnsdomain"
-            }
-            $hostname = $fqdn.Split(".")[0]
-
-            # create an output object with some preliminary data gathered so far
-            $result = [PSCustomObject]@{
-                InputName        = $computer
-                ComputerName     = $hostname.ToUpper()
-                IPAddress        = $ipaddress
-                DNSHostname      = $hostname
-                DNSDomain        = $dnsdomain
-                Domain           = $dnsdomain
-                DNSHostEntry     = $fqdn
-                FQDN             = $fqdn
-                FullComputerName = $cName
-            }
-            if ($Turbo) {
-                # that's a finish line for a Turbo mode
-                return $result
-            }
-
-            # finding out which IP to use by pinging all of them. The first to respond is the one.
-            $ping = New-Object System.Net.NetworkInformation.Ping
-            $timeout = 1000 #milliseconds
-            foreach ($ip in $ipaddresses) {
-                $reply = $ping.Send($ip, $timeout)
-                if ($reply.Status -eq 'Success') {
-                    $ipaddress = $ip.IPAddressToString
-                    break
-                }
-            }
-            $result.IPAddress = $ipaddress
-
-            # re-try DNS reverse zone lookup if the IP to use is not the first one
-            if ($ipaddresses[0].IPAddressToString -ne $ipaddress) {
-                try {
-                    Write-Message -Level VeryVerbose -Message "Resolving $ipaddress using .NET.Dns GetHostByAddress"
-                    $fqdn = [System.Net.Dns]::GetHostByAddress($ipaddress).HostName
-                    # re-adjust DNS domain again
-                    $dnsDomain = Get-ComputerDomainName -FQDN $fqdn -ComputerName $cName
-                    # augment fqdn if needed
-                    if ($fqdn -notmatch "\." -and $dnsDomain) {
-                        $fqdn = "$fqdn.$dnsdomain"
-                    }
-                    $hostname = $fqdn.Split(".")[0]
-
-                    # update result fields accordingly
-                    $result.ComputerName = $hostname.ToUpper()
-                    $result.DNSHostname = $hostname
-                    $result.DNSDomain = $dnsdomain
-                    $result.Domain = $dnsdomain
-                    $result.DNSHostEntry = $fqdn
-                    $result.FQDN = $fqdn
-                } catch {
-                    Write-Message -Level VeryVerbose -Message "Failed to obtain a new name from $ipaddress, re-using $fqdn"
-                }
-            }
-
-
-            Write-Message -Level Debug -Message "Getting domain name from the remote host $fqdn"
-            try {
-                $ScBlock = {
-                    return [System.Net.NetworkInformation.IPGlobalProperties]::GetIPGlobalProperties().DomainName
-                }
-                $cParams = @{
-                    ComputerName = $cName
-                }
-                if ($Credential) { $cParams.Credential = $Credential }
-
-                $conn = Get-DbaCmObject @cParams -ClassName win32_ComputerSystem -EnableException
-                if ($conn) {
-                    # update results accordingly
-                    $result.ComputerName = $conn.Name
-                    $dnsHostname = $conn.DNSHostname
-                    $dnsDomain = $conn.Domain
-                    $result.FQDN = "$dnsHostname.$dnsDomain".TrimEnd('.')
-                    $result.DNSHostName = $dnsHostname
-                    $result.Domain = $dnsDomain
-                }
-                try {
-                    Write-Message -Level Debug -Message "Getting DNS domain from the remote host $($cParams.ComputerName)"
-                    $dnsSuffix = Invoke-Command2 @cParams -ScriptBlock $ScBlock -ErrorAction Stop -Raw
-                    $result.DNSDomain = $dnsSuffix
-                    if ($dnsSuffix) {
-                        $fullComputerName = $result.DNSHostName + "." + $dnsSuffix
-                    } else {
-                        $fullComputerName = $result.DNSHostName
-                    }
-                    $result.FullComputerName = $fullComputerName
-                } catch {
-                    Write-Message -Level Verbose -Message "Unable to get DNS domain information from $($cParams.ComputerName)"
-                }
-            } catch {
-                Write-Message -Level Verbose -Message "Unable to get domain name from $($cParams.ComputerName)"
-            }
-
-            # getting a DNS host entry for the full name
-            try {
-                Write-Message -Level VeryVerbose -Message "Resolving $($result.FullComputerName) using .NET.Dns GetHostEntry"
-                $result.DNSHostEntry = ([System.Net.Dns]::GetHostEntry($result.FullComputerName)).HostName
-            } catch {
-                Write-Message -Level Verbose -Message ".NET.Dns GetHostEntry failed for $($result.FullComputerName)"
-            }
-
-            # returning the final result
-            $result
         }
+
+
+        Write-Message -Level Debug -Message "Getting domain name from the remote host $fqdn"
+        try {
+            $ScBlock = {
+                return [System.Net.NetworkInformation.IPGlobalProperties]::GetIPGlobalProperties().DomainName
+            }
+            $cParams = @{
+                ComputerName = $cName
+            }
+            if ($Credential) { $cParams.Credential = $Credential }
+
+            $conn = Get-DbaCmObject @cParams -ClassName win32_ComputerSystem -EnableException
+            if ($conn) {
+                # update results accordingly
+                $result.ComputerName = $conn.Name
+                $dnsHostname = $conn.DNSHostname
+                $dnsDomain = $conn.Domain
+                $result.FQDN = "$dnsHostname.$dnsDomain".TrimEnd('.')
+                $result.DNSHostName = $dnsHostname
+                $result.Domain = $dnsDomain
+            }
+            try {
+                Write-Message -Level Debug -Message "Getting DNS domain from the remote host $($cParams.ComputerName)"
+                $dnsSuffix = Invoke-Command2 @cParams -ScriptBlock $ScBlock -ErrorAction Stop -Raw
+                $result.DNSDomain = $dnsSuffix
+                if ($dnsSuffix) {
+                    $fullComputerName = $result.DNSHostName + "." + $dnsSuffix
+                } else {
+                    $fullComputerName = $result.DNSHostName
+                }
+                $result.FullComputerName = $fullComputerName
+            } catch {
+                Write-Message -Level Verbose -Message "Unable to get DNS domain information from $($cParams.ComputerName)"
+            }
+        } catch {
+            Write-Message -Level Verbose -Message "Unable to get domain name from $($cParams.ComputerName)"
+        }
+
+        # getting a DNS host entry for the full name
+        try {
+            Write-Message -Level VeryVerbose -Message "Resolving $($result.FullComputerName) using .NET.Dns GetHostEntry"
+            $result.DNSHostEntry = ([System.Net.Dns]::GetHostEntry($result.FullComputerName)).HostName
+        } catch {
+            Write-Message -Level Verbose -Message ".NET.Dns GetHostEntry failed for $($result.FullComputerName)"
+        }
+
+        # returning the final result
+        $result
     }
+}
 }

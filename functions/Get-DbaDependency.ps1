@@ -201,40 +201,40 @@ function Get-DbaDependency {
             }
             end {
                 $list | Group-Object -Property Object | ForEach-Object { $_.Group | Sort-Object -Property Tier -Descending | Select-Object -First 1 } | Sort-Object Tier
-            }
+}
+}
+#endregion Utility functions
+}
+process {
+    foreach ($Item in $InputObject) {
+        Write-Message -Level Verbose -Message "Processing: $Item"
+        if ($null -eq $Item.urn) {
+            Stop-Function -Message "$Item is not a valid SMO object" -Category InvalidData -Continue -Target $Item
         }
-        #endregion Utility functions
-    }
-    process {
-        foreach ($Item in $InputObject) {
-            Write-Message -Level Verbose -Message "Processing: $Item"
-            if ($null -eq $Item.urn) {
-                Stop-Function -Message "$Item is not a valid SMO object" -Category InvalidData -Continue -Target $Item
-            }
 
-            # Find the server object to pass on to the function
-            $parent = $Item.parent
+        # Find the server object to pass on to the function
+        $parent = $Item.parent
 
-            do { $parent = $parent.parent }
-            until (($parent.urn.type -eq "Server") -or (-not $parent))
+        do { $parent = $parent.parent }
+        until (($parent.urn.type -eq "Server") -or (-not $parent))
 
-            if (-not $parent) {
-                Stop-Function -Message "Failed to find valid server object in input: $Item" -Category InvalidData -Continue -Target $Item
-            }
-
-            $server = $parent
-
-            $tree = Get-DependencyTree -Object $Item -AllowSystemObjects $false -Server $server -FunctionName (Get-PSCallStack)[0].COmmand -EnumParents $Parents
-            $limitCount = 2
-            if ($IncludeSelf) { $limitCount = 1 }
-            if ($tree.Count -lt $limitCount) {
-                Write-Message -Message "No dependencies detected for $($Item)" -Level Host
-                continue
-            }
-
-            if ($IncludeSelf) { $resolved = Read-DependencyTree -InputObject $tree.FirstChild -Tier 0 -Parent $tree.FirstChild -EnumParents $Parents }
-            else { $resolved = Read-DependencyTree -InputObject $tree.FirstChild.FirstChild -Tier 1 -Parent $tree.FirstChild -EnumParents $Parents }
-            $resolved | Get-DependencyTreeNodeDetail -Server $server -OriginalResource $Item -AllowSystemObjects $AllowSystemObjects | Select-DependencyPrecedence
+        if (-not $parent) {
+            Stop-Function -Message "Failed to find valid server object in input: $Item" -Category InvalidData -Continue -Target $Item
         }
-    }
+
+        $server = $parent
+
+        $tree = Get-DependencyTree -Object $Item -AllowSystemObjects $false -Server $server -FunctionName (Get-PSCallStack)[0].COmmand -EnumParents $Parents
+        $limitCount = 2
+        if ($IncludeSelf) { $limitCount = 1 }
+        if ($tree.Count -lt $limitCount) {
+            Write-Message -Message "No dependencies detected for $($Item)" -Level Host
+            continue
+        }
+
+        if ($IncludeSelf) { $resolved = Read-DependencyTree -InputObject $tree.FirstChild -Tier 0 -Parent $tree.FirstChild -EnumParents $Parents }
+        else { $resolved = Read-DependencyTree -InputObject $tree.FirstChild.FirstChild -Tier 1 -Parent $tree.FirstChild -EnumParents $Parents }
+        $resolved | Get-DependencyTreeNodeDetail -Server $server -OriginalResource $Item -AllowSystemObjects $AllowSystemObjects | Select-DependencyPrecedence
+}
+}
 }

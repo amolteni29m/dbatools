@@ -129,29 +129,29 @@ function Sync-DbaLoginPermission {
             $sourceServer = Connect-SqlInstance -SqlInstance $Source -SqlCredential $sqlcredential
             if ((Test-Bound -ParameterName Login)) {
                 $Login = ($sourceServer.Logins | Where-Object Name -NotIn $ExcludeLogin).Name
-            }
+        }
+    } catch {
+        Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $Source -Continue
+        return
+    }
+}
+process {
+    if (Test-FunctionInterrupt) { return }
+
+    foreach ($dest in $Destination) {
+        try {
+            $destServer = Connect-SqlInstance -SqlInstance $dest -SqlCredential $DestinationSqlCredential -MinimumVersion 8
         } catch {
-            Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $Source -Continue
-            return
+            Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $dest -Continue
+        }
+
+        if ($PSCmdlet.ShouldProcess("Syncing Logins $Login")) {
+            Sync-Only -SourceServer $sourceServer -DestServer $destServer -Logins $Login -Exclude $ExcludeLogin
         }
     }
-    process {
-        if (Test-FunctionInterrupt) { return }
-
-        foreach ($dest in $Destination) {
-            try {
-                $destServer = Connect-SqlInstance -SqlInstance $dest -SqlCredential $DestinationSqlCredential -MinimumVersion 8
-            } catch {
-                Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $dest -Continue
-            }
-
-            if ($PSCmdlet.ShouldProcess("Syncing Logins $Login")) {
-                Sync-Only -SourceServer $sourceServer -DestServer $destServer -Logins $Login -Exclude $ExcludeLogin
-            }
-        }
-    }
-    end {
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Sync-SqlLoginPermissions
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Sync-DbaSqlLoginPermission
-    }
+}
+end {
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Sync-SqlLoginPermissions
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Sync-DbaSqlLoginPermission
+}
 }

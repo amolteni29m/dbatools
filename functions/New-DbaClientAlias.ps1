@@ -143,5 +143,5 @@ function New-DbaClientAlias {
         }
 
         Get-DbaClientAlias -ComputerName $computer -Credential $Credential | Where-Object AliasName -eq $Alias
-    }
+}
 }

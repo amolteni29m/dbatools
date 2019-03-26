@@ -90,52 +90,52 @@ function Add-DbaPfDataCollectorCounter {
         }
 
         if (($InputObject | Get-Member -MemberType NoteProperty -ErrorAction SilentlyContinue).Count -le 3 -and $InputObject.ComputerName -and $InputObject.Name) {
-            # it's coming from Get-DbaPfAvailableCounter
-            $ComputerName = $InputObject.ComputerName
-            $Counter = $InputObject.Name
-            $InputObject = $null
+        # it's coming from Get-DbaPfAvailableCounter
+        $ComputerName = $InputObject.ComputerName
+        $Counter = $InputObject.Name
+        $InputObject = $null
+    }
+
+    if (-not $InputObject -or ($InputObject -and (Test-Bound -ParameterName ComputerName))) {
+        foreach ($computer in $ComputerName) {
+            $InputObject += Get-DbaPfDataCollector -ComputerName $computer -Credential $Credential -CollectorSet $CollectorSet -Collector $Collector
         }
+    }
 
-        if (-not $InputObject -or ($InputObject -and (Test-Bound -ParameterName ComputerName))) {
-            foreach ($computer in $ComputerName) {
-                $InputObject += Get-DbaPfDataCollector -ComputerName $computer -Credential $Credential -CollectorSet $CollectorSet -Collector $Collector
-            }
+    if ($InputObject) {
+        if (-not $InputObject.DataCollectorObject) {
+            Stop-Function -Message "InputObject is not of the right type. Please use Get-DbaPfDataCollector or Get-DbaPfAvailableCounter."
+            return
         }
+    }
 
-        if ($InputObject) {
-            if (-not $InputObject.DataCollectorObject) {
-                Stop-Function -Message "InputObject is not of the right type. Please use Get-DbaPfDataCollector or Get-DbaPfAvailableCounter."
-                return
-            }
+    foreach ($object in $InputObject) {
+        $computer = $InputObject.ComputerName
+        $null = Test-ElevationRequirement -ComputerName $computer -Continue
+        $setname = $InputObject.DataCollectorSet
+        $collectorname = $InputObject.Name
+        $xml = [xml]($InputObject.DataCollectorSetXml)
+
+        foreach ($countername in $counter) {
+            $node = $xml.SelectSingleNode("//Name[.='$collectorname']")
+            $newitem = $xml.CreateElement('Counter')
+            $null = $newitem.PsBase.InnerText = $countername
+            $null = $node.ParentNode.AppendChild($newitem)
+            $newitem = $xml.CreateElement('CounterDisplayName')
+            $null = $newitem.PsBase.InnerText = $countername
+            $null = $node.ParentNode.AppendChild($newitem)
         }
+        $plainxml = $xml.OuterXml
 
-        foreach ($object in $InputObject) {
-            $computer = $InputObject.ComputerName
-            $null = Test-ElevationRequirement -ComputerName $computer -Continue
-            $setname = $InputObject.DataCollectorSet
-            $collectorname = $InputObject.Name
-            $xml = [xml]($InputObject.DataCollectorSetXml)
-
-            foreach ($countername in $counter) {
-                $node = $xml.SelectSingleNode("//Name[.='$collectorname']")
-                $newitem = $xml.CreateElement('Counter')
-                $null = $newitem.PsBase.InnerText = $countername
-                $null = $node.ParentNode.AppendChild($newitem)
-                $newitem = $xml.CreateElement('CounterDisplayName')
-                $null = $newitem.PsBase.InnerText = $countername
-                $null = $node.ParentNode.AppendChild($newitem)
-            }
-            $plainxml = $xml.OuterXml
-
-            if ($Pscmdlet.ShouldProcess("$computer", "Adding $counters to $collectorname with the $setname collection set")) {
-                try {
-                    $results = Invoke-Command2 -ComputerName $computer -Credential $Credential -ScriptBlock $setscript -ArgumentList $setname, $plainxml -ErrorAction Stop
-                    Write-Message -Level Verbose -Message " $results"
-                    Get-DbaPfDataCollectorCounter -ComputerName $computer -Credential $Credential -CollectorSet $setname -Collector $collectorname -Counter $counter
-                } catch {
-                    Stop-Function -Message "Failure importing $Countername to $computer." -ErrorRecord $_ -Target $computer -Continue
-                }
+        if ($Pscmdlet.ShouldProcess("$computer", "Adding $counters to $collectorname with the $setname collection set")) {
+            try {
+                $results = Invoke-Command2 -ComputerName $computer -Credential $Credential -ScriptBlock $setscript -ArgumentList $setname, $plainxml -ErrorAction Stop
+                Write-Message -Level Verbose -Message " $results"
+                Get-DbaPfDataCollectorCounter -ComputerName $computer -Credential $Credential -CollectorSet $setname -Collector $collectorname -Counter $counter
+            } catch {
+                Stop-Function -Message "Failure importing $Countername to $computer." -ErrorRecord $_ -Target $computer -Continue
             }
         }
     }
+}
 }

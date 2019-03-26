@@ -168,49 +168,49 @@ function Get-DbaExecutionPlan {
                     foreach ($row in $server.Query($sql)) {
                         $simple = ([xml]$row.SingleStatementPlan).ShowPlanXML.BatchSequence.Batch.Statements.StmtSimple
                         $sqlhandle = "0x"; $row.sqlhandle | ForEach-Object { $sqlhandle += ("{0:X}" -f $_).PadLeft(2, "0") }
-                        $planhandle = "0x"; $row.planhandle | ForEach-Object { $planhandle += ("{0:X}" -f $_).PadLeft(2, "0") }
-                        $planWarnings = $simple.QueryPlan.Warnings.PlanAffectingConvert;
+                    $planhandle = "0x"; $row.planhandle | ForEach-Object { $planhandle += ("{0:X}" -f $_).PadLeft(2, "0") }
+                $planWarnings = $simple.QueryPlan.Warnings.PlanAffectingConvert;
 
-                        [pscustomobject]@{
-                            ComputerName                      = $server.ComputerName
-                            InstanceName                      = $server.ServiceName
-                            SqlInstance                       = $server.DomainInstanceName
-                            DatabaseName                      = $row.DatabaseName
-                            ObjectName                        = $row.ObjectName
-                            QueryPosition                     = $row.QueryPosition
-                            SqlHandle                         = $SqlHandle
-                            PlanHandle                        = $PlanHandle
-                            CreationTime                      = $row.CreationTime
-                            LastExecutionTime                 = $row.LastExecutionTime
-                            StatementCondition                = ([xml]$row.SingleStatementPlan).ShowPlanXML.BatchSequence.Batch.Statements.StmtCond
-                            StatementSimple                   = $simple
-                            StatementId                       = $simple.StatementId
-                            StatementCompId                   = $simple.StatementCompId
-                            StatementType                     = $simple.StatementType
-                            RetrievedFromCache                = $simple.RetrievedFromCache
-                            StatementSubTreeCost              = $simple.StatementSubTreeCost
-                            StatementEstRows                  = $simple.StatementEstRows
-                            SecurityPolicyApplied             = $simple.SecurityPolicyApplied
-                            StatementOptmLevel                = $simple.StatementOptmLevel
-                            QueryHash                         = $simple.QueryHash
-                            QueryPlanHash                     = $simple.QueryPlanHash
-                            StatementOptmEarlyAbortReason     = $simple.StatementOptmEarlyAbortReason
-                            CardinalityEstimationModelVersion = $simple.CardinalityEstimationModelVersion
+                [pscustomobject]@{
+                    ComputerName                      = $server.ComputerName
+                    InstanceName                      = $server.ServiceName
+                    SqlInstance                       = $server.DomainInstanceName
+                    DatabaseName                      = $row.DatabaseName
+                    ObjectName                        = $row.ObjectName
+                    QueryPosition                     = $row.QueryPosition
+                    SqlHandle                         = $SqlHandle
+                    PlanHandle                        = $PlanHandle
+                    CreationTime                      = $row.CreationTime
+                    LastExecutionTime                 = $row.LastExecutionTime
+                    StatementCondition                = ([xml]$row.SingleStatementPlan).ShowPlanXML.BatchSequence.Batch.Statements.StmtCond
+                    StatementSimple                   = $simple
+                    StatementId                       = $simple.StatementId
+                    StatementCompId                   = $simple.StatementCompId
+                    StatementType                     = $simple.StatementType
+                    RetrievedFromCache                = $simple.RetrievedFromCache
+                    StatementSubTreeCost              = $simple.StatementSubTreeCost
+                    StatementEstRows                  = $simple.StatementEstRows
+                    SecurityPolicyApplied             = $simple.SecurityPolicyApplied
+                    StatementOptmLevel                = $simple.StatementOptmLevel
+                    QueryHash                         = $simple.QueryHash
+                    QueryPlanHash                     = $simple.QueryPlanHash
+                    StatementOptmEarlyAbortReason     = $simple.StatementOptmEarlyAbortReason
+                    CardinalityEstimationModelVersion = $simple.CardinalityEstimationModelVersion
 
-                            ParameterizedText                 = $simple.ParameterizedText
-                            StatementSetOptions               = $simple.StatementSetOptions
-                            QueryPlan                         = $simple.QueryPlan
-                            BatchConditionXml                 = ([xml]$row.BatchQueryPlan).ShowPlanXML.BatchSequence.Batch.Statements.StmtCond
-                            BatchSimpleXml                    = ([xml]$row.BatchQueryPlan).ShowPlanXML.BatchSequence.Batch.Statements.StmtSimple
-                            BatchQueryPlanRaw                 = [xml]$row.BatchQueryPlan
-                            SingleStatementPlanRaw            = [xml]$row.SingleStatementPlan
-                            PlanWarnings                      = $planWarnings
-                        } | Select-DefaultView -ExcludeProperty BatchQueryPlan, SingleStatementPlan, BatchConditionXmlRaw, BatchQueryPlanRaw, SingleStatementPlanRaw, PlanWarnings
-                    }
-                }
-            } catch {
-                Stop-Function -Message "Query Failure Failure" -ErrorRecord $_ -Target $instance -Continue
-            }
+                    ParameterizedText                 = $simple.ParameterizedText
+                    StatementSetOptions               = $simple.StatementSetOptions
+                    QueryPlan                         = $simple.QueryPlan
+                    BatchConditionXml                 = ([xml]$row.BatchQueryPlan).ShowPlanXML.BatchSequence.Batch.Statements.StmtCond
+                    BatchSimpleXml                    = ([xml]$row.BatchQueryPlan).ShowPlanXML.BatchSequence.Batch.Statements.StmtSimple
+                    BatchQueryPlanRaw                 = [xml]$row.BatchQueryPlan
+                    SingleStatementPlanRaw            = [xml]$row.SingleStatementPlan
+                    PlanWarnings                      = $planWarnings
+                } | Select-DefaultView -ExcludeProperty BatchQueryPlan, SingleStatementPlan, BatchConditionXmlRaw, BatchQueryPlanRaw, SingleStatementPlanRaw, PlanWarnings
         }
     }
+} catch {
+    Stop-Function -Message "Query Failure Failure" -ErrorRecord $_ -Target $instance -Continue
+}
+}
+}
 }

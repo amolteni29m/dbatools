@@ -159,7 +159,7 @@ function Set-DbaAgentAlert {
                     Stop-Function -Message "Something went wrong changing the alert" -ErrorRecord $_ -Target $instance -Continue
                 }
                 Get-DbaAgentAlert -SqlInstance $server | Where-Object Name -eq $currentalert.name
-            }
         }
     }
+}
 }

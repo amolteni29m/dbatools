@@ -61,10 +61,10 @@ function Get-DbaRgWorkloadGroup {
             $group = $pool.WorkloadGroups
             if ($group) {
                 $group | Add-Member -Force -MemberType NoteProperty -Name ComputerName -value $pool.ComputerName
-                $group | Add-Member -Force -MemberType NoteProperty -Name InstanceName -value $pool.InstanceName
-                $group | Add-Member -Force -MemberType NoteProperty -Name SqlInstance -value $pool.SqlInstance
-                $group | Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, Id, Name, ExternalResourcePoolName, GroupMaximumRequests, Importance, IsSystemObject, MaximumDegreeOfParallelism, RequestMaximumCpuTimeInSeconds, RequestMaximumMemoryGrantPercentage, RequestMemoryGrantTimeoutInSeconds
-            }
-        }
-    }
+            $group | Add-Member -Force -MemberType NoteProperty -Name InstanceName -value $pool.InstanceName
+        $group | Add-Member -Force -MemberType NoteProperty -Name SqlInstance -value $pool.SqlInstance
+    $group | Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, Id, Name, ExternalResourcePoolName, GroupMaximumRequests, Importance, IsSystemObject, MaximumDegreeOfParallelism, RequestMaximumCpuTimeInSeconds, RequestMaximumMemoryGrantPercentage, RequestMemoryGrantTimeoutInSeconds
+}
+}
+}
 }

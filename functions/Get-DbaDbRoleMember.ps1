@@ -115,59 +115,59 @@ function Get-DbaDbRoleMember {
 
             $databases = $server.Databases | Where-Object { $_.IsAccessible -eq $true }
 
-            if (Test-Bound -Parameter 'Database') {
-                $databases = $databases | Where-Object { $_.Name -in $Database }
-            }
-
-            if (Test-Bound -Parameter 'ExcludeDatabase') {
-                $databases = $databases | Where-Object { $_.Name -notin $ExcludeDatabase}
-            }
-
-            foreach ($db in $databases) {
-                Write-Message -Level 'Verbose' -Message "Getting Database Roles for $db on $instance"
-
-                $dbRoles = $db.roles
-
-                if (Test-Bound -Parameter 'Role') {
-                    $dbRoles = $dbRoles | Where-Object { $_.Name -in $Role }
-                }
-
-                if (Test-Bound -Parameter 'ExcludeRole') {
-                    $dbRoles = $dbRoles | Where-Object { $_.Name -notin $ExcludeRole }
-                }
-
-                if (Test-Bound -Parameter 'ExcludeFixedRole') {
-                    $dbRoles = $dbRoles | Where-Object { $_.IsFixedRole -eq $false }
-                }
-
-                foreach ($dbRole in $dbRoles) {
-                    Write-Message -Level 'Verbose' -Message "Getting Database Role Members for $dbRole in $db on $instance"
-
-                    $members = $dbRole.EnumMembers()
-                    foreach ($member in $members) {
-                        $user = $db.Users | Where-Object { $_.Name -eq $member }
-
-                        if (Test-Bound -Not -ParameterName 'IncludeSystemUser') {
-                            $user = $user | Where-Object { $_.IsSystemObject -eq $false }
-                        }
-
-                        if ($user) {
-                            Add-Member -Force -InputObject $user -MemberType NoteProperty -Name ComputerName -Value $server.ComputerName
-                            Add-Member -Force -InputObject $user -MemberType NoteProperty -Name InstanceName -Value $server.ServiceName
-                            Add-Member -Force -InputObject $user -MemberType NoteProperty -Name SqlInstance -Value $server.DomainInstanceName
-                            Add-Member -Force -InputObject $user -MemberType NoteProperty -Name Database -Value $db.Name
-                            Add-Member -Force -InputObject $user -MemberType NoteProperty -Name Role -Value $dbRole.Name
-                            Add-Member -Force -InputObject $user -MemberType NoteProperty -Name UserName -Value $user.Name
-
-                            # Select object because Select-DefaultView causes strange behaviors when assigned to a variable (??)
-                            Select-Object -InputObject $user -Property 'ComputerName', 'InstanceName', 'SqlInstance', 'Database', 'Role', 'UserName', 'Login', 'IsSystemObject', 'LoginType'
-                        }
-                    }
-                }
-            }
-        }
+        if (Test-Bound -Parameter 'Database') {
+            $databases = $databases | Where-Object { $_.Name -in $Database }
     }
-    end {
-        Test-DbaDeprecation -DeprecatedOn "1.0.0" -Alias Get-DbaRoleMember
-    }
+
+    if (Test-Bound -Parameter 'ExcludeDatabase') {
+        $databases = $databases | Where-Object { $_.Name -notin $ExcludeDatabase }
+}
+
+foreach ($db in $databases) {
+    Write-Message -Level 'Verbose' -Message "Getting Database Roles for $db on $instance"
+
+    $dbRoles = $db.roles
+
+    if (Test-Bound -Parameter 'Role') {
+        $dbRoles = $dbRoles | Where-Object { $_.Name -in $Role }
+}
+
+if (Test-Bound -Parameter 'ExcludeRole') {
+    $dbRoles = $dbRoles | Where-Object { $_.Name -notin $ExcludeRole }
+}
+
+if (Test-Bound -Parameter 'ExcludeFixedRole') {
+    $dbRoles = $dbRoles | Where-Object { $_.IsFixedRole -eq $false }
+}
+
+foreach ($dbRole in $dbRoles) {
+    Write-Message -Level 'Verbose' -Message "Getting Database Role Members for $dbRole in $db on $instance"
+
+    $members = $dbRole.EnumMembers()
+    foreach ($member in $members) {
+        $user = $db.Users | Where-Object { $_.Name -eq $member }
+
+    if (Test-Bound -Not -ParameterName 'IncludeSystemUser') {
+        $user = $user | Where-Object { $_.IsSystemObject -eq $false }
+}
+
+if ($user) {
+    Add-Member -Force -InputObject $user -MemberType NoteProperty -Name ComputerName -Value $server.ComputerName
+    Add-Member -Force -InputObject $user -MemberType NoteProperty -Name InstanceName -Value $server.ServiceName
+    Add-Member -Force -InputObject $user -MemberType NoteProperty -Name SqlInstance -Value $server.DomainInstanceName
+    Add-Member -Force -InputObject $user -MemberType NoteProperty -Name Database -Value $db.Name
+    Add-Member -Force -InputObject $user -MemberType NoteProperty -Name Role -Value $dbRole.Name
+    Add-Member -Force -InputObject $user -MemberType NoteProperty -Name UserName -Value $user.Name
+
+    # Select object because Select-DefaultView causes strange behaviors when assigned to a variable (??)
+    Select-Object -InputObject $user -Property 'ComputerName', 'InstanceName', 'SqlInstance', 'Database', 'Role', 'UserName', 'Login', 'IsSystemObject', 'LoginType'
+}
+}
+}
+}
+}
+}
+end {
+    Test-DbaDeprecation -DeprecatedOn "1.0.0" -Alias Get-DbaRoleMember
+}
 }

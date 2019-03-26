@@ -83,7 +83,7 @@ function Get-DbaComputerCertificate {
                 $Certificate.Import($bytes, $null, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::DefaultKeySet)
                 return $Certificate
             }
-            
+
             function Get-CoreCertStore {
                 [CmdletBinding()]
                 param (
@@ -94,16 +94,16 @@ function Get-DbaComputerCertificate {
                     [ValidateSet("ReadOnly", "ReadWrite")]
                     [string]$Flag = "ReadOnly"
                 )
-                
+
                 $storename = [System.Security.Cryptography.X509Certificates.StoreLocation]::$Store
                 $foldername = [System.Security.Cryptography.X509Certificates.StoreName]::$Folder
                 $flags = [System.Security.Cryptography.X509Certificates.OpenFlags]::$Flag
                 $certstore = [System.Security.Cryptography.X509Certificates.X509Store]::New($foldername, $storename)
                 $certstore.Open($flags)
-                
+
                 $certstore
             }
-            
+
             function Get-CoreCertificate {
                 [CmdletBinding()]
                 param (
@@ -116,52 +116,52 @@ function Get-DbaComputerCertificate {
                     [string[]]$Thumbprint,
                     [System.Security.Cryptography.X509Certificates.X509Store[]]$InputObject
                 )
-                
+
                 if (-not $InputObject) {
                     $InputObject += Get-CoreCertStore -Store $Store -Folder $Folder -Flag $Flag
                 }
-                
+
                 $certs = ($InputObject).Certificates
-                
+
                 if ($Thumbprint) {
                     $certs = $certs | Where-Object Thumbprint -in $Thumbprint
-                }
-                
-                $certs
             }
-            
-            if ($Thumbprint) {
-                try {
-                    <# DO NOT use Write-Message as this is inside of a script block #>
-                    Write-Verbose "Searching Cert:\$Store\$Folder"
-                    Get-CoreCertificate -Store $Store -Folder $Folder -Thumbprint $Thumbprint
-                } catch {
-                    # don't care - there's a weird issue with remoting where an exception gets thrown for no apparent reason
-                    # here to avoid an empty catch
-                    $null = 1
-                }
-            } else {
-                try {
-                    <# DO NOT use Write-Message as this is inside of a script block #>
-                    Write-Verbose "Searching Cert:\$Store\$Folder"
-                    Get-CoreCertificate -Store $Store -Folder $Folder | Where-Object EnhancedKeyUsageList -match '1\.3\.6\.1\.5\.5\.7\.3\.1'
-                } catch {
-                    # still don't care
-                    # here to avoid an empty catch
-                    $null = 1
-                }
-            }
+
+            $certs
         }
-        #endregion Scriptblock for remoting
-    }
-    
-    process {
-        foreach ($computer in $computername) {
+
+        if ($Thumbprint) {
             try {
-                Invoke-Command2 -ComputerName $computer -Credential $Credential -ScriptBlock $scriptblock -ArgumentList $thumbprint, $Store, $Folder, $Path -ErrorAction Stop | Select-DefaultView -Property FriendlyName, DnsNameList, Thumbprint, NotBefore, NotAfter, Subject, Issuer
+                <# DO NOT use Write-Message as this is inside of a script block #>
+                Write-Verbose "Searching Cert:\$Store\$Folder"
+                Get-CoreCertificate -Store $Store -Folder $Folder -Thumbprint $Thumbprint
             } catch {
-                Stop-Function -Message "Issue connecting to computer" -ErrorRecord $_ -Target $computer -Continue
+                # don't care - there's a weird issue with remoting where an exception gets thrown for no apparent reason
+                # here to avoid an empty catch
+                $null = 1
             }
+        } else {
+            try {
+                <# DO NOT use Write-Message as this is inside of a script block #>
+                Write-Verbose "Searching Cert:\$Store\$Folder"
+                Get-CoreCertificate -Store $Store -Folder $Folder | Where-Object EnhancedKeyUsageList -match '1\.3\.6\.1\.5\.5\.7\.3\.1'
+        } catch {
+            # still don't care
+            # here to avoid an empty catch
+            $null = 1
         }
     }
+}
+#endregion Scriptblock for remoting
+}
+
+process {
+    foreach ($computer in $computername) {
+        try {
+            Invoke-Command2 -ComputerName $computer -Credential $Credential -ScriptBlock $scriptblock -ArgumentList $thumbprint, $Store, $Folder, $Path -ErrorAction Stop | Select-DefaultView -Property FriendlyName, DnsNameList, Thumbprint, NotBefore, NotAfter, Subject, Issuer
+    } catch {
+        Stop-Function -Message "Issue connecting to computer" -ErrorRecord $_ -Target $computer -Continue
+    }
+}
+}
 }

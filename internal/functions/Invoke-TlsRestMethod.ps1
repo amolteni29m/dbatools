@@ -8,11 +8,11 @@ function Invoke-TlsRestMethod {
     $currentVersionTls = [Net.ServicePointManager]::SecurityProtocol
     $currentSupportableTls = [Math]::Max($currentVersionTls.value__, [Net.SecurityProtocolType]::Tls.value__)
     $availableTls = [enum]::GetValues('Net.SecurityProtocolType') | Where-Object { $_ -gt $currentSupportableTls }
-    $availableTls | ForEach-Object {
-        [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor $_
-    }
+$availableTls | ForEach-Object {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor $_
+}
 
-    Invoke-RestMethod @Args
+Invoke-RestMethod @Args
 
-    [Net.ServicePointManager]::SecurityProtocol = $currentVersionTls
+[Net.ServicePointManager]::SecurityProtocol = $currentVersionTls
 }

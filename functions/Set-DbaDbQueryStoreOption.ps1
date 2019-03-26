@@ -141,82 +141,82 @@ function Set-DbaDbQueryStoreOption {
             # We have to exclude all the system databases since they cannot have the Query Store feature enabled
             $dbs = Get-DbaDatabase -SqlInstance $server -ExcludeDatabase $ExcludeDatabase -Database $Database | Where-Object IsAccessible
 
-        foreach ($db in $dbs) {
-            Write-Message -Level Verbose -Message "Processing $($db.name) on $instance"
+            foreach ($db in $dbs) {
+                Write-Message -Level Verbose -Message "Processing $($db.name) on $instance"
 
-            if ($db.IsAccessible -eq $false) {
-                Write-Message -Level Warning -Message "The database $db on server $instance is not accessible. Skipping database."
-                continue
-            }
-
-            if ($State) {
-                if ($Pscmdlet.ShouldProcess("$db on $instance", "Changing DesiredState to $state")) {
-                    $db.QueryStoreOptions.DesiredState = $State
-                    $db.QueryStoreOptions.Alter()
-                    $db.QueryStoreOptions.Refresh()
+                if ($db.IsAccessible -eq $false) {
+                    Write-Message -Level Warning -Message "The database $db on server $instance is not accessible. Skipping database."
+                    continue
                 }
-            }
 
-            if ($db.QueryStoreOptions.DesiredState -eq "Off" -and (Test-Bound -Parameter State -Not)) {
-                Write-Message -Level Warning -Message "State is set to Off; cannot change values. Please update State to ReadOnly or ReadWrite."
-                continue
-            }
-
-            if ($FlushInterval) {
-                if ($Pscmdlet.ShouldProcess("$db on $instance", "Changing DataFlushIntervalInSeconds to $FlushInterval")) {
-                    $db.QueryStoreOptions.DataFlushIntervalInSeconds = $FlushInterval
+                if ($State) {
+                    if ($Pscmdlet.ShouldProcess("$db on $instance", "Changing DesiredState to $state")) {
+                        $db.QueryStoreOptions.DesiredState = $State
+                        $db.QueryStoreOptions.Alter()
+                        $db.QueryStoreOptions.Refresh()
+                    }
                 }
-            }
 
-            if ($CollectionInterval) {
-                if ($Pscmdlet.ShouldProcess("$db on $instance", "Changing StatisticsCollectionIntervalInMinutes to $CollectionInterval")) {
-                    $db.QueryStoreOptions.StatisticsCollectionIntervalInMinutes = $CollectionInterval
+                if ($db.QueryStoreOptions.DesiredState -eq "Off" -and (Test-Bound -Parameter State -Not)) {
+                    Write-Message -Level Warning -Message "State is set to Off; cannot change values. Please update State to ReadOnly or ReadWrite."
+                    continue
                 }
-            }
 
-            if ($MaxSize) {
-                if ($Pscmdlet.ShouldProcess("$db on $instance", "Changing MaxStorageSizeInMB to $MaxSize")) {
-                    $db.QueryStoreOptions.MaxStorageSizeInMB = $MaxSize
+                if ($FlushInterval) {
+                    if ($Pscmdlet.ShouldProcess("$db on $instance", "Changing DataFlushIntervalInSeconds to $FlushInterval")) {
+                        $db.QueryStoreOptions.DataFlushIntervalInSeconds = $FlushInterval
+                    }
                 }
-            }
 
-            if ($CaptureMode) {
-                if ($Pscmdlet.ShouldProcess("$db on $instance", "Changing QueryCaptureMode to $CaptureMode")) {
-                    $db.QueryStoreOptions.QueryCaptureMode = $CaptureMode
+                if ($CollectionInterval) {
+                    if ($Pscmdlet.ShouldProcess("$db on $instance", "Changing StatisticsCollectionIntervalInMinutes to $CollectionInterval")) {
+                        $db.QueryStoreOptions.StatisticsCollectionIntervalInMinutes = $CollectionInterval
+                    }
                 }
-            }
 
-            if ($CleanupMode) {
-                if ($Pscmdlet.ShouldProcess("$db on $instance", "Changing SizeBasedCleanupMode to $CleanupMode")) {
-                    $db.QueryStoreOptions.SizeBasedCleanupMode = $CleanupMode
+                if ($MaxSize) {
+                    if ($Pscmdlet.ShouldProcess("$db on $instance", "Changing MaxStorageSizeInMB to $MaxSize")) {
+                        $db.QueryStoreOptions.MaxStorageSizeInMB = $MaxSize
+                    }
                 }
-            }
 
-            if ($StaleQueryThreshold) {
-                if ($Pscmdlet.ShouldProcess("$db on $instance", "Changing StaleQueryThresholdInDays to $StaleQueryThreshold")) {
-                    $db.QueryStoreOptions.StaleQueryThresholdInDays = $StaleQueryThreshold
+                if ($CaptureMode) {
+                    if ($Pscmdlet.ShouldProcess("$db on $instance", "Changing QueryCaptureMode to $CaptureMode")) {
+                        $db.QueryStoreOptions.QueryCaptureMode = $CaptureMode
+                    }
                 }
-            }
 
-            # Alter the Query Store Configuration
-            if ($Pscmdlet.ShouldProcess("$db on $instance", "Altering Query Store configuration on database")) {
-                try {
-                    $db.QueryStoreOptions.Alter()
-                    $db.Alter()
-                    $db.Refresh()
-                } catch {
-                    Stop-Function -Message "Could not modify configuration." -Category InvalidOperation -InnerErrorRecord $_ -Target $db -Continue
+                if ($CleanupMode) {
+                    if ($Pscmdlet.ShouldProcess("$db on $instance", "Changing SizeBasedCleanupMode to $CleanupMode")) {
+                        $db.QueryStoreOptions.SizeBasedCleanupMode = $CleanupMode
+                    }
                 }
-            }
 
-            if ($Pscmdlet.ShouldProcess("$db on $instance", "Getting results from Get-DbaDbQueryStoreOption")) {
-                # Display resulting changes
-                Get-DbaDbQueryStoreOption -SqlInstance $server -Database $db.name -Verbose:$false
+                if ($StaleQueryThreshold) {
+                    if ($Pscmdlet.ShouldProcess("$db on $instance", "Changing StaleQueryThresholdInDays to $StaleQueryThreshold")) {
+                        $db.QueryStoreOptions.StaleQueryThresholdInDays = $StaleQueryThreshold
+                    }
+                }
+
+                # Alter the Query Store Configuration
+                if ($Pscmdlet.ShouldProcess("$db on $instance", "Altering Query Store configuration on database")) {
+                    try {
+                        $db.QueryStoreOptions.Alter()
+                        $db.Alter()
+                        $db.Refresh()
+                    } catch {
+                        Stop-Function -Message "Could not modify configuration." -Category InvalidOperation -InnerErrorRecord $_ -Target $db -Continue
+                    }
+                }
+
+                if ($Pscmdlet.ShouldProcess("$db on $instance", "Getting results from Get-DbaDbQueryStoreOption")) {
+                    # Display resulting changes
+                    Get-DbaDbQueryStoreOption -SqlInstance $server -Database $db.name -Verbose:$false
+                }
             }
         }
     }
-}
-end {
-    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Set-DbaDbQueryStoreOptions
-}
+    end {
+        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Set-DbaDbQueryStoreOptions
+    }
 }

@@ -118,26 +118,26 @@ function Stop-DbaService {
     }
     end {
         $processArray = [array]($processArray | Where-Object { (!$InstanceName -or $_.InstanceName -in $InstanceName) -and (!$Type -or $_.ServiceType -in $Type) })
-    foreach ($service in $processArray) {
-        if ($Force -and $service.ServiceType -eq 'Engine' -and !($processArray | Where-Object { $_.ServiceType -eq 'Agent' -and $_.InstanceName -eq $service.InstanceName -and $_.ComputerName -eq $service.ComputerName })) {
-        #Construct parameters to call Get-DbaService
-        $serviceParams = @{
-            ComputerName = $service.ComputerName
-            InstanceName = $service.InstanceName
-            Type         = 'Agent'
+        foreach ($service in $processArray) {
+            if ($Force -and $service.ServiceType -eq 'Engine' -and !($processArray | Where-Object { $_.ServiceType -eq 'Agent' -and $_.InstanceName -eq $service.InstanceName -and $_.ComputerName -eq $service.ComputerName })) {
+                #Construct parameters to call Get-DbaService
+                $serviceParams = @{
+                    ComputerName = $service.ComputerName
+                    InstanceName = $service.InstanceName
+                    Type         = 'Agent'
+                }
+                if ($Credential) { $serviceParams.Credential = $Credential }
+                if ($EnableException) { $serviceParams.EnableException = $EnableException }
+                $processArray += @(Get-DbaService @serviceParams)
+            }
         }
-        if ($Credential) { $serviceParams.Credential = $Credential }
-        if ($EnableException) { $serviceParams.EnableException = $EnableException }
-        $processArray += @(Get-DbaService @serviceParams)
+        if ($PSCmdlet.ShouldProcess("$ProcessArray", "Stopping Service")) {
+            if ($processArray) {
+                Update-ServiceStatus -InputObject $processArray -Action 'stop' -Timeout $Timeout -EnableException $EnableException
+            } else {
+                Stop-Function -EnableException $EnableException -Message "No SQL Server services found with current parameters." -Category ObjectNotFound
+            }
+        }
+        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Stop-DbaSqlService
     }
-}
-if ($PSCmdlet.ShouldProcess("$ProcessArray", "Stopping Service")) {
-    if ($processArray) {
-        Update-ServiceStatus -InputObject $processArray -Action 'stop' -Timeout $Timeout -EnableException $EnableException
-    } else {
-        Stop-Function -EnableException $EnableException -Message "No SQL Server services found with current parameters." -Category ObjectNotFound
-    }
-}
-Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Stop-DbaSqlService
-}
 }

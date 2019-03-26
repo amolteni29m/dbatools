@@ -87,19 +87,19 @@ function Get-DbaDbMailAccount {
 
                 if ($Account) {
                     $accounts = $accounts | Where-Object Name -in $Account
+                }
+
+                If ($ExcludeAccount) {
+                    $accounts = $accounts | Where-Object Name -notin $ExcludeAccount
+                }
+
+                $accounts | Add-Member -Force -MemberType NoteProperty -Name ComputerName -value $mailserver.ComputerName
+                $accounts | Add-Member -Force -MemberType NoteProperty -Name InstanceName -value $mailserver.InstanceName
+                $accounts | Add-Member -Force -MemberType NoteProperty -Name SqlInstance -value $mailserver.SqlInstance
+                $accounts | Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, ID, Name, DisplayName, Description, EmailAddress, ReplyToAddress, IsBusyAccount, MailServers
+            } catch {
+                Stop-Function -Message "Failure" -ErrorRecord $_ -Continue
             }
-
-            If ($ExcludeAccount) {
-                $accounts = $accounts | Where-Object Name -notin $ExcludeAccount
         }
-
-        $accounts | Add-Member -Force -MemberType NoteProperty -Name ComputerName -value $mailserver.ComputerName
-    $accounts | Add-Member -Force -MemberType NoteProperty -Name InstanceName -value $mailserver.InstanceName
-$accounts | Add-Member -Force -MemberType NoteProperty -Name SqlInstance -value $mailserver.SqlInstance
-$accounts | Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, ID, Name, DisplayName, Description, EmailAddress, ReplyToAddress, IsBusyAccount, MailServers
-} catch {
-    Stop-Function -Message "Failure" -ErrorRecord $_ -Continue
-}
-}
-}
+    }
 }

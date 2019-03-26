@@ -87,21 +87,21 @@ function Get-DbaDbMailProfile {
 
                 if ($Profile) {
                     $profiles = $profiles | Where-Object Name -in $Profile
+                }
+
+                If ($ExcludeProfile) {
+                    $profiles = $profiles | Where-Object Name -notin $ExcludeProfile
+
+                }
+
+                $profiles | Add-Member -Force -MemberType NoteProperty -Name ComputerName -value $mailserver.ComputerName
+                $profiles | Add-Member -Force -MemberType NoteProperty -Name InstanceName -value $mailserver.InstanceName
+                $profiles | Add-Member -Force -MemberType NoteProperty -Name SqlInstance -value $mailserver.SqlInstance
+
+                $profiles | Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, ID, Name, Description, ForceDeleteForActiveProfiles, IsBusyProfile
+            } catch {
+                Stop-Function -Message "Failure" -ErrorRecord $_ -Continue
             }
-
-            If ($ExcludeProfile) {
-                $profiles = $profiles | Where-Object Name -notin $ExcludeProfile
-
         }
-
-        $profiles | Add-Member -Force -MemberType NoteProperty -Name ComputerName -value $mailserver.ComputerName
-    $profiles | Add-Member -Force -MemberType NoteProperty -Name InstanceName -value $mailserver.InstanceName
-$profiles | Add-Member -Force -MemberType NoteProperty -Name SqlInstance -value $mailserver.SqlInstance
-
-$profiles | Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, ID, Name, Description, ForceDeleteForActiveProfiles, IsBusyProfile
-} catch {
-    Stop-Function -Message "Failure" -ErrorRecord $_ -Continue
-}
-}
-}
+    }
 }

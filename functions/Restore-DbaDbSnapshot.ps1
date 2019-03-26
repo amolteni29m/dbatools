@@ -112,90 +112,90 @@ function Restore-DbaDbSnapshot {
 
             $InputObject += Get-DbaDbSnapshot -SqlInstance $server -Database $Database -ExcludeDatabase $ExcludeDatabase -Snapshot $Snapshot | Sort-Object CreateDate -Descending
 
-        if ($Snapshot) {
-            # Restore databases from these snapshots
-            Write-Message -Level Verbose -Message "Selected only snapshots"
-            $dbs = $InputObject | Where-Object { $Snapshot -contains $_.Name }
-        $baseDatabases = $dbs | Select-Object -ExpandProperty DatabaseSnapshotBaseName | Get-Unique
-if ($baseDatabases.Count -ne $Snapshot.Count -and $dbs.Count -ne 0) {
-    Stop-Function -Message "Failure. Multiple snapshots selected for the same database" -Continue
-}
-}
-}
-
-foreach ($snap in $InputObject) {
-    # In the event someone passed -Database and it got all the snaps, most of which were dropped by the first
-    if ($snap.Parent) {
-        $server = $snap.Parent
-
-        if (-not $snap.IsDatabaseSnapshot) {
-            Stop-Function -Continue -Message "$snap on $server is not a valid snapshot"
+            if ($Snapshot) {
+                # Restore databases from these snapshots
+                Write-Message -Level Verbose -Message "Selected only snapshots"
+                $dbs = $InputObject | Where-Object { $Snapshot -contains $_.Name }
+                $baseDatabases = $dbs | Select-Object -ExpandProperty DatabaseSnapshotBaseName | Get-Unique
+                if ($baseDatabases.Count -ne $Snapshot.Count -and $dbs.Count -ne 0) {
+                    Stop-Function -Message "Failure. Multiple snapshots selected for the same database" -Continue
+                }
+            }
         }
 
-        if (-not ($snap.IsAccessible)) {
-            Stop-Function -Message "Database $snap is not accessible on $($snap.Parent)." -Continue
+        foreach ($snap in $InputObject) {
+            # In the event someone passed -Database and it got all the snaps, most of which were dropped by the first
+            if ($snap.Parent) {
+                $server = $snap.Parent
+
+                if (-not $snap.IsDatabaseSnapshot) {
+                    Stop-Function -Continue -Message "$snap on $server is not a valid snapshot"
+                }
+
+                if (-not ($snap.IsAccessible)) {
+                    Stop-Function -Message "Database $snap is not accessible on $($snap.Parent)." -Continue
+                }
+
+                $othersnaps = $server.Databases | Where-Object { $_.DatabaseSnapshotBaseName -eq $snap.DatabaseSnapshotBaseName -and $_.Name -ne $snap.Name }
+
+                $db = $server.Databases | Where-Object Name -eq $snap.DatabaseSnapshotBaseName
+                $loginfo = $db.LogFiles | Select-Object Id, Size, Growth, GrowthType
+
+                if (($snap | Where-Object FileGroupType -eq 'FileStreamDataFileGroup')) {
+                    Stop-Function -Message "Database $snap on $server has FileStream group(s). You cannot restore from snapshots" -Continue
+                }
+
+                if ($othersnaps -and -not $force) {
+                    Stop-Function -Message "The restore process for $db from $snap needs to drop other snapshots on $db. Use -Force if you want to drop these snapshots" -Continue
+                }
+
+                if ($Pscmdlet.ShouldProcess($server, "Remove other db snapshots for $db")) {
+                    try {
+                        $null = $othersnaps | Remove-DbaDatabase -Confirm:$false -EnableException
+                    } catch {
+                        Stop-Function -Message "Failed to remove other snapshots for $db on $server" -ErrorRecord $_ -Continue
+                    }
+                }
+
+                # Need a proper restore now
+                if ($Pscmdlet.ShouldProcess($server, "Restore db $db from $snap")) {
+                    try {
+                        if ($Force) {
+                            $null = Stop-DbaProcess -SqlInstance $server -Database $db.Name, $snap.Name -WarningAction SilentlyContinue
+                        }
+
+                        $null = $server.Query("USE master; RESTORE DATABASE [$($db.Name)] FROM DATABASE_SNAPSHOT='$($snap.Name)'")
+                    } catch {
+                        Stop-Function -Message "Failiure attempting to restore $db on $server" -ErrorRecord $_ -Continue
+                    }
+                }
+
+                # Comparing sizes before and after, need to refresh to see if size
+                foreach ($log in $db.LogFiles) {
+                    $log.Refresh()
+                }
+
+                foreach ($log in $db.LogFiles) {
+                    $matching = $loginfo | Where-Object ID -eq $log.ID
+                    $changeflag = 0
+                    foreach ($prop in @('Size', 'Growth', 'Growth', 'GrowthType')) {
+                        if ($matching.$prop -ne $log.$prop) {
+                            $changeflag = 1
+                            $log.$prop = $matching.$prop
+                        }
+                    }
+                    if ($changeflag -ne 0) {
+                        Write-Message -Level Verbose -Message "Restoring original settings for log file"
+                        $log.Alter()
+                    }
+                }
+
+                Write-Message -Level Verbose -Message "Restored. Remember to take a backup now, and also to remove the snapshot if not needed."
+                Get-DbaDatabase -SqlInstance $server -Database $db.Name
+            }
         }
-
-        $othersnaps = $server.Databases | Where-Object { $_.DatabaseSnapshotBaseName -eq $snap.DatabaseSnapshotBaseName -and $_.Name -ne $snap.Name }
-
-    $db = $server.Databases | Where-Object Name -eq $snap.DatabaseSnapshotBaseName
-$loginfo = $db.LogFiles | Select-Object Id, Size, Growth, GrowthType
-
-if (($snap | Where-Object FileGroupType -eq 'FileStreamDataFileGroup')) {
-    Stop-Function -Message "Database $snap on $server has FileStream group(s). You cannot restore from snapshots" -Continue
-}
-
-if ($othersnaps -and -not $force) {
-    Stop-Function -Message "The restore process for $db from $snap needs to drop other snapshots on $db. Use -Force if you want to drop these snapshots" -Continue
-}
-
-if ($Pscmdlet.ShouldProcess($server, "Remove other db snapshots for $db")) {
-    try {
-        $null = $othersnaps | Remove-DbaDatabase -Confirm:$false -EnableException
-} catch {
-    Stop-Function -Message "Failed to remove other snapshots for $db on $server" -ErrorRecord $_ -Continue
-}
-}
-
-# Need a proper restore now
-if ($Pscmdlet.ShouldProcess($server, "Restore db $db from $snap")) {
-    try {
-        if ($Force) {
-            $null = Stop-DbaProcess -SqlInstance $server -Database $db.Name, $snap.Name -WarningAction SilentlyContinue
-        }
-
-        $null = $server.Query("USE master; RESTORE DATABASE [$($db.Name)] FROM DATABASE_SNAPSHOT='$($snap.Name)'")
-    } catch {
-        Stop-Function -Message "Failiure attempting to restore $db on $server" -ErrorRecord $_ -Continue
     }
-}
-
-# Comparing sizes before and after, need to refresh to see if size
-foreach ($log in $db.LogFiles) {
-    $log.Refresh()
-}
-
-foreach ($log in $db.LogFiles) {
-    $matching = $loginfo | Where-Object ID -eq $log.ID
-$changeflag = 0
-foreach ($prop in @('Size', 'Growth', 'Growth', 'GrowthType')) {
-    if ($matching.$prop -ne $log.$prop) {
-        $changeflag = 1
-        $log.$prop = $matching.$prop
+    end {
+        Test-DbaDeprecation -DeprecatedOn "1.0.0" -Alias Restore-DbaFromDatabaseSnapshot
     }
-}
-if ($changeflag -ne 0) {
-    Write-Message -Level Verbose -Message "Restoring original settings for log file"
-    $log.Alter()
-}
-}
-
-Write-Message -Level Verbose -Message "Restored. Remember to take a backup now, and also to remove the snapshot if not needed."
-Get-DbaDatabase -SqlInstance $server -Database $db.Name
-}
-}
-}
-end {
-    Test-DbaDeprecation -DeprecatedOn "1.0.0" -Alias Restore-DbaFromDatabaseSnapshot
-}
 }

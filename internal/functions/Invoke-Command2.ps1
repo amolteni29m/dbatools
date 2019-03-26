@@ -64,7 +64,7 @@ function Invoke-Command2 {
     )
     <# Note: Credential stays as an object type for legacy reasons. #>
 
-    $InvokeCommandSplat = @{ }
+    $InvokeCommandSplat = @{}
     if ($ArgumentList) {
         $InvokeCommandSplat["ArgumentList"] = $ArgumentList
     }
@@ -82,57 +82,57 @@ function Invoke-Command2 {
 
         # Retrieve a session from the session cache, if available (it's unique per runspace)
         $currentSession = [Sqlcollaborative.Dbatools.Connection.ConnectionHost]::PSSessionGet($runspaceId, $ComputerName.ComputerName) | Where-Object { $_.State -Match "Opened|Disconnected" -and $_.Name -eq $sessionName }
-    if (-not $currentSession) {
-        Write-Message -Level Debug "Creating new $Authentication session [$sessionName] for $($ComputerName.ComputerName)"
-        $psSessionSplat = @{
-            ComputerName   = $ComputerName.ComputerName
-            Authentication = $Authentication
-            Name           = $sessionName
-            ErrorAction    = 'Stop'
+        if (-not $currentSession) {
+            Write-Message -Level Debug "Creating new $Authentication session [$sessionName] for $($ComputerName.ComputerName)"
+            $psSessionSplat = @{
+                ComputerName   = $ComputerName.ComputerName
+                Authentication = $Authentication
+                Name           = $sessionName
+                ErrorAction    = 'Stop'
+            }
+            if (Test-Windows -NoWarn) {
+                $timeout = New-PSSessionOption -IdleTimeout (New-TimeSpan -Minutes 10).TotalMilliSeconds
+                $psSessionSplat += @{ SessionOption = $timeout }
+            }
+            if ($Credential) {
+                $psSessionSplat += @{ Credential = $Credential }
+            }
+            if ($ConfigurationName) {
+                $psSessionSplat += @{ ConfigurationName = $ConfigurationName }
+            }
+            $currentSession = New-PSSession @psSessionSplat
+            $InvokeCommandSplat["Session"] = $currentSession
+        } else {
+            Write-Message -Level Debug "Found an existing session $sessionName, reusing it"
+            if ($currentSession.State -eq "Disconnected") {
+                $null = $currentSession | Connect-PSSession -ErrorAction Stop
+            }
+            $InvokeCommandSplat["Session"] = $currentSession
+
+            # Refresh the session registration if registered, to reset countdown until purge
+            [Sqlcollaborative.Dbatools.Connection.ConnectionHost]::PSSessionSet($runspaceId, $ComputerName.ComputerName, $currentSession)
         }
-        if (Test-Windows -NoWarn) {
-            $timeout = New-PSSessionOption -IdleTimeout (New-TimeSpan -Minutes 10).TotalMilliSeconds
-            $psSessionSplat += @{ SessionOption = $timeout }
+    }
+    if ($RequiredPSVersion) {
+        $remoteVersion = Invoke-Command @InvokeCommandSplat -ScriptBlock { $PSVersionTable }
+        if ($remoteVersion.PSVersion -and $remoteVersion.PSVersion -lt $RequiredPSVersion) {
+            throw "Remote PS version $($remoteVersion.PSVersion) is less than defined requirement ($RequiredPSVersion)"
         }
-        if ($Credential) {
-            $psSessionSplat += @{ Credential = $Credential }
-        }
-        if ($ConfigurationName) {
-            $psSessionSplat += @{ ConfigurationName = $ConfigurationName }
-        }
-        $currentSession = New-PSSession @psSessionSplat
-        $InvokeCommandSplat["Session"] = $currentSession
+    }
+
+    $InvokeCommandSplat.ScriptBlock = $ScriptBlock
+    if ($Raw) {
+        Invoke-Command @InvokeCommandSplat
     } else {
-        Write-Message -Level Debug "Found an existing session $sessionName, reusing it"
-        if ($currentSession.State -eq "Disconnected") {
-            $null = $currentSession | Connect-PSSession -ErrorAction Stop
+        Invoke-Command @InvokeCommandSplat | Select-Object -Property * -ExcludeProperty PSComputerName, RunspaceId, PSShowComputerName
     }
-    $InvokeCommandSplat["Session"] = $currentSession
 
-    # Refresh the session registration if registered, to reset countdown until purge
-    [Sqlcollaborative.Dbatools.Connection.ConnectionHost]::PSSessionSet($runspaceId, $ComputerName.ComputerName, $currentSession)
-}
-}
-if ($RequiredPSVersion) {
-    $remoteVersion = Invoke-Command @InvokeCommandSplat -ScriptBlock { $PSVersionTable }
-    if ($remoteVersion.PSVersion -and $remoteVersion.PSVersion -lt $RequiredPSVersion) {
-        throw "Remote PS version $($remoteVersion.PSVersion) is less than defined requirement ($RequiredPSVersion)"
+    if (-not $ComputerName.IsLocalhost) {
+        # Tell the system to clean up if the session expires
+        [Sqlcollaborative.Dbatools.Connection.ConnectionHost]::PSSessionSet($runspaceId, $ComputerName.ComputerName, $currentSession)
+
+        if (-not (Get-DbatoolsConfigValue -FullName 'PSRemoting.Sessions.Enable' -Fallback $true)) {
+            $currentSession | Remove-PSSession
+        }
     }
-}
-
-$InvokeCommandSplat.ScriptBlock = $ScriptBlock
-if ($Raw) {
-    Invoke-Command @InvokeCommandSplat
-} else {
-    Invoke-Command @InvokeCommandSplat | Select-Object -Property * -ExcludeProperty PSComputerName, RunspaceId, PSShowComputerName
-}
-
-if (-not $ComputerName.IsLocalhost) {
-    # Tell the system to clean up if the session expires
-    [Sqlcollaborative.Dbatools.Connection.ConnectionHost]::PSSessionSet($runspaceId, $ComputerName.ComputerName, $currentSession)
-
-    if (-not (Get-DbatoolsConfigValue -FullName 'PSRemoting.Sessions.Enable' -Fallback $true)) {
-        $currentSession | Remove-PSSession
-}
-}
 }

@@ -92,116 +92,116 @@ function Dismount-DbaDatabase {
 
             if ($Database) {
                 $InputObject += $server.Databases | Where-Object Name -in $Database
-        } else {
-            $InputObject += $server.Databases
-        }
+            } else {
+                $InputObject += $server.Databases
+            }
 
-        if ($ExcludeDatabase) {
-            $InputObject = $InputObject | Where-Object Name -NotIn $ExcludeDatabase
-    }
-}
-
-foreach ($db in $InputObject) {
-    $db.Refresh()
-    $server = $db.Parent
-
-    if ($db.IsSystemObject) {
-        Stop-Function -Message "$db is a system database and cannot be detached using this method." -Target $db -Continue
-    }
-
-    Write-Message -Level Verbose -Message "Checking replication status."
-    if ($db.ReplicationOptions -ne "None") {
-        Stop-Function -Message "Skipping $db  on $server because it is replicated." -Target $db -Continue
-    }
-
-    # repeat because different servers could be piped in
-    $snapshots = (Get-DbaDbSnapshot -SqlInstance $server).SnapshotOf
-    Write-Message -Level Verbose -Message "Checking for snaps"
-    if ($db.Name -in $snapshots) {
-        Write-Message -Level Warning -Message "Database $db has snapshots, you need to drop them before detaching. Skipping $db on $server."
-        Continue
-    }
-
-    Write-Message -Level Verbose -Message "Checking mirror status"
-    if ($db.IsMirroringEnabled -and !$Force) {
-        Stop-Function -Message "$db on $server is being mirrored. Use -Force to break mirror or use the safer backup/restore method." -Target $db -Continue
-    }
-
-    Write-Message -Level Verbose -Message "Checking Availability Group status"
-
-    if ($db.AvailabilityGroupName -and !$Force) {
-        $ag = $db.AvailabilityGroupName
-        Stop-Function -Message "$db on $server is part of an Availability Group ($ag). Use -Force to drop from $ag availability group to detach. Alternatively, you can use the safer backup/restore method." -Target $db -Continue
-    }
-
-    $sessions = Get-DbaProcess -SqlInstance $db.Parent -Database $db.Name
-
-    if ($sessions -and !$Force) {
-        Stop-Function -Message "$db on $server currently has connected users and cannot be dropped. Use -Force to kill all connections and detach the database." -Target $db -Continue
-    }
-
-    if ($force) {
-
-        if ($sessions) {
-            If ($Pscmdlet.ShouldProcess($server, "Killing $($sessions.count) sessions which are connected to $db")) {
-                $null = $sessions | Stop-DbaProcess -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
-        }
-    }
-
-    if ($db.IsMirroringEnabled) {
-        If ($Pscmdlet.ShouldProcess($server, "Breaking mirror for $db on $server")) {
-            try {
-                Write-Message -Level Warning -Message "Breaking mirror for $db on $server."
-                $db.ChangeMirroringState([Microsoft.SqlServer.Management.Smo.MirroringOption]::Off)
-                $db.Alter()
-                $db.Refresh()
-            } catch {
-                Stop-Function -Message "Could not break mirror for $db on $server - not detaching." -Target $db -ErrorRecord $_ -Continue
+            if ($ExcludeDatabase) {
+                $InputObject = $InputObject | Where-Object Name -NotIn $ExcludeDatabase
             }
         }
-    }
 
-    if ($db.AvailabilityGroupName) {
-        $ag = $db.AvailabilityGroupName
-        If ($Pscmdlet.ShouldProcess($server, "Attempting remove $db on $server from Availability Group $ag")) {
-            try {
-                $server.AvailabilityGroups[$ag].AvailabilityDatabases[$db.name].Drop()
-                Write-Message -Level Verbose -Message "Successfully removed $db from  detach from $ag on $server."
-            } catch {
-                if ($_.Exception.InnerException) {
-                    $exception = $_.Exception.InnerException.ToString() -Split "System.Data.SqlClient.SqlException: "
-                    $exception = " | $(($exception[1] -Split "at Microsoft.SqlServer.Management.Common.ConnectionManager")[0])".TrimEnd()
+        foreach ($db in $InputObject) {
+            $db.Refresh()
+            $server = $db.Parent
+
+            if ($db.IsSystemObject) {
+                Stop-Function -Message "$db is a system database and cannot be detached using this method." -Target $db -Continue
+            }
+
+            Write-Message -Level Verbose -Message "Checking replication status."
+            if ($db.ReplicationOptions -ne "None") {
+                Stop-Function -Message "Skipping $db  on $server because it is replicated." -Target $db -Continue
+            }
+
+            # repeat because different servers could be piped in
+            $snapshots = (Get-DbaDbSnapshot -SqlInstance $server).SnapshotOf
+            Write-Message -Level Verbose -Message "Checking for snaps"
+            if ($db.Name -in $snapshots) {
+                Write-Message -Level Warning -Message "Database $db has snapshots, you need to drop them before detaching. Skipping $db on $server."
+                Continue
+            }
+
+            Write-Message -Level Verbose -Message "Checking mirror status"
+            if ($db.IsMirroringEnabled -and !$Force) {
+                Stop-Function -Message "$db on $server is being mirrored. Use -Force to break mirror or use the safer backup/restore method." -Target $db -Continue
+            }
+
+            Write-Message -Level Verbose -Message "Checking Availability Group status"
+
+            if ($db.AvailabilityGroupName -and !$Force) {
+                $ag = $db.AvailabilityGroupName
+                Stop-Function -Message "$db on $server is part of an Availability Group ($ag). Use -Force to drop from $ag availability group to detach. Alternatively, you can use the safer backup/restore method." -Target $db -Continue
+            }
+
+            $sessions = Get-DbaProcess -SqlInstance $db.Parent -Database $db.Name
+
+            if ($sessions -and !$Force) {
+                Stop-Function -Message "$db on $server currently has connected users and cannot be dropped. Use -Force to kill all connections and detach the database." -Target $db -Continue
+            }
+
+            if ($force) {
+
+                if ($sessions) {
+                    If ($Pscmdlet.ShouldProcess($server, "Killing $($sessions.count) sessions which are connected to $db")) {
+                        $null = $sessions | Stop-DbaProcess -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
+                    }
                 }
 
-                Stop-Function -Message "Could not remove $db from $ag on $server $exception." -Target $db -ErrorRecord $_ -Continue
+                if ($db.IsMirroringEnabled) {
+                    If ($Pscmdlet.ShouldProcess($server, "Breaking mirror for $db on $server")) {
+                        try {
+                            Write-Message -Level Warning -Message "Breaking mirror for $db on $server."
+                            $db.ChangeMirroringState([Microsoft.SqlServer.Management.Smo.MirroringOption]::Off)
+                            $db.Alter()
+                            $db.Refresh()
+                        } catch {
+                            Stop-Function -Message "Could not break mirror for $db on $server - not detaching." -Target $db -ErrorRecord $_ -Continue
+                        }
+                    }
+                }
+
+                if ($db.AvailabilityGroupName) {
+                    $ag = $db.AvailabilityGroupName
+                    If ($Pscmdlet.ShouldProcess($server, "Attempting remove $db on $server from Availability Group $ag")) {
+                        try {
+                            $server.AvailabilityGroups[$ag].AvailabilityDatabases[$db.name].Drop()
+                            Write-Message -Level Verbose -Message "Successfully removed $db from  detach from $ag on $server."
+                        } catch {
+                            if ($_.Exception.InnerException) {
+                                $exception = $_.Exception.InnerException.ToString() -Split "System.Data.SqlClient.SqlException: "
+                                $exception = " | $(($exception[1] -Split "at Microsoft.SqlServer.Management.Common.ConnectionManager")[0])".TrimEnd()
+                            }
+
+                            Stop-Function -Message "Could not remove $db from $ag on $server $exception." -Target $db -ErrorRecord $_ -Continue
+                        }
+                    }
+                }
+
+                $sessions = Get-DbaProcess -SqlInstance $db.Parent -Database $db.Name
+
+                if ($sessions) {
+                    If ($Pscmdlet.ShouldProcess($server, "Killing $($sessions.count) sessions which are still connected to $db")) {
+                        $null = $sessions | Stop-DbaProcess -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
+                    }
+                }
+            }
+
+            If ($Pscmdlet.ShouldProcess($server, "Detaching $db on $server")) {
+                try {
+                    $server.DetachDatabase($db.Name, $UpdateStatistics)
+
+                    [pscustomobject]@{
+                        ComputerName = $server.ComputerName
+                        InstanceName = $server.ServiceName
+                        SqlInstance  = $server.DomainInstanceName
+                        Database     = $db.name
+                        DetachResult = "Success"
+                    }
+                } catch {
+                    Stop-Function -Message "Failure" -Target $db -ErrorRecord $_ -Continue
+                }
             }
         }
     }
-
-    $sessions = Get-DbaProcess -SqlInstance $db.Parent -Database $db.Name
-
-    if ($sessions) {
-        If ($Pscmdlet.ShouldProcess($server, "Killing $($sessions.count) sessions which are still connected to $db")) {
-            $null = $sessions | Stop-DbaProcess -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
-    }
-}
-}
-
-If ($Pscmdlet.ShouldProcess($server, "Detaching $db on $server")) {
-    try {
-        $server.DetachDatabase($db.Name, $UpdateStatistics)
-
-        [pscustomobject]@{
-            ComputerName = $server.ComputerName
-            InstanceName = $server.ServiceName
-            SqlInstance  = $server.DomainInstanceName
-            Database     = $db.name
-            DetachResult = "Success"
-        }
-    } catch {
-        Stop-Function -Message "Failure" -Target $db -ErrorRecord $_ -Continue
-    }
-}
-}
-}
 }

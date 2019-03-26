@@ -51,7 +51,7 @@ function Test-DbaPowerPlan {
 
         Checks the Power Plan settings for sqlserver2014a and indicates whether or not it is set to the custom plan "Maximum Performance".
 
-    #>
+       #>
     param (
         [parameter(ValueFromPipeline)]
         [Alias("ServerInstance", "SqlServer", "SqlInstance")]
@@ -103,53 +103,53 @@ function Test-DbaPowerPlan {
 
             try {
                 $powerPlans = Get-DbaCmObject @splatDbaCmObject -ClassName Win32_PowerPlan -Namespace "root\cimv2\power" | Select-Object ElementName, InstanceId, IsActive
-        } catch {
-            if ($_.Exception -match "namespace") {
-                Stop-Function -Message "Can't get Power Plan Info for $computer. Unsupported operating system." -Continue -ErrorRecord $_ -Target $computer
-            } else {
-                Stop-Function -Message "Can't get Power Plan Info for $computer. Check logs for more details." -Continue -ErrorRecord $_ -Target $computer
+            } catch {
+                if ($_.Exception -match "namespace") {
+                    Stop-Function -Message "Can't get Power Plan Info for $computer. Unsupported operating system." -Continue -ErrorRecord $_ -Target $computer
+                } else {
+                    Stop-Function -Message "Can't get Power Plan Info for $computer. Check logs for more details." -Continue -ErrorRecord $_ -Target $computer
+                }
             }
+
+            $powerPlan = $powerPlans | Where-Object IsActive -eq 'True' | Select-Object ElementName, InstanceID
+            $powerPlan.InstanceID = $powerPlan.InstanceID.Split('{')[1].Split('}')[0]
+
+            if ($null -eq $powerPlan.InstanceID) {
+                $powerPlan.ElementName = "Unknown"
+            }
+            if ($CustomPowerPlan) {
+                $bpPowerPlan.ElementName = $CustomPowerPlan
+                $bpPowerPlan.InstanceID = $($powerPlans | Where-Object {
+                        $_.ElementName -eq $CustomPowerPlan
+                    }).InstanceID
+            } else {
+                $bpPowerPlan.ElementName = $($powerPlans | Where-Object {
+                        $_.InstanceID.Split('{')[1].Split('}')[0] -eq $bpPowerPlan.InstanceID
+                    }).ElementName
+                if ($null -eq $bpPowerplan.ElementName) {
+                    $bpPowerPlan.ElementName = "You do not have the high performance plan installed on this machine."
+                }
+            }
+
+            Write-Message -Level Verbose -Message "Recommended GUID is $($bpPowerPlan.InstanceID) and you have $($powerPlan.InstanceID)."
+
+            if ($null -eq $powerPlan.InstanceID) {
+                $powerPlan.ElementName = "Unknown"
+            }
+
+            if ($powerPlan.InstanceID -eq $bpPowerPlan.InstanceID) {
+                $isBestPractice = $true
+            } else {
+                $isBestPractice = $false
+            }
+
+            [PSCustomObject]@{
+                ComputerName         = $computer
+                ActivePowerPlan      = $powerPlan.ElementName
+                RecommendedPowerPlan = $bpPowerPlan.ElementName
+                isBestPractice       = $isBestPractice
+                Credential           = $Credential
+            } | Select-DefaultView -ExcludeProperty Credential
         }
-
-        $powerPlan = $powerPlans | Where-Object IsActive -eq 'True' | Select-Object ElementName, InstanceID
-$powerPlan.InstanceID = $powerPlan.InstanceID.Split('{')[1].Split('}')[0]
-
-if ($null -eq $powerPlan.InstanceID) {
-    $powerPlan.ElementName = "Unknown"
-}
-if ($CustomPowerPlan) {
-    $bpPowerPlan.ElementName = $CustomPowerPlan
-    $bpPowerPlan.InstanceID = $($powerPlans | Where-Object {
-            $_.ElementName -eq $CustomPowerPlan
-        }).InstanceID
-} else {
-    $bpPowerPlan.ElementName = $($powerPlans | Where-Object {
-            $_.InstanceID.Split('{')[1].Split('}')[0] -eq $bpPowerPlan.InstanceID
-        }).ElementName
-if ($null -eq $bpPowerplan.ElementName) {
-    $bpPowerPlan.ElementName = "You do not have the high performance plan installed on this machine."
-}
-}
-
-Write-Message -Level Verbose -Message "Recommended GUID is $($bpPowerPlan.InstanceID) and you have $($powerPlan.InstanceID)."
-
-if ($null -eq $powerPlan.InstanceID) {
-    $powerPlan.ElementName = "Unknown"
-}
-
-if ($powerPlan.InstanceID -eq $bpPowerPlan.InstanceID) {
-    $isBestPractice = $true
-} else {
-    $isBestPractice = $false
-}
-
-[PSCustomObject]@{
-    ComputerName         = $computer
-    ActivePowerPlan      = $powerPlan.ElementName
-    RecommendedPowerPlan = $bpPowerPlan.ElementName
-    isBestPractice       = $isBestPractice
-    Credential           = $Credential
-} | Select-DefaultView -ExcludeProperty Credential
-}
-}
+    }
 }

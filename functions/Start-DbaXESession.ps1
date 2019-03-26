@@ -154,19 +154,19 @@ function Start-DbaXESession {
                 # Filter xeSessions based on parameters
                 if ($Session) {
                     $xeSessions = $xeSessions | Where-Object { $_.Name -in $Session }
-            } elseif ($AllSessions) {
-                $systemSessions = @('AlwaysOn_health', 'system_health', 'telemetry_xevents')
-                $xeSessions = $xeSessions | Where-Object { $_.Name -notin $systemSessions }
-        }
+                } elseif ($AllSessions) {
+                    $systemSessions = @('AlwaysOn_health', 'system_health', 'telemetry_xevents')
+                    $xeSessions = $xeSessions | Where-Object { $_.Name -notin $systemSessions }
+                }
 
-        if ($Pscmdlet.ShouldProcess("$instance", "Configuring XEvent Session $session to start")) {
-            Start-XESessions $xeSessions
+                if ($Pscmdlet.ShouldProcess("$instance", "Configuring XEvent Session $session to start")) {
+                    Start-XESessions $xeSessions
 
-            if ($StopAt) {
-                New-StopJob -xeSessions $xeSessions -StopAt $stopat
+                    if ($StopAt) {
+                        New-StopJob -xeSessions $xeSessions -StopAt $stopat
+                    }
+                }
             }
         }
     }
-}
-}
 }

@@ -23,11 +23,11 @@ function Test-SqlLoginAccess {
             $rows = $SqlInstance.ConnectionContext.ExecuteScalar("EXEC xp_logininfo '$Login'")
 
             if (($rows | Measure-Object).Count -eq 0) {
+                return $false
+            }
+        } catch {
             return $false
         }
-    } catch {
-        return $false
     }
-}
-return $true
+    return $true
 }

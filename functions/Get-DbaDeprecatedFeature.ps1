@@ -68,10 +68,10 @@ function Get-DbaDeprecatedFeature {
 
             try {
                 $server.Query($sql) | Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, ObjectName, DeprecatedFeature, UsageCount
-        } catch {
-            Stop-Function -Message "Failure" -ErrorRecord $_ -Target $instance -Continue
-        }
+            } catch {
+                Stop-Function -Message "Failure" -ErrorRecord $_ -Target $instance -Continue
+            }
 
+        }
     }
-}
 }

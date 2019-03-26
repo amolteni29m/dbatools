@@ -119,61 +119,61 @@ function Start-DbaAgentJob {
             # If a specific job needs to be added
             if (-not $AllJobs -and $Job) {
                 $InputObject = $server.JobServer.Jobs | Where-Object Name -In $Job
-        }
+            }
 
-        # If a job needs to be excluded
-        if ($ExcludeJob) {
-            $InputObject = $InputObject | Where-Object Name -NotIn $ExcludeJob
-    }
-}
-
-# Loop through each of the jobs
-foreach ($currentjob in $InputObject) {
-    $server = $currentjob.Parent.Parent
-    $status = $currentjob.CurrentRunStatus
-
-    if ($status -ne 'Idle') {
-        Stop-Function -Message "$currentjob on $server is not idle ($status)" -Target $currentjob -Continue
-    }
-
-    If ($Pscmdlet.ShouldProcess($server, "Starting job $currentjob")) {
-        # Start the job
-        $lastrun = $currentjob.LastRunDate
-        Write-Message -Level Verbose -Message "Last run date was $lastrun"
-        $null = $currentjob.Start()
-
-        # Wait and refresh so that it has a chance to change status
-        Start-Sleep -Milliseconds $SleepPeriod
-        $currentjob.Refresh()
-
-        $i = 0
-        # Check if the status is Idle
-        while (($currentjob.CurrentRunStatus -eq 'Idle' -and $i++ -lt 60)) {
-            Write-Message -Level Verbose -Message "Job $($currentjob.Name) status is $($currentjob.CurrentRunStatus)"
-            Write-Message -Level Verbose -Message "Job $($currentjob.Name) last run date is $($currentjob.LastRunDate)"
-
-            Write-Message -Level Verbose -Message "Sleeping for $SleepPeriod ms and refreshing"
-            Start-Sleep -Milliseconds $SleepPeriod
-            $currentjob.Refresh()
-
-            # If it failed fast, speed up output
-            if ($lastrun -ne $currentjob.LastRunDate) {
-                $i = 600
+            # If a job needs to be excluded
+            if ($ExcludeJob) {
+                $InputObject = $InputObject | Where-Object Name -NotIn $ExcludeJob
             }
         }
 
-        # Wait for the job
-        if (Test-Bound -ParameterName Wait) {
-            while ($currentjob.CurrentRunStatus -ne 'Idle') {
-                Write-Message -Level Verbose -Message "$currentjob is $($currentjob.CurrentRunStatus)"
-                Start-Sleep -Seconds $WaitPeriod
+        # Loop through each of the jobs
+        foreach ($currentjob in $InputObject) {
+            $server = $currentjob.Parent.Parent
+            $status = $currentjob.CurrentRunStatus
+
+            if ($status -ne 'Idle') {
+                Stop-Function -Message "$currentjob on $server is not idle ($status)" -Target $currentjob -Continue
+            }
+
+            If ($Pscmdlet.ShouldProcess($server, "Starting job $currentjob")) {
+                # Start the job
+                $lastrun = $currentjob.LastRunDate
+                Write-Message -Level Verbose -Message "Last run date was $lastrun"
+                $null = $currentjob.Start()
+
+                # Wait and refresh so that it has a chance to change status
+                Start-Sleep -Milliseconds $SleepPeriod
                 $currentjob.Refresh()
+
+                $i = 0
+                # Check if the status is Idle
+                while (($currentjob.CurrentRunStatus -eq 'Idle' -and $i++ -lt 60)) {
+                    Write-Message -Level Verbose -Message "Job $($currentjob.Name) status is $($currentjob.CurrentRunStatus)"
+                    Write-Message -Level Verbose -Message "Job $($currentjob.Name) last run date is $($currentjob.LastRunDate)"
+
+                    Write-Message -Level Verbose -Message "Sleeping for $SleepPeriod ms and refreshing"
+                    Start-Sleep -Milliseconds $SleepPeriod
+                    $currentjob.Refresh()
+
+                    # If it failed fast, speed up output
+                    if ($lastrun -ne $currentjob.LastRunDate) {
+                        $i = 600
+                    }
+                }
+
+                # Wait for the job
+                if (Test-Bound -ParameterName Wait) {
+                    while ($currentjob.CurrentRunStatus -ne 'Idle') {
+                        Write-Message -Level Verbose -Message "$currentjob is $($currentjob.CurrentRunStatus)"
+                        Start-Sleep -Seconds $WaitPeriod
+                        $currentjob.Refresh()
+                    }
+                    Get-DbaAgentJob -SqlInstance $server -Job $currentjob.Name
+                } else {
+                    Get-DbaAgentJob -SqlInstance $server -Job $currentjob.Name
+                }
             }
-            Get-DbaAgentJob -SqlInstance $server -Job $currentjob.Name
-        } else {
-            Get-DbaAgentJob -SqlInstance $server -Job $currentjob.Name
         }
     }
-}
-}
 }

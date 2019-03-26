@@ -139,51 +139,51 @@ function Get-DbaSsisEnvironmentVariable {
             Write-Message -Message "Fetching SSIS Catalog and its folders" -Level Verbose
             $catalog = $SSIS.Catalogs | Where-Object { $_.Name -eq "SSISDB" }
 
-        # get all folders names if none provided
-        if ($null -eq $Folder) {
-            $searchFolders = $catalog.Folders.Name
-        } else {
-            $searchFolders = $Folder
-        }
-
-        # filter unwanted folders
-        if ($FolderExclude) {
-            $searchFolders = $searchFolders | Where-Object { $_ -notin $FolderExclude }
-    }
-
-    if ($null -eq $searchFolders) {
-        Write-Message -Message "Instance: $instance > -Folder and -FolderExclude filters return an empty collection. Skipping" -Level Warning
-    } else {
-        foreach ($f in $searchFolders) {
-            # get all environments names if none provided
-            if ($null -eq $Environment) {
-                $searchEnvironments = $catalog.Folders.Environments.Name
+            # get all folders names if none provided
+            if ($null -eq $Folder) {
+                $searchFolders = $catalog.Folders.Name
             } else {
-                $searchEnvironments = $Environment
+                $searchFolders = $Folder
             }
 
-            #filter unwanted environments
-            if ($EnvironmentExclude) {
-                $searchEnvironments = $searchEnvironments | Where-Object { $_ -notin $EnvironmentExclude }
-        }
+            # filter unwanted folders
+            if ($FolderExclude) {
+                $searchFolders = $searchFolders | Where-Object { $_ -notin $FolderExclude }
+            }
 
-        if ($null -eq $searchEnvironments) {
-            Write-Message -Message "Instance: $instance / Folder: $f > -Environment and -EnvironmentExclude filters return an empty collection. Skipping." -Level Warning
-        } else {
-            $Environments = $catalog.Folders[$f].Environments | Where-Object { $_.Name -in $searchEnvironments }
+            if ($null -eq $searchFolders) {
+                Write-Message -Message "Instance: $instance > -Folder and -FolderExclude filters return an empty collection. Skipping" -Level Warning
+            } else {
+                foreach ($f in $searchFolders) {
+                    # get all environments names if none provided
+                    if ($null -eq $Environment) {
+                        $searchEnvironments = $catalog.Folders.Environments.Name
+                    } else {
+                        $searchEnvironments = $Environment
+                    }
 
-        foreach ($e in $Environments) {
-            #encryption handling
-            $encKey = 'MS_Enckey_Env_' + $e.EnvironmentId
-            $encCert = 'MS_Cert_Env_' + $e.EnvironmentId
+                    #filter unwanted environments
+                    if ($EnvironmentExclude) {
+                        $searchEnvironments = $searchEnvironments | Where-Object { $_ -notin $EnvironmentExclude }
+                    }
 
-            <#
+                    if ($null -eq $searchEnvironments) {
+                        Write-Message -Message "Instance: $instance / Folder: $f > -Environment and -EnvironmentExclude filters return an empty collection. Skipping." -Level Warning
+                    } else {
+                        $Environments = $catalog.Folders[$f].Environments | Where-Object { $_.Name -in $searchEnvironments }
+
+                        foreach ($e in $Environments) {
+                            #encryption handling
+                            $encKey = 'MS_Enckey_Env_' + $e.EnvironmentId
+                            $encCert = 'MS_Cert_Env_' + $e.EnvironmentId
+
+                            <#
                             SMO does not return sensitive values (gets data from catalog.environment_variables)
                             We have to manually query internal.environment_variables instead and use symmetric keys
                             within T-SQL code
                             #>
 
-            $sql = @"
+                            $sql = @"
                             OPEN SYMMETRIC KEY $encKey DECRYPTION BY CERTIFICATE $encCert;
 
                             SELECT
@@ -217,34 +217,34 @@ function Get-DbaSsisEnvironmentVariable {
                             CLOSE SYMMETRIC KEY $encKey;
 "@
 
-            $ssisVariables = $server.Query($sql, "SSISDB")
+                            $ssisVariables = $server.Query($sql, "SSISDB")
 
-            foreach ($variable in $ssisVariables) {
-                if ($variable.sensitive -eq $true) {
-                    $value = $variable.decrypted
-                } else {
-                    $value = $variable.value
-                }
+                            foreach ($variable in $ssisVariables) {
+                                if ($variable.sensitive -eq $true) {
+                                    $value = $variable.decrypted
+                                } else {
+                                    $value = $variable.value
+                                }
 
-                [PSCustomObject]@{
-                    ComputerName = $server.ComputerName
-                    InstanceName = $server.ServiceName
-                    SqlInstance  = $server.DomainInstanceName
-                    Folder       = $f
-                    Environment  = $e.Name
-                    Id           = $variable.variable_id
-                    Name         = $variable.Name
-                    Description  = $variable.description
-                    Type         = $variable.type
-                    IsSensitive  = $variable.sensitive
-                    BaseDataType = $variable.base_data_type
-                    Value        = $value
+                                [PSCustomObject]@{
+                                    ComputerName = $server.ComputerName
+                                    InstanceName = $server.ServiceName
+                                    SqlInstance  = $server.DomainInstanceName
+                                    Folder       = $f
+                                    Environment  = $e.Name
+                                    Id           = $variable.variable_id
+                                    Name         = $variable.Name
+                                    Description  = $variable.description
+                                    Type         = $variable.type
+                                    IsSensitive  = $variable.sensitive
+                                    BaseDataType = $variable.base_data_type
+                                    Value        = $value
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
     }
-}
-}
-}
-}
 }

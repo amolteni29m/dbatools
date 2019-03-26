@@ -456,31 +456,31 @@ function Find-DbaDuplicateIndex {
 
             if ($database) {
                 $databases = $server.Databases | Where-Object Name -in $database
-        } else {
-            $databases = $server.Databases | Where-Object IsAccessible -eq $true
-    }
-
-    foreach ($db in $databases) {
-        try {
-            Write-Message -Level Verbose -Message "Getting indexes from database '$db'."
-
-            $query = if ($server.versionMajor -eq 9) {
-                if ($IncludeOverlapping) { $overlappingQuery2005 }
-                else { $exactDuplicateQuery2005 }
             } else {
-                if ($IncludeOverlapping) { $overlappingQuery }
-                else { $exactDuplicateQuery }
+                $databases = $server.Databases | Where-Object IsAccessible -eq $true
             }
 
-            $db.Query($query)
+            foreach ($db in $databases) {
+                try {
+                    Write-Message -Level Verbose -Message "Getting indexes from database '$db'."
 
-        } catch {
-            Stop-Function -Message "Query failure" -Target $db
+                    $query = if ($server.versionMajor -eq 9) {
+                        if ($IncludeOverlapping) { $overlappingQuery2005 }
+                        else { $exactDuplicateQuery2005 }
+                    } else {
+                        if ($IncludeOverlapping) { $overlappingQuery }
+                        else { $exactDuplicateQuery }
+                    }
+
+                    $db.Query($query)
+
+                } catch {
+                    Stop-Function -Message "Query failure" -Target $db
+                }
+            }
         }
     }
-}
-}
-end {
-    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Get-SqlDuplicateIndex
-}
+    end {
+        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Get-SqlDuplicateIndex
+    }
 }

@@ -211,82 +211,82 @@ function Export-DbaScript {
 
                 if ($passthru) {
                     $prefix | Out-String
-            } else {
-                if ($prefixArray -notcontains $actualPath) {
-
-                    if ((Test-Path -Path $actualPath) -and $NoClobber) {
-                        Stop-Function -Message "File already exists. If you want to overwrite it remove the -NoClobber parameter. If you want to append data, please Use -Append parameter." -Target $actualPath -Continue
-                    }
-                    #Only at the first output we use the passed variables Append & NoClobber. For this execution the next ones need to buse -Append
-                    $prefix | Out-File -FilePath $actualPath -Encoding $encoding -Append:$Append -NoClobber:$NoClobber
-                $prefixArray += $actualPath
-            }
-        }
-
-        if ($Pscmdlet.ShouldProcess($env:computername, "Exporting $object from $server to $actualPath")) {
-            Write-Message -Level Verbose -Message "Exporting $object"
-
-            if ($passthru) {
-                if ($ScriptingOptionsObject) {
-                    foreach ($script in $scripter.EnumScript($object)) {
-                        if ($BatchSeparator -ne "") {
-                            $script = "$script`r`n$BatchSeparator`r`n"
-                        }
-                        $script | Out-String
-                }
-            } else {
-                if (Get-Member -Name ScriptCreate -InputObject $object) {
-                    $script = $object.ScriptCreate().GetScript()
                 } else {
-                    $script = $object.Script()
+                    if ($prefixArray -notcontains $actualPath) {
+
+                        if ((Test-Path -Path $actualPath) -and $NoClobber) {
+                            Stop-Function -Message "File already exists. If you want to overwrite it remove the -NoClobber parameter. If you want to append data, please Use -Append parameter." -Target $actualPath -Continue
+                        }
+                        #Only at the first output we use the passed variables Append & NoClobber. For this execution the next ones need to buse -Append
+                        $prefix | Out-File -FilePath $actualPath -Encoding $encoding -Append:$Append -NoClobber:$NoClobber
+                        $prefixArray += $actualPath
+                    }
                 }
 
-                if ($BatchSeparator -ne "") {
-                    $script = "$script`r`n$BatchSeparator`r`n"
-                }
-                $script | Out-String
-        }
-    } else {
-        if ($ScriptingOptionsObject) {
-            if ($ScriptingOptionsObject.ScriptBatchTerminator) {
-                $ScriptingOptionsObject.AppendToFile = $true
-                $ScriptingOptionsObject.ToFileOnly = $true
-                $ScriptingOptionsObject.FileName = $actualPath
-                $object.Script($ScriptingOptionsObject)
-            } else {
-                foreach ($script in $scripter.EnumScript($object)) {
-                    if ($BatchSeparator -ne "") {
-                        $script = "$script`r`n$BatchSeparator`r`n"
+                if ($Pscmdlet.ShouldProcess($env:computername, "Exporting $object from $server to $actualPath")) {
+                    Write-Message -Level Verbose -Message "Exporting $object"
+
+                    if ($passthru) {
+                        if ($ScriptingOptionsObject) {
+                            foreach ($script in $scripter.EnumScript($object)) {
+                                if ($BatchSeparator -ne "") {
+                                    $script = "$script`r`n$BatchSeparator`r`n"
+                                }
+                                $script | Out-String
+                            }
+                        } else {
+                            if (Get-Member -Name ScriptCreate -InputObject $object) {
+                                $script = $object.ScriptCreate().GetScript()
+                            } else {
+                                $script = $object.Script()
+                            }
+
+                            if ($BatchSeparator -ne "") {
+                                $script = "$script`r`n$BatchSeparator`r`n"
+                            }
+                            $script  | Out-String
+                        }
+                    } else {
+                        if ($ScriptingOptionsObject) {
+                            if ($ScriptingOptionsObject.ScriptBatchTerminator) {
+                                $ScriptingOptionsObject.AppendToFile = $true
+                                $ScriptingOptionsObject.ToFileOnly = $true
+                                $ScriptingOptionsObject.FileName = $actualPath
+                                $object.Script($ScriptingOptionsObject)
+                            } else {
+                                foreach ($script in $scripter.EnumScript($object)) {
+                                    if ($BatchSeparator -ne "") {
+                                        $script = "$script`r`n$BatchSeparator`r`n"
+                                    }
+                                    $script | Out-File -FilePath $actualPath -Encoding $encoding -Append
+                                }
+                            }
+
+                        } else {
+                            if (Get-Member -Name ScriptCreate -InputObject $object) {
+                                $script = $object.ScriptCreate().GetScript()
+                            } else {
+                                $script = $object.Script()
+                            }
+                            if ($BatchSeparator -ne "") {
+                                $script = "$script`r`n$BatchSeparator`r`n"
+                            }
+                            $script | Out-File -FilePath $actualPath -Encoding $encoding -Append
+                        }
                     }
-                    $script | Out-File -FilePath $actualPath -Encoding $encoding -Append
+
+                    if (-not $passthru) {
+                        Write-Message -Level Verbose -Message "Exported $object on $($server.Name) to $actualPath"
+                        Get-ChildItem -Path $actualPath
+                    }
+                }
+            } catch {
+                $message = $_.Exception.InnerException.InnerException.InnerException.Message
+                if (-not $message) {
+                    $message = $_.Exception
+                }
+                Stop-Function -Message "Failure on $($server.Name) | $message" -Target $server
             }
         }
-
-    } else {
-        if (Get-Member -Name ScriptCreate -InputObject $object) {
-            $script = $object.ScriptCreate().GetScript()
-        } else {
-            $script = $object.Script()
-        }
-        if ($BatchSeparator -ne "") {
-            $script = "$script`r`n$BatchSeparator`r`n"
-        }
-        $script | Out-File -FilePath $actualPath -Encoding $encoding -Append
-}
-}
-
-if (-not $passthru) {
-    Write-Message -Level Verbose -Message "Exported $object on $($server.Name) to $actualPath"
-    Get-ChildItem -Path $actualPath
-}
-}
-} catch {
-    $message = $_.Exception.InnerException.InnerException.InnerException.Message
-    if (-not $message) {
-        $message = $_.Exception
     }
-    Stop-Function -Message "Failure on $($server.Name) | $message" -Target $server
-}
-}
-}
 }

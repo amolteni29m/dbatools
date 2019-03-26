@@ -203,47 +203,47 @@ function Backup-DbaDbCertificate {
                         exportPathKey  = $exportPathKey
                         Status         = "Success"
                     } | Select-DefaultView -ExcludeProperty exportPathCert, exportPathKey, ExportPath, ExportKey
-            } catch {
+                } catch {
 
-                if ($_.Exception.InnerException) {
-                    $exception = $_.Exception.InnerException.ToString() -Split "System.Data.SqlClient.SqlException: "
-                    $exception = ($exception[1] -Split "at Microsoft.SqlServer.Management.Common.ConnectionManager")[0]
-                } else {
-                    $exception = $_.Exception
+                    if ($_.Exception.InnerException) {
+                        $exception = $_.Exception.InnerException.ToString() -Split "System.Data.SqlClient.SqlException: "
+                        $exception = ($exception[1] -Split "at Microsoft.SqlServer.Management.Common.ConnectionManager")[0]
+                    } else {
+                        $exception = $_.Exception
+                    }
+                    [pscustomobject]@{
+                        ComputerName   = $server.ComputerName
+                        InstanceName   = $server.ServiceName
+                        SqlInstance    = $server.DomainInstanceName
+                        Database       = $db.Name
+                        Certificate    = $certName
+                        Path           = $exportPathCert
+                        Key            = $exportPathKey
+                        ExportPath     = $exportPathCert
+                        ExportKey      = $exportPathKey
+                        exportPathCert = $exportPathCert
+                        exportPathKey  = $exportPathKey
+                        Status         = "Failure: $exception"
+                    } | Select-DefaultView -ExcludeProperty exportPathCert, exportPathKey, ExportPath, ExportKey
+                    Stop-Function -Message "$certName from $db on $instance cannot be exported." -Continue -Target $cert -ErrorRecord $_
                 }
-                [pscustomobject]@{
-                    ComputerName   = $server.ComputerName
-                    InstanceName   = $server.ServiceName
-                    SqlInstance    = $server.DomainInstanceName
-                    Database       = $db.Name
-                    Certificate    = $certName
-                    Path           = $exportPathCert
-                    Key            = $exportPathKey
-                    ExportPath     = $exportPathCert
-                    ExportKey      = $exportPathKey
-                    exportPathCert = $exportPathCert
-                    exportPathKey  = $exportPathKey
-                    Status         = "Failure: $exception"
-                } | Select-DefaultView -ExcludeProperty exportPathCert, exportPathKey, ExportPath, ExportKey
-            Stop-Function -Message "$certName from $db on $instance cannot be exported." -Continue -Target $cert -ErrorRecord $_
+            }
         }
     }
-}
-}
 
-process {
-    if (Test-FunctionInterrupt) { return }
+    process {
+        if (Test-FunctionInterrupt) { return }
 
-    if ($SqlInstance) {
-        $InputObject += Get-DbaDbCertificate -SqlInstance $SqlInstance -SqlCredential $SqlCredential -Database $Database -ExcludeDatabase $ExcludeDatabase -Certificate $Certificate
-    }
+        if ($SqlInstance) {
+            $InputObject += Get-DbaDbCertificate -SqlInstance $SqlInstance -SqlCredential $SqlCredential -Database $Database -ExcludeDatabase $ExcludeDatabase -Certificate $Certificate
+        }
 
-    foreach ($cert in $InputObject) {
-        if ($cert.Name.StartsWith("##")) {
-            Write-Message -Level Output -Message "Skipping system cert $cert"
-        } else {
-            export-cert $cert
+        foreach ($cert in $InputObject) {
+            if ($cert.Name.StartsWith("##")) {
+                Write-Message -Level Output -Message "Skipping system cert $cert"
+            } else {
+                export-cert $cert
+            }
         }
     }
-}
 }

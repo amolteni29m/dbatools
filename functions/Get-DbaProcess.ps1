@@ -131,73 +131,73 @@ function Get-DbaProcess {
 
             if ($Login) {
                 $allsessions += $processes | Where-Object { $_.Login -in $Login -and $_.Spid -notin $allsessions.Spid }
+            }
+
+            if ($Spid) {
+                $allsessions += $processes | Where-Object { ($_.Spid -in $Spid -or $_.BlockingSpid -in $Spid) -and $_.Spid -notin $allsessions.Spid }
+            }
+
+            if ($Hostname) {
+                $allsessions += $processes | Where-Object { $_.Host -in $Hostname -and $_.Spid -notin $allsessions.Spid }
+            }
+
+            if ($Program) {
+                $allsessions += $processes | Where-Object { $_.Program -in $Program -and $_.Spid -notin $allsessions.Spid }
+            }
+
+            if ($Database) {
+                $allsessions += $processes | Where-Object { $Database -contains $_.Database -and $_.Spid -notin $allsessions.Spid }
+            }
+
+            if (Test-Bound -not 'Login', 'Spid', 'ExcludeSpid', 'Hostname', 'Program', 'Database') {
+                $allsessions = $processes
+            }
+
+            if ($ExcludeSystemSpids -eq $true) {
+                $allsessions = $allsessions | Where-Object { $_.Spid -gt 50 }
+            }
+
+            if ($Exclude) {
+                $allsessions = $allsessions | Where-Object { $Exclude -notcontains $_.SPID -and $_.Spid -notin $allsessions.Spid }
+            }
+
+            foreach ($session in $allsessions) {
+
+                if ($session.Status -eq "") {
+                    $status = "sleeping"
+                } else {
+                    $status = $session.Status
+                }
+
+                if ($session.Command -eq "") {
+                    $command = "AWAITING COMMAND"
+                } else {
+                    $command = $session.Command
+                }
+
+                $row = $results | Where-Object { $_.Spid -eq $session.Spid }
+
+                Add-Member -Force -InputObject $session -MemberType NoteProperty -Name Parent -value $server
+                Add-Member -Force -InputObject $session -MemberType NoteProperty -Name ComputerName -value $server.ComputerName
+                Add-Member -Force -InputObject $session -MemberType NoteProperty -Name InstanceName -value $server.ServiceName
+                Add-Member -Force -InputObject $session -MemberType NoteProperty -Name SqlInstance -value $server.DomainInstanceName
+                Add-Member -Force -InputObject $session -MemberType NoteProperty -Name Status -value $status
+                Add-Member -Force -InputObject $session -MemberType NoteProperty -Name Command -value $command
+                Add-Member -Force -InputObject $session -MemberType NoteProperty -Name HostProcessId -value $row.HostProcessId
+                Add-Member -Force -InputObject $session -MemberType NoteProperty -Name MinutesAsleep -value $row.MinutesAsleep
+                Add-Member -Force -InputObject $session -MemberType NoteProperty -Name LoginTime -value $row.LoginTime
+                Add-Member -Force -InputObject $session -MemberType NoteProperty -Name ClientVersion -value $row.ClientVersion
+                Add-Member -Force -InputObject $session -MemberType NoteProperty -Name LastRequestStartTime -value $row.LastRequestStartTime
+                Add-Member -Force -InputObject $session -MemberType NoteProperty -Name LastRequestEndTime -value $row.LastRequestEndTime
+                Add-Member -Force -InputObject $session -MemberType NoteProperty -Name NetTransport -value $row.NetTransport
+                Add-Member -Force -InputObject $session -MemberType NoteProperty -Name EncryptOption -value $row.EncryptOption
+                Add-Member -Force -InputObject $session -MemberType NoteProperty -Name AuthScheme -value $row.AuthScheme
+                Add-Member -Force -InputObject $session -MemberType NoteProperty -Name NetPacketSize -value $row.NetPacketSize
+                Add-Member -Force -InputObject $session -MemberType NoteProperty -Name ClientNetAddress -value $row.ClientNetAddress
+                Add-Member -Force -InputObject $session -MemberType NoteProperty -Name LastQuery -value $row.Query
+
+                Select-DefaultView -InputObject $session -Property ComputerName, InstanceName, SqlInstance, Spid, Login, LoginTime, Host, Database, BlockingSpid, Program, Status, Command, Cpu, MemUsage, LastRequestStartTime, LastRequestEndTime, MinutesAsleep, ClientNetAddress, NetTransport, EncryptOption, AuthScheme, NetPacketSize, ClientVersion, HostProcessId, IsSystem, LastQuery
+            }
         }
-
-        if ($Spid) {
-            $allsessions += $processes | Where-Object { ($_.Spid -in $Spid -or $_.BlockingSpid -in $Spid) -and $_.Spid -notin $allsessions.Spid }
     }
-
-    if ($Hostname) {
-        $allsessions += $processes | Where-Object { $_.Host -in $Hostname -and $_.Spid -notin $allsessions.Spid }
-}
-
-if ($Program) {
-    $allsessions += $processes | Where-Object { $_.Program -in $Program -and $_.Spid -notin $allsessions.Spid }
-}
-
-if ($Database) {
-    $allsessions += $processes | Where-Object { $Database -contains $_.Database -and $_.Spid -notin $allsessions.Spid }
-}
-
-if (Test-Bound -not 'Login', 'Spid', 'ExcludeSpid', 'Hostname', 'Program', 'Database') {
-    $allsessions = $processes
-}
-
-if ($ExcludeSystemSpids -eq $true) {
-    $allsessions = $allsessions | Where-Object { $_.Spid -gt 50 }
-}
-
-if ($Exclude) {
-    $allsessions = $allsessions | Where-Object { $Exclude -notcontains $_.SPID -and $_.Spid -notin $allsessions.Spid }
-}
-
-foreach ($session in $allsessions) {
-
-    if ($session.Status -eq "") {
-        $status = "sleeping"
-    } else {
-        $status = $session.Status
-    }
-
-    if ($session.Command -eq "") {
-        $command = "AWAITING COMMAND"
-    } else {
-        $command = $session.Command
-    }
-
-    $row = $results | Where-Object { $_.Spid -eq $session.Spid }
-
-Add-Member -Force -InputObject $session -MemberType NoteProperty -Name Parent -value $server
-Add-Member -Force -InputObject $session -MemberType NoteProperty -Name ComputerName -value $server.ComputerName
-Add-Member -Force -InputObject $session -MemberType NoteProperty -Name InstanceName -value $server.ServiceName
-Add-Member -Force -InputObject $session -MemberType NoteProperty -Name SqlInstance -value $server.DomainInstanceName
-Add-Member -Force -InputObject $session -MemberType NoteProperty -Name Status -value $status
-Add-Member -Force -InputObject $session -MemberType NoteProperty -Name Command -value $command
-Add-Member -Force -InputObject $session -MemberType NoteProperty -Name HostProcessId -value $row.HostProcessId
-Add-Member -Force -InputObject $session -MemberType NoteProperty -Name MinutesAsleep -value $row.MinutesAsleep
-Add-Member -Force -InputObject $session -MemberType NoteProperty -Name LoginTime -value $row.LoginTime
-Add-Member -Force -InputObject $session -MemberType NoteProperty -Name ClientVersion -value $row.ClientVersion
-Add-Member -Force -InputObject $session -MemberType NoteProperty -Name LastRequestStartTime -value $row.LastRequestStartTime
-Add-Member -Force -InputObject $session -MemberType NoteProperty -Name LastRequestEndTime -value $row.LastRequestEndTime
-Add-Member -Force -InputObject $session -MemberType NoteProperty -Name NetTransport -value $row.NetTransport
-Add-Member -Force -InputObject $session -MemberType NoteProperty -Name EncryptOption -value $row.EncryptOption
-Add-Member -Force -InputObject $session -MemberType NoteProperty -Name AuthScheme -value $row.AuthScheme
-Add-Member -Force -InputObject $session -MemberType NoteProperty -Name NetPacketSize -value $row.NetPacketSize
-Add-Member -Force -InputObject $session -MemberType NoteProperty -Name ClientNetAddress -value $row.ClientNetAddress
-Add-Member -Force -InputObject $session -MemberType NoteProperty -Name LastQuery -value $row.Query
-
-Select-DefaultView -InputObject $session -Property ComputerName, InstanceName, SqlInstance, Spid, Login, LoginTime, Host, Database, BlockingSpid, Program, Status, Command, Cpu, MemUsage, LastRequestStartTime, LastRequestEndTime, MinutesAsleep, ClientNetAddress, NetTransport, EncryptOption, AuthScheme, NetPacketSize, ClientVersion, HostProcessId, IsSystem, LastQuery
-}
-}
-}
 }

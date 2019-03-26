@@ -201,109 +201,109 @@ function Get-DbaWindowsLog {
             $errorLogPath = Split-Path -Path $path
             $errorLogFileName = Split-Path -Path $path -Leaf
             $errorLogFiles = Get-ChildItem -Path $errorLogPath | Where-Object { ($_.Name -like "$errorLogFileName*") -and ($_.LastWriteTime -gt $Start) -and ($_.CreationTime -lt $End) }
-        #endregion Gather list of files to process
+            #endregion Gather list of files to process
 
-        #region Prepare Runspaces
+            #region Prepare Runspaces
+            [Collections.Arraylist]$RunspaceCollection = @()
+
+            $InitialSessionState = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
+            $Command = Get-Item function:Convert-ErrorRecord
+            $InitialSessionState.Commands.Add((New-Object System.Management.Automation.Runspaces.SessionStateFunctionEntry($command.Name, $command.Definition)))
+
+            $RunspacePool = [RunspaceFactory]::CreateRunspacePool($InitialSessionState)
+            $null = $RunspacePool.SetMinRunspaces(1)
+            if ($Throttle -gt 0) { $null = $RunspacePool.SetMaxRunspaces($Throttle) }
+            $RunspacePool.Open()
+            #endregion Prepare Runspaces
+
+            #region Process Error files
+            $countDone = 0
+            $countStarted = 0
+            $countTotal = ($errorLogFiles | Measure-Object).Count
+
+            while ($countDone -lt $countTotal) {
+                while (($RunspacePool.GetAvailableRunspaces() -gt 0) -and ($countStarted -lt $countTotal)) {
+                    $Powershell = [PowerShell]::Create().AddScript($scriptBlock).AddParameter("File", $errorLogFiles[$countStarted])
+                    $Powershell.RunspacePool = $RunspacePool
+                    $null = $RunspaceCollection.Add((New-Object -TypeName PSObject -Property @{ Runspace = $PowerShell.BeginInvoke(); PowerShell = $PowerShell }))
+                    $countStarted++
+                }
+
+                foreach ($Run in $RunspaceCollection.ToArray()) {
+                    if ($Run.Runspace.IsCompleted) {
+                        $Run.PowerShell.EndInvoke($Run.Runspace) | Where-Object { ($_.Timestamp -gt $Start) -and ($_.Timestamp -lt $End) }
+                        $Run.PowerShell.Dispose()
+                        $RunspaceCollection.Remove($Run)
+                        $countDone++
+                    }
+                }
+
+                Start-Sleep -Milliseconds 250
+            }
+            $RunspacePool.Close()
+            $RunspacePool.Dispose()
+            #endregion Process Error files
+        }
+
+        $scriptBlock_ParallelRemoting = {
+            param (
+                [DbaInstanceParameter]
+                $SqlInstance,
+
+                [DateTime]
+                $Start,
+
+                [DateTime]
+                $End,
+
+                [PSCredential]
+                $Credential,
+
+                [int]
+                $MaxRemoteThreads,
+
+                [System.Management.Automation.ScriptBlock]
+                $ScriptBlock
+            )
+
+            $params = @{
+                ArgumentList = $Start, $End, $SqlInstance.InstanceName, $MaxRemoteThreads
+                ScriptBlock  = $ScriptBlock
+            }
+            if (-not $SqlInstance.IsLocalhost) { $params["ComputerName"] = $SqlInstance.ComputerName }
+            if ($Credential) { $params["Credential"] = $Credential }
+
+            Invoke-Command @params | Select-Object @{ n = "InstanceName"; e = { $SqlInstance.FullSmoName } }, Timestamp, Spid, Severity, ErrorNumber, State, Message
+        }
+        #endregion Scriptblocks
+
+        #region Setup Runspace
         [Collections.Arraylist]$RunspaceCollection = @()
-
         $InitialSessionState = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
-        $Command = Get-Item function:Convert-ErrorRecord
-        $InitialSessionState.Commands.Add((New-Object System.Management.Automation.Runspaces.SessionStateFunctionEntry($command.Name, $command.Definition)))
-
+        $defaultrunspace = [System.Management.Automation.Runspaces.Runspace]::DefaultRunspace
         $RunspacePool = [RunspaceFactory]::CreateRunspacePool($InitialSessionState)
-        $null = $RunspacePool.SetMinRunspaces(1)
-        if ($Throttle -gt 0) { $null = $RunspacePool.SetMaxRunspaces($Throttle) }
+        $RunspacePool.SetMinRunspaces(1) | Out-Null
+        if ($MaxThreads -gt 0) { $null = $RunspacePool.SetMaxRunspaces($MaxThreads) }
         $RunspacePool.Open()
-        #endregion Prepare Runspaces
 
-        #region Process Error files
-        $countDone = 0
         $countStarted = 0
-        $countTotal = ($errorLogFiles | Measure-Object).Count
+        #Variable marked as unused by PSScriptAnalyzer
+        #$countReceived = 0
+        #endregion Setup Runspace
+    }
 
-    while ($countDone -lt $countTotal) {
-        while (($RunspacePool.GetAvailableRunspaces() -gt 0) -and ($countStarted -lt $countTotal)) {
-            $Powershell = [PowerShell]::Create().AddScript($scriptBlock).AddParameter("File", $errorLogFiles[$countStarted])
-            $Powershell.RunspacePool = $RunspacePool
-            $null = $RunspaceCollection.Add((New-Object -TypeName PSObject -Property @{ Runspace = $PowerShell.BeginInvoke(); PowerShell = $PowerShell }))
-            $countStarted++
-        }
-
-        foreach ($Run in $RunspaceCollection.ToArray()) {
-            if ($Run.Runspace.IsCompleted) {
-                $Run.PowerShell.EndInvoke($Run.Runspace) | Where-Object { ($_.Timestamp -gt $Start) -and ($_.Timestamp -lt $End) }
-            $Run.PowerShell.Dispose()
-            $RunspaceCollection.Remove($Run)
-            $countDone++
+    process {
+        foreach ($instance in $SqlInstance) {
+            Write-Message -Level VeryVerbose -Message "Processing <c='green'>$instance</c>" -Target $instance
+            Start-Runspace
+            Receive-Runspace
         }
     }
 
-    Start-Sleep -Milliseconds 250
-}
-$RunspacePool.Close()
-$RunspacePool.Dispose()
-#endregion Process Error files
-}
-
-$scriptBlock_ParallelRemoting = {
-    param (
-        [DbaInstanceParameter]
-        $SqlInstance,
-
-        [DateTime]
-        $Start,
-
-        [DateTime]
-        $End,
-
-        [PSCredential]
-        $Credential,
-
-        [int]
-        $MaxRemoteThreads,
-
-        [System.Management.Automation.ScriptBlock]
-        $ScriptBlock
-    )
-
-    $params = @{
-        ArgumentList = $Start, $End, $SqlInstance.InstanceName, $MaxRemoteThreads
-        ScriptBlock  = $ScriptBlock
+    end {
+        Receive-Runspace -Wait
+        $RunspacePool.Close()
+        $RunspacePool.Dispose()
+        [System.Management.Automation.Runspaces.Runspace]::DefaultRunspace = $defaultrunspace
     }
-    if (-not $SqlInstance.IsLocalhost) { $params["ComputerName"] = $SqlInstance.ComputerName }
-    if ($Credential) { $params["Credential"] = $Credential }
-
-    Invoke-Command @params | Select-Object @{ n = "InstanceName"; e = { $SqlInstance.FullSmoName } }, Timestamp, Spid, Severity, ErrorNumber, State, Message
-}
-#endregion Scriptblocks
-
-#region Setup Runspace
-[Collections.Arraylist]$RunspaceCollection = @()
-$InitialSessionState = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
-$defaultrunspace = [System.Management.Automation.Runspaces.Runspace]::DefaultRunspace
-$RunspacePool = [RunspaceFactory]::CreateRunspacePool($InitialSessionState)
-$RunspacePool.SetMinRunspaces(1) | Out-Null
-if ($MaxThreads -gt 0) { $null = $RunspacePool.SetMaxRunspaces($MaxThreads) }
-$RunspacePool.Open()
-
-$countStarted = 0
-#Variable marked as unused by PSScriptAnalyzer
-#$countReceived = 0
-#endregion Setup Runspace
-}
-
-process {
-    foreach ($instance in $SqlInstance) {
-        Write-Message -Level VeryVerbose -Message "Processing <c='green'>$instance</c>" -Target $instance
-        Start-Runspace
-        Receive-Runspace
-    }
-}
-
-end {
-    Receive-Runspace -Wait
-    $RunspacePool.Close()
-    $RunspacePool.Dispose()
-    [System.Management.Automation.Runspaces.Runspace]::DefaultRunspace = $defaultrunspace
-}
 }

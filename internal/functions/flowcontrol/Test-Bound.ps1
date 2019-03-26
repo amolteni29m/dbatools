@@ -36,7 +36,7 @@ function Test-Bound {
             Test-Bound -And 'Login', 'Spid', 'ExcludeSpid', 'Host', 'Program', 'Database'
 
             Returns whether any of the specified parameters was not bound
-    #>
+       #>
     [CmdletBinding()]
     param (
         [Parameter(Mandatory, Position = 0)]

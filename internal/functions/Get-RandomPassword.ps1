@@ -13,17 +13,17 @@ function Get-RandomPassword {
     }
     $pwdPool = @()
     # get at least one of each symbols
-    1..4 | ForEach-Object {
+    1..4 | Foreach-Object {
         $pwdPool += $vocabulary."Group$_".Substring((Get-Random -Minimum 0 -Maximum $vocabulary["Group$_"].Length), 1)
     }
-# now get remaining random symbols
-if ($Length -gt 4) {
-    5..$Length | ForEach-Object {
-        $group = Get-Random -Minimum 1 -Maximum 5
-        $pwdPool += $vocabulary."Group$group".Substring((Get-Random -Minimum 0 -Maximum $vocabulary["Group$group"].Length), 1)
+    # now get remaining random symbols
+    if ($Length -gt 4) {
+        5..$Length | Foreach-Object {
+            $group = Get-Random -Minimum 1 -Maximum 5
+            $pwdPool += $vocabulary."Group$group".Substring((Get-Random -Minimum 0 -Maximum $vocabulary["Group$group"].Length), 1)
+        }
     }
-}
-$password = (($pwdPool | Sort-Object { Get-Random }) -join '').Substring(0, $Length)
-if ($AsPlainText) { return $password }
-else { ConvertTo-SecureString $password -AsPlainText -Force }
+    $password = (($pwdPool | Sort-Object { Get-Random }) -join '').Substring(0, $Length)
+    if ($AsPlainText) { return $password }
+    else { ConvertTo-SecureString $password -AsPlainText -Force }
 }

@@ -93,39 +93,39 @@ function Get-DbaXESessionTarget {
 
                     $files = $xtarget.TargetFields | Where-Object Name -eq Filename | Select-Object -ExpandProperty Value
 
-            $filecollection = $remotefile = @()
+                    $filecollection = $remotefile = @()
 
-            if ($files) {
-                foreach ($file in $files) {
-                    if ($file -notmatch ':\\' -and $file -notmatch '\\\\') {
-                        $directory = $server.ErrorLogPath.TrimEnd("\")
-                        $file = "$directory\$file"
+                    if ($files) {
+                        foreach ($file in $files) {
+                            if ($file -notmatch ':\\' -and $file -notmatch '\\\\') {
+                                $directory = $server.ErrorLogPath.TrimEnd("\")
+                                $file = "$directory\$file"
+                            }
+                            $filecollection += $file
+                            $remotefile += Join-AdminUnc -servername $server.ComputerName -filepath $file
+                        }
                     }
-                    $filecollection += $file
-                    $remotefile += Join-AdminUnc -servername $server.ComputerName -filepath $file
+
+                    Add-Member -Force -InputObject $xtarget -MemberType NoteProperty -Name ComputerName -Value $server.ComputerName
+                    Add-Member -Force -InputObject $xtarget -MemberType NoteProperty -Name InstanceName -Value $server.ServiceName
+                    Add-Member -Force -InputObject $xtarget -MemberType NoteProperty -Name SqlInstance -Value $server.DomainInstanceName
+                    Add-Member -Force -InputObject $xtarget -MemberType NoteProperty -Name Session -Value $sessionname
+                    Add-Member -Force -InputObject $xtarget -MemberType NoteProperty -Name SessionStatus -Value $status
+                    Add-Member -Force -InputObject $xtarget -MemberType NoteProperty -Name TargetFile -Value $filecollection
+                    Add-Member -Force -InputObject $xtarget -MemberType NoteProperty -Name RemoteTargetFile -Value $remotefile
+
+                    Select-DefaultView -InputObject $xtarget -Property ComputerName, InstanceName, SqlInstance, Session, SessionStatus, Name, ID, 'TargetFields as Field', PackageName, 'TargetFile as File', Description, ScriptName
                 }
             }
-
-            Add-Member -Force -InputObject $xtarget -MemberType NoteProperty -Name ComputerName -Value $server.ComputerName
-            Add-Member -Force -InputObject $xtarget -MemberType NoteProperty -Name InstanceName -Value $server.ServiceName
-            Add-Member -Force -InputObject $xtarget -MemberType NoteProperty -Name SqlInstance -Value $server.DomainInstanceName
-            Add-Member -Force -InputObject $xtarget -MemberType NoteProperty -Name Session -Value $sessionname
-            Add-Member -Force -InputObject $xtarget -MemberType NoteProperty -Name SessionStatus -Value $status
-            Add-Member -Force -InputObject $xtarget -MemberType NoteProperty -Name TargetFile -Value $filecollection
-            Add-Member -Force -InputObject $xtarget -MemberType NoteProperty -Name RemoteTargetFile -Value $remotefile
-
-            Select-DefaultView -InputObject $xtarget -Property ComputerName, InstanceName, SqlInstance, Session, SessionStatus, Name, ID, 'TargetFields as Field', PackageName, 'TargetFile as File', Description, ScriptName
         }
     }
-}
-}
 
-process {
-    if (Test-FunctionInterrupt) { return }
+    process {
+        if (Test-FunctionInterrupt) { return }
 
-    foreach ($instance in $SqlInstance) {
-        $InputObject += Get-DbaXESession -SqlInstance $instance -SqlCredential $SqlCredential -Session $Session
+        foreach ($instance in $SqlInstance) {
+            $InputObject += Get-DbaXESession -SqlInstance $instance -SqlCredential $SqlCredential -Session $Session
+        }
+        Get-Target -Sessions $InputObject -Session $Session -Target $Target
     }
-    Get-Target -Sessions $InputObject -Session $Session -Target $Target
-}
 }

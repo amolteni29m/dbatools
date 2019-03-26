@@ -83,19 +83,19 @@ function Get-DbaDbQueryStoreOption {
             # We have to exclude all the system databases since they cannot have the Query Store feature enabled
             $dbs = Get-DbaDatabase -SqlInstance $server -ExcludeDatabase $ExcludeDatabase -Database $Database | Where-Object IsAccessible
 
-        foreach ($db in $dbs) {
-            Write-Message -Level Verbose -Message "Processing $($db.Name) on $instance"
-            $QSO = $db.QueryStoreOptions
+            foreach ($db in $dbs) {
+                Write-Message -Level Verbose -Message "Processing $($db.Name) on $instance"
+                $QSO = $db.QueryStoreOptions
 
-            Add-Member -Force -InputObject $QSO -MemberType NoteProperty -Name ComputerName -value $server.ComputerName
-            Add-Member -Force -InputObject $QSO -MemberType NoteProperty -Name InstanceName -value $server.ServiceName
-            Add-Member -Force -InputObject $QSO -MemberType NoteProperty -Name SqlInstance -value $server.DomainInstanceName
-            Add-Member -Force -InputObject $QSO -MemberType NoteProperty Database -value $db.Name
-            Select-DefaultView -InputObject $QSO -Property ComputerName, InstanceName, SqlInstance, Database, ActualState, DataFlushIntervalInSeconds, StatisticsCollectionIntervalInMinutes, MaxStorageSizeInMB, CurrentStorageSizeInMB, QueryCaptureMode, SizeBasedCleanupMode, StaleQueryThresholdInDays
+                Add-Member -Force -InputObject $QSO -MemberType NoteProperty -Name ComputerName -value $server.ComputerName
+                Add-Member -Force -InputObject $QSO -MemberType NoteProperty -Name InstanceName -value $server.ServiceName
+                Add-Member -Force -InputObject $QSO -MemberType NoteProperty -Name SqlInstance -value $server.DomainInstanceName
+                Add-Member -Force -InputObject $QSO -MemberType NoteProperty Database -value $db.Name
+                Select-DefaultView -InputObject $QSO -Property ComputerName, InstanceName, SqlInstance, Database, ActualState, DataFlushIntervalInSeconds, StatisticsCollectionIntervalInMinutes, MaxStorageSizeInMB, CurrentStorageSizeInMB, QueryCaptureMode, SizeBasedCleanupMode, StaleQueryThresholdInDays
+            }
         }
     }
-}
-end {
-    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Get-DbaDbQueryStoreOptions
-}
+    end {
+        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Get-DbaDbQueryStoreOptions
+    }
 }

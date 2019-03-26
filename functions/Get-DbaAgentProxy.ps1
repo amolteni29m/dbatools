@@ -72,14 +72,14 @@ function Get-DbaAgentProxy {
 
             if ($proxy) {
                 $proxies = $proxies | Where-Object Name -In $proxy
-        }
+            }
 
-        foreach ($px in $proxies) {
-            Add-Member -Force -InputObject $px -MemberType NoteProperty -Name ComputerName -value $server.ComputerName
-            Add-Member -Force -InputObject $px -MemberType NoteProperty -Name InstanceName -value $server.ServiceName
-            Add-Member -Force -InputObject $px -MemberType NoteProperty -Name SqlInstance -value $server.DomainInstanceName
-            Select-DefaultView -InputObject $px -Property $defaults
+            foreach ($px in $proxies) {
+                Add-Member -Force -InputObject $px -MemberType NoteProperty -Name ComputerName -value $server.ComputerName
+                Add-Member -Force -InputObject $px -MemberType NoteProperty -Name InstanceName -value $server.ServiceName
+                Add-Member -Force -InputObject $px -MemberType NoteProperty -Name SqlInstance -value $server.DomainInstanceName
+                Select-DefaultView -InputObject $px -Property $defaults
+            }
         }
     }
-}
 }

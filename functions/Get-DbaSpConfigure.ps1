@@ -184,48 +184,48 @@ function Get-DbaSpConfigure {
 
             if ($Name) {
                 $proplist = $proplist | Where-Object { ($_.DisplayName -in $Name -or ($smoName).$($_.DisplayName) -in $Name) }
+            }
+
+            if (Test-Bound "ExcludeName") {
+                $proplist = $proplist | Where-Object { ($_.DisplayName -NotIn $ExcludeName -and ($smoName).$($_.DisplayName) -NotIn $ExcludeName) }
+            }
+
+            #Grab the default sp_configure property values from the external function
+            $defaultConfigs = (Get-SqlDefaultSpConfigure -SqlVersion $server.VersionMajor).psobject.properties;
+
+            #Iterate through the properties to get the configuration settings
+            foreach ($prop in $proplist) {
+                $defaultConfig = $defaultConfigs | Where-Object { $_.Name -eq $prop.DisplayName };
+
+                if ($defaultConfig.Value -eq $prop.RunValue) { $isDefault = $true }
+                else { $isDefault = $false }
+
+                #Ignores properties that are not valid on this version of SQL
+                if (!([string]::IsNullOrEmpty($prop.RunValue))) {
+
+                    $DisplayName = $prop.DisplayName
+                    [pscustomobject]@{
+                        ServerName            = $server.Name
+                        ComputerName          = $server.ComputerName
+                        InstanceName          = $server.ServiceName
+                        SqlInstance           = $server.DomainInstanceName
+                        Name                  = ($smoName).$DisplayName
+                        DisplayName           = $DisplayName
+                        Description           = $prop.Description
+                        IsAdvanced            = $prop.IsAdvanced
+                        IsDynamic             = $prop.IsDynamic
+                        MinValue              = $prop.Minimum
+                        MaxValue              = $prop.Maximum
+                        ConfiguredValue       = $prop.ConfigValue
+                        RunningValue          = $prop.RunValue
+                        DefaultValue          = $defaultConfig.Value
+                        IsRunningDefaultValue = $isDefault
+                        Parent                = $server
+                        ConfigName            = ($smoName).$DisplayName
+                        Property              = $prop
+                    } | Select-DefaultView -ExcludeProperty ServerName, Parent, ConfigName, Property
+                }
+            }
         }
-
-        if (Test-Bound "ExcludeName") {
-            $proplist = $proplist | Where-Object { ($_.DisplayName -NotIn $ExcludeName -and ($smoName).$($_.DisplayName) -NotIn $ExcludeName) }
     }
-
-    #Grab the default sp_configure property values from the external function
-    $defaultConfigs = (Get-SqlDefaultSpConfigure -SqlVersion $server.VersionMajor).psobject.properties;
-
-    #Iterate through the properties to get the configuration settings
-    foreach ($prop in $proplist) {
-        $defaultConfig = $defaultConfigs | Where-Object { $_.Name -eq $prop.DisplayName };
-
-    if ($defaultConfig.Value -eq $prop.RunValue) { $isDefault = $true }
-    else { $isDefault = $false }
-
-    #Ignores properties that are not valid on this version of SQL
-    if (!([string]::IsNullOrEmpty($prop.RunValue))) {
-
-        $DisplayName = $prop.DisplayName
-        [pscustomobject]@{
-            ServerName            = $server.Name
-            ComputerName          = $server.ComputerName
-            InstanceName          = $server.ServiceName
-            SqlInstance           = $server.DomainInstanceName
-            Name                  = ($smoName).$DisplayName
-            DisplayName           = $DisplayName
-            Description           = $prop.Description
-            IsAdvanced            = $prop.IsAdvanced
-            IsDynamic             = $prop.IsDynamic
-            MinValue              = $prop.Minimum
-            MaxValue              = $prop.Maximum
-            ConfiguredValue       = $prop.ConfigValue
-            RunningValue          = $prop.RunValue
-            DefaultValue          = $defaultConfig.Value
-            IsRunningDefaultValue = $isDefault
-            Parent                = $server
-            ConfigName            = ($smoName).$DisplayName
-            Property              = $prop
-        } | Select-DefaultView -ExcludeProperty ServerName, Parent, ConfigName, Property
-}
-}
-}
-}
 }

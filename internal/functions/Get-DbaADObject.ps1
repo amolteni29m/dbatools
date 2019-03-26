@@ -173,19 +173,19 @@ function Get-DbaADObject {
                     }
                     # we are very unlucky, let's search also in all trusted domains
                     $AllTrusted = ($ForestObject.GetAllTrustRelationships().TopLevelNames | Where-Object Status -eq 'Enabled').Name
-                foreach ($ForestDomain in $AllTrusted) {
-                    Write-Message -Message "Searching for $obj under domain $ForestDomain in $IdentityType format" -Level VeryVerbose
-                    $found = Get-DbaADObjectInternal -Domain $ForestDomain -IdentityType $IdentityType -obj $obj
-                    if ($found) {
-                        $found
-                        break
+                    foreach ($ForestDomain in $AllTrusted) {
+                        Write-Message -Message "Searching for $obj under domain $ForestDomain in $IdentityType format" -Level VeryVerbose
+                        $found = Get-DbaADObjectInternal -Domain $ForestDomain -IdentityType $IdentityType -obj $obj
+                        if ($found) {
+                            $found
+                            break
+                        }
                     }
                 }
+            } else {
+                Write-Message -Message "Searching for $obj under domain $domain in $IdentityType format" -Level VeryVerbose
+                Get-DbaADObjectInternal -Domain $Domain -IdentityType $IdentityType -obj $obj
             }
-        } else {
-            Write-Message -Message "Searching for $obj under domain $domain in $IdentityType format" -Level VeryVerbose
-            Get-DbaADObjectInternal -Domain $Domain -IdentityType $IdentityType -obj $obj
         }
     }
-}
 }

@@ -158,122 +158,122 @@ function Read-DbaBackupHeader {
                 $restore.FileNumber = $row.Position
                 <# Select-Object does a quick and dirty conversion from datatable to PS object #>
                 $row.FileList = $restore.ReadFileList($server) | Select-Object *
-        }
-        $dataTable
-    }
-}
-
-process {
-    if (Test-FunctionInterrupt) { return }
-
-    #Extract fullnames from the file system objects
-    $pathStrings = @()
-    foreach ($pathItem in $Path) {
-        if ($null -ne $pathItem.FullName) {
-            $pathStrings += $pathItem.FullName
-        } else {
-            $pathStrings += $pathItem
+            }
+            $dataTable
         }
     }
-    #Group by filename
-    $pathGroup = $pathStrings | Group-Object -NoElement | Select-Object -ExpandProperty Name
 
-$pathCount = ($pathGroup | Measure-Object).Count
-Write-Message -Level Verbose -Message "$pathCount unique files to scan."
-Write-Message -Level Verbose -Message "Checking accessibility for all the files."
+    process {
+        if (Test-FunctionInterrupt) { return }
 
-$testPath = Test-DbaPath -SqlInstance $server -Path $pathGroup
-
-#Setup initial session state
-$InitialSessionState = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
-$defaultrunspace = [System.Management.Automation.Runspaces.Runspace]::DefaultRunspace
-#Create Runspace pool, min - 1, max - 10 sessions: there is internal SQL Server queue for the restore operations. 10 threads seem to perform best
-$runspacePool = [runspacefactory]::CreateRunspacePool(1, 10, $InitialSessionState, $Host)
-$runspacePool.Open()
-
-$threads = @()
-
-foreach ($file in $pathGroup) {
-    if ($file -like 'http*') {
-        $deviceType = 'URL'
-    } else {
-        $deviceType = 'FILE'
-    }
-    if ($pathCount -eq 1) {
-        $fileExists = $testPath
-    } else {
-        $fileExists = ($testPath | Where-Object FilePath -eq $file).FileExists
-}
-if ($fileExists -or $deviceType -eq 'URL') {
-    #Create parameters hashtable
-    $argsRunPool = @{
-        SqlInstance     = $server
-        Path            = $file
-        AzureCredential = $AzureCredential
-        DeviceType      = $deviceType
-    }
-    Write-Message -Level Verbose -Message "Scanning file $file."
-    #Create new runspace thread
-    $thread = [powershell]::Create()
-    $thread.RunspacePool = $runspacePool
-    $thread.AddScript($getHeaderScript) | Out-Null
-$thread.AddParameters($argsRunPool) | Out-Null
-#Start the thread
-$handle = $thread.BeginInvoke()
-$threads += [pscustomobject]@{
-    handle      = $handle
-    thread      = $thread
-    file        = $file
-    deviceType  = $deviceType
-    isRetrieved = $false
-    started     = Get-Date
-}
-} else {
-    Write-Message -Level Warning -Message "File $file does not exist or access denied. The SQL Server service account may not have access to the source directory."
-}
-}
-#receive runspaces
-while ($threads | Where-Object { $_.isRetrieved -eq $false }) {
-    $totalThreads = ($threads | Measure-Object).Count
-$totalRetrievedThreads = ($threads | Where-Object { $_.isRetrieved -eq $true } | Measure-Object).Count
-Write-Progress -Id 1 -Activity Updating -Status 'Progress' -CurrentOperation "Scanning Restore headers: $totalRetrievedThreads/$totalThreads" -PercentComplete ($totalRetrievedThreads / $totalThreads * 100)
-foreach ($thread in ($threads | Where-Object { $_.isRetrieved -eq $false })) {
-    if ($thread.Handle.IsCompleted) {
-        $dataTable = $thread.thread.EndInvoke($thread.handle)
-        $thread.isRetrieved = $true
-        #Check if thread had any errors
-        if ($thread.thread.HadErrors) {
-            if ($thread.deviceType -eq 'FILE') {
-                Stop-Function -Message "Problem found with $($thread.file)." -Target $thread.file -ErrorRecord $thread.thread.Streams.Error -Continue
+        #Extract fullnames from the file system objects
+        $pathStrings = @()
+        foreach ($pathItem in $Path) {
+            if ($null -ne $pathItem.FullName) {
+                $pathStrings += $pathItem.FullName
             } else {
-                Stop-Function -Message "Unable to read $($thread.file), check credential $AzureCredential and network connectivity." -Target $thread.file -ErrorRecord $thread.thread.Streams.Error -Continue
+                $pathStrings += $pathItem
             }
         }
-        #Process the result of this thread
+        #Group by filename
+        $pathGroup = $pathStrings | Group-Object -NoElement | Select-Object -ExpandProperty Name
 
-        $dbVersion = $dataTable[0].DatabaseVersion
-        $SqlVersion = (Convert-DbVersionToSqlVersion $dbVersion)
-        foreach ($row in $dataTable) {
-            $row.SqlVersion = $SqlVersion
-            if ($row.BackupName -eq "*** INCOMPLETE ***") {
-                Stop-Function -Message "$($thread.file) appears to be from a new version of SQL Server than $SqlInstance, skipping" -Target $thread.file -Continue
+        $pathCount = ($pathGroup | Measure-Object).Count
+        Write-Message -Level Verbose -Message "$pathCount unique files to scan."
+        Write-Message -Level Verbose -Message "Checking accessibility for all the files."
+
+        $testPath = Test-DbaPath -SqlInstance $server -Path $pathGroup
+
+        #Setup initial session state
+        $InitialSessionState = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
+        $defaultrunspace = [System.Management.Automation.Runspaces.Runspace]::DefaultRunspace
+        #Create Runspace pool, min - 1, max - 10 sessions: there is internal SQL Server queue for the restore operations. 10 threads seem to perform best
+        $runspacePool = [runspacefactory]::CreateRunspacePool(1, 10, $InitialSessionState, $Host)
+        $runspacePool.Open()
+
+        $threads = @()
+
+        foreach ($file in $pathGroup) {
+            if ($file -like 'http*') {
+                $deviceType = 'URL'
+            } else {
+                $deviceType = 'FILE'
+            }
+            if ($pathCount -eq 1) {
+                $fileExists = $testPath
+            } else {
+                $fileExists = ($testPath | Where-Object FilePath -eq $file).FileExists
+            }
+            if ($fileExists -or $deviceType -eq 'URL') {
+                #Create parameters hashtable
+                $argsRunPool = @{
+                    SqlInstance     = $server
+                    Path            = $file
+                    AzureCredential = $AzureCredential
+                    DeviceType      = $deviceType
+                }
+                Write-Message -Level Verbose -Message "Scanning file $file."
+                #Create new runspace thread
+                $thread = [powershell]::Create()
+                $thread.RunspacePool = $runspacePool
+                $thread.AddScript($getHeaderScript) | Out-Null
+                $thread.AddParameters($argsRunPool) | Out-Null
+                #Start the thread
+                $handle = $thread.BeginInvoke()
+                $threads += [pscustomobject]@{
+                    handle      = $handle
+                    thread      = $thread
+                    file        = $file
+                    deviceType  = $deviceType
+                    isRetrieved = $false
+                    started     = Get-Date
+                }
+            } else {
+                Write-Message -Level Warning -Message "File $file does not exist or access denied. The SQL Server service account may not have access to the source directory."
             }
         }
-        if ($Simple) {
-            $dataTable | Select-Object DatabaseName, BackupFinishDate, RecoveryModel, BackupSize, CompressedBackupSize, DatabaseCreationDate, UserName, ServerName, SqlVersion, BackupPath
-    } elseif ($FileList) {
-        $dataTable.filelist
-    } else {
-        $dataTable
+        #receive runspaces
+        while ($threads | Where-Object { $_.isRetrieved -eq $false }) {
+            $totalThreads = ($threads | Measure-Object).Count
+            $totalRetrievedThreads = ($threads | Where-Object { $_.isRetrieved -eq $true } | Measure-Object).Count
+            Write-Progress -Id 1 -Activity Updating -Status 'Progress' -CurrentOperation "Scanning Restore headers: $totalRetrievedThreads/$totalThreads" -PercentComplete ($totalRetrievedThreads / $totalThreads * 100)
+            foreach ($thread in ($threads | Where-Object { $_.isRetrieved -eq $false })) {
+                if ($thread.Handle.IsCompleted) {
+                    $dataTable = $thread.thread.EndInvoke($thread.handle)
+                    $thread.isRetrieved = $true
+                    #Check if thread had any errors
+                    if ($thread.thread.HadErrors) {
+                        if ($thread.deviceType -eq 'FILE') {
+                            Stop-Function -Message "Problem found with $($thread.file)." -Target $thread.file -ErrorRecord $thread.thread.Streams.Error -Continue
+                        } else {
+                            Stop-Function -Message "Unable to read $($thread.file), check credential $AzureCredential and network connectivity." -Target $thread.file -ErrorRecord $thread.thread.Streams.Error -Continue
+                        }
+                    }
+                    #Process the result of this thread
+
+                    $dbVersion = $dataTable[0].DatabaseVersion
+                    $SqlVersion = (Convert-DbVersionToSqlVersion $dbVersion)
+                    foreach ($row in $dataTable) {
+                        $row.SqlVersion = $SqlVersion
+                        if ($row.BackupName -eq "*** INCOMPLETE ***") {
+                            Stop-Function -Message "$($thread.file) appears to be from a new version of SQL Server than $SqlInstance, skipping" -Target $thread.file -Continue
+                        }
+                    }
+                    if ($Simple) {
+                        $dataTable | Select-Object DatabaseName, BackupFinishDate, RecoveryModel, BackupSize, CompressedBackupSize, DatabaseCreationDate, UserName, ServerName, SqlVersion, BackupPath
+                    } elseif ($FileList) {
+                        $dataTable.filelist
+                    } else {
+                        $dataTable
+                    }
+
+                    $thread.thread.Dispose()
+                }
+            }
+            Start-Sleep -Milliseconds 500
+        }
+        #Close the runspace pool
+        $runspacePool.Close()
+        [System.Management.Automation.Runspaces.Runspace]::DefaultRunspace = $defaultrunspace
     }
-
-    $thread.thread.Dispose()
-}
-}
-Start-Sleep -Milliseconds 500
-}
-#Close the runspace pool
-$runspacePool.Close()
-[System.Management.Automation.Runspaces.Runspace]::DefaultRunspace = $defaultrunspace
-}
 }

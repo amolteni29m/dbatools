@@ -78,7 +78,7 @@ function Get-DbaDbTable {
         The Table name, Schema name and Database name must be wrapped in square brackets [ ]
         Special charcters like " must be escaped by a ` charcter.
         In addition any actual instance of the ] character must be escaped by being duplicated.
-    #>
+       #>
     [CmdletBinding()]
     param ([parameter(ValueFromPipeline, Mandatory)]
         [Alias("ServerInstance", "SqlServer")]
@@ -130,61 +130,61 @@ function Get-DbaDbTable {
                 #only look at online databases (Status equal normal)
                 $dbs = $server.Databases | Where-Object IsAccessible
 
-            #If IncludeSystemDBs is false, exclude systemdbs
-            if (!$IncludeSystemDBs -and !$Database) {
-                $dbs = $dbs | Where-Object { !$_.IsSystemObject }
-        }
-
-        if ($Database) {
-            $dbs = $dbs | Where-Object { $Database -contains $_.Name }
-    }
-
-    if ($ExcludeDatabase) {
-        $dbs = $dbs | Where-Object { $ExcludeDatabase -notcontains $_.Name }
-}
-} catch {
-    Stop-Function -Message "Unable to gather dbs for $instance" -Target $instance -Continue -ErrorRecord $_
-}
-
-foreach ($db in $dbs) {
-    Write-Message -Level Verbose -Message "Processing $db"
-
-    if ($fqtns) {
-        $tables = @()
-        foreach ($fqtn in $fqtns) {
-            # If the user specified a database in a three-part name, and it's not the
-            # database currently being processed, skip this table.
-            if ($fqtn.Database) {
-                if ($fqtn.Database -ne $db.Name) {
-                    continue
+                #If IncludeSystemDBs is false, exclude systemdbs
+                if (!$IncludeSystemDBs -and !$Database) {
+                    $dbs = $dbs | Where-Object { !$_.IsSystemObject }
                 }
+
+                if ($Database) {
+                    $dbs = $dbs | Where-Object { $Database -contains $_.Name }
+                }
+
+                if ($ExcludeDatabase) {
+                    $dbs = $dbs | Where-Object { $ExcludeDatabase -notcontains $_.Name }
+                }
+            } catch {
+                Stop-Function -Message "Unable to gather dbs for $instance" -Target $instance -Continue -ErrorRecord $_
             }
 
-            $tbl = $db.tables | Where-Object { $_.Name -in $fqtn.Table -and $fqtn.Schema -in ($_.Schema, $null) -and $fqtn.Database -in ($_.Parent.Name, $null) }
+            foreach ($db in $dbs) {
+                Write-Message -Level Verbose -Message "Processing $db"
 
-        if (-not $tbl) {
-            Write-Message -Level Verbose -Message "Could not find table $($fqtn.Table) in $db on $server"
+                if ($fqtns) {
+                    $tables = @()
+                    foreach ($fqtn in $fqtns) {
+                        # If the user specified a database in a three-part name, and it's not the
+                        # database currently being processed, skip this table.
+                        if ($fqtn.Database) {
+                            if ($fqtn.Database -ne $db.Name) {
+                                continue
+                            }
+                        }
+
+                        $tbl = $db.tables | Where-Object { $_.Name -in $fqtn.Table -and $fqtn.Schema -in ($_.Schema, $null) -and $fqtn.Database -in ($_.Parent.Name, $null) }
+
+                        if (-not $tbl) {
+                            Write-Message -Level Verbose -Message "Could not find table $($fqtn.Table) in $db on $server"
+                        }
+                        $tables += $tbl
+                    }
+                } else {
+                    $tables = $db.Tables
+                }
+
+                foreach ($sqltable in $tables) {
+                    $sqltable | Add-Member -Force -MemberType NoteProperty -Name ComputerName -Value $server.ComputerName
+                    $sqltable | Add-Member -Force -MemberType NoteProperty -Name InstanceName -Value $server.ServiceName
+                    $sqltable | Add-Member -Force -MemberType NoteProperty -Name SqlInstance -Value $server.DomainInstanceName
+                    $sqltable | Add-Member -Force -MemberType NoteProperty -Name Database -Value $db.Name
+
+                    $defaultprops = "ComputerName", "InstanceName", "SqlInstance", "Database", "Schema", "Name", "IndexSpaceUsed", "DataSpaceUsed", "RowCount", "HasClusteredIndex", "IsFileTable", "IsMemoryOptimized", "IsPartitioned", "FullTextIndex", "ChangeTrackingEnabled"
+
+                    Select-DefaultView -InputObject $sqltable -Property $defaultprops
+                }
+            }
         }
-        $tables += $tbl
     }
-} else {
-    $tables = $db.Tables
-}
-
-foreach ($sqltable in $tables) {
-    $sqltable | Add-Member -Force -MemberType NoteProperty -Name ComputerName -Value $server.ComputerName
-$sqltable | Add-Member -Force -MemberType NoteProperty -Name InstanceName -Value $server.ServiceName
-$sqltable | Add-Member -Force -MemberType NoteProperty -Name SqlInstance -Value $server.DomainInstanceName
-$sqltable | Add-Member -Force -MemberType NoteProperty -Name Database -Value $db.Name
-
-$defaultprops = "ComputerName", "InstanceName", "SqlInstance", "Database", "Schema", "Name", "IndexSpaceUsed", "DataSpaceUsed", "RowCount", "HasClusteredIndex", "IsFileTable", "IsMemoryOptimized", "IsPartitioned", "FullTextIndex", "ChangeTrackingEnabled"
-
-Select-DefaultView -InputObject $sqltable -Property $defaultprops
-}
-}
-}
-}
-end {
-    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Get-DbaTable
-}
+    end {
+        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Get-DbaTable
+    }
 }

@@ -56,10 +56,10 @@ function Stop-DbaXESmartTarget {
                 $id = $InputObject.Id
                 Write-Message -Level Output -Message "Stopping job $id, this may take a couple minutes."
                 Get-Job -ID $InputObject.Id | Stop-Job
-            Write-Message -Level Output -Message "Successfully Stopped $id. If you need to remove the job for good, use Remove-DbaXESmartTarget."
-        } catch {
-            Stop-Function -Message "Failure" -ErrorRecord $_
+                Write-Message -Level Output -Message "Successfully Stopped $id. If you need to remove the job for good, use Remove-DbaXESmartTarget."
+            } catch {
+                Stop-Function -Message "Failure" -ErrorRecord $_
+            }
         }
     }
-}
 }

@@ -166,7 +166,7 @@ function Set-DbaAgentSchedule {
 
         # Check of the FrequencySubdayType value is of type string and set the integer value
         if ($FrequencySubdayType -notin 0, 1, 2, 4, 8) {
-            [int]$FrequencySubdayType = switch ($FrequencySubdayType) { "Time" { 1 } "Seconds" { 2 } "Minutes" { 4 } "Hours" { 8 } default { 0 } }
+            [int]$FrequencySubdayType = switch ($FrequencySubdayType) { "Time" { 1 } "Seconds" { 2 } "Minutes" { 4 } "Hours" { 8 } default {0} }
         }
 
         # Check if the interval is valid
@@ -214,7 +214,7 @@ function Set-DbaAgentSchedule {
                         "Saturday" { $Interval += 64 }
                         "Weekdays" { $Interval = 62 }
                         "Weekend" { $Interval = 65 }
-                        "EveryDay" { $Interval = 127 }
+                        "EveryDay" {$Interval = 127 }
                         1 { $Interval += 1 }
                         2 { $Interval += 2 }
                         4 { $Interval += 4 }
@@ -224,7 +224,7 @@ function Set-DbaAgentSchedule {
                         64 { $Interval += 64 }
                         62 { $Interval = 62 }
                         65 { $Interval = 65 }
-                        127 { $Interval = 127 }
+                        127 {$Interval = 127 }
                     }
                 }
             }
@@ -261,7 +261,7 @@ function Set-DbaAgentSchedule {
 
         # Check of the relative FrequencyInterval value is of type string and set the integer value
         if (($FrequencyRelativeInterval -notin 1, 2, 4, 8, 16) -and $null -ne $FrequencyRelativeInterval) {
-            [int]$FrequencyRelativeInterval = switch ($FrequencyRelativeInterval) { "First" { 1 } "Second" { 2 } "Third" { 4 } "Fourth" { 8 } "Last" { 16 } "Unused" { 0 } default { 0 } }
+            [int]$FrequencyRelativeInterval = switch ($FrequencyRelativeInterval) { "First" { 1 } "Second" { 2 } "Third" { 4 } "Fourth" { 8 } "Last" { 16 } "Unused" { 0 } default { 0 }}
         }
 
         # Check if the interval is valid

@@ -19,7 +19,7 @@ function Get-SaLoginName {
         Website: https://dbatools.io
         Copyright: (c) 2018 by dbatools, licensed under MIT
         License: MIT https://opensource.org/licenses/MIT
-    #>
+       #>
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
@@ -31,5 +31,5 @@ function Get-SaLoginName {
     $server = Connect-SqlInstance -SqlInstance $SqlInstance -SqlCredential $SqlCredential
     $saname = ($server.logins | Where-Object { $_.id -eq 1 }).Name
 
-return $saname
+    return $saname
 }

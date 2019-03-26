@@ -179,20 +179,20 @@ function Invoke-DbaDbccFreeCache {
                 if ($Pscmdlet.ShouldProcess($server.Name, "Execute the command $query against $instance")) {
                     Write-Message -Message "Query to run: $query" -Level Verbose
                     $results = $server | Invoke-DbaQuery  -Query $query -MessagesToOutput
+                }
+            } catch {
+                Stop-Function -Message "Failure" -ErrorRecord $_ -Target $server -Continue
             }
-        } catch {
-            Stop-Function -Message "Failure" -ErrorRecord $_ -Target $server -Continue
-        }
-        if ($Pscmdlet.ShouldProcess("console", "Outputting object")) {
-            [PSCustomObject]@{
-                ComputerName = $server.ComputerName
-                InstanceName = $server.ServiceName
-                SqlInstance  = $server.DomainInstanceName
-                Operation    = $Operation
-                Cmd          = $query.ToString()
-                Output       = $results
+            if ($Pscmdlet.ShouldProcess("console", "Outputting object")) {
+                [PSCustomObject]@{
+                    ComputerName = $server.ComputerName
+                    InstanceName = $server.ServiceName
+                    SqlInstance  = $server.DomainInstanceName
+                    Operation    = $Operation
+                    Cmd          = $query.ToString()
+                    Output       = $results
+                }
             }
         }
     }
-}
 }

@@ -175,32 +175,32 @@ This will make it easier for us to troubleshoot and you won't be sending us the 
             Write-Message -Level Output -Message "Collecting list of loaded assemblies (Name, Version, and Location)"
             $hash["Assemblies"] = [appdomain]::CurrentDomain.GetAssemblies() | Select-Object CodeBase, FullName, Location, ImageRuntimeVersion, GlobalAssemblyCache, IsDynamic
 
-        if (Test-Bound "Variables") {
-            Write-Message -Level Output -Message "Adding variables specified for export: $($Variables -join ", ")"
-            $hash["Variables"] = $Variables | Get-Variable -ErrorAction Ignore
+            if (Test-Bound "Variables") {
+                Write-Message -Level Output -Message "Adding variables specified for export: $($Variables -join ", ")"
+                $hash["Variables"] = $Variables | Get-Variable -ErrorAction Ignore
+            }
+
+            $data = [pscustomobject]$hash
+
+            try { $data | Export-Clixml -Path $filePathXml -ErrorAction Stop }
+            catch {
+                Stop-Function -Message "Failed to export dump to file!" -ErrorRecord $_ -Target $filePathXml
+                return
+            }
+
+            try { Compress-Archive -Path $filePathXml -DestinationPath $filePathZip -ErrorAction Stop }
+            catch {
+                Stop-Function -Message "Failed to pack dump-file into a zip archive. Please do so manually before submitting the results as the unpacked xml file will be rather large." -ErrorRecord $_ -Target $filePathZip
+                return
+            }
+
+            Remove-Item -Path $filePathXml -ErrorAction Ignore
+            if ($PassThru) {
+                Get-Item $filePathZip
+            }
+        }
     }
-
-    $data = [pscustomobject]$hash
-
-    try { $data | Export-Clixml -Path $filePathXml -ErrorAction Stop }
-catch {
-    Stop-Function -Message "Failed to export dump to file!" -ErrorRecord $_ -Target $filePathXml
-    return
-}
-
-try { Compress-Archive -Path $filePathXml -DestinationPath $filePathZip -ErrorAction Stop }
-catch {
-    Stop-Function -Message "Failed to pack dump-file into a zip archive. Please do so manually before submitting the results as the unpacked xml file will be rather large." -ErrorRecord $_ -Target $filePathZip
-    return
-}
-
-Remove-Item -Path $filePathXml -ErrorAction Ignore
-if ($PassThru) {
-    Get-Item $filePathZip
-}
-}
-}
-end {
-    Write-Message -Level InternalComment -Message "Ending"
-}
+    end {
+        Write-Message -Level InternalComment -Message "Ending"
+    }
 }

@@ -92,10 +92,10 @@ function New-DbaDbMailProfile {
                     Add-Member -Force -InputObject $profile -MemberType NoteProperty -Name SqlInstance -value $server.DomainInstanceName
 
                     $profile | Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, Id, Name, Description, IsBusyProfile
-            } catch {
-                Stop-Function -Message "Failure" -ErrorRecord $_ -Continue
+                } catch {
+                    Stop-Function -Message "Failure" -ErrorRecord $_ -Continue
+                }
             }
         }
     }
-}
 }

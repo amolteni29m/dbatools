@@ -122,52 +122,52 @@ function Remove-DbaComputerCertificate {
 
                 if ($Thumbprint) {
                     $certs = $certs | Where-Object Thumbprint -in $Thumbprint
+                }
+                $certs
             }
-            $certs
-        }
 
-        if ($Thumbprint) {
-            try {
-                <# DO NOT use Write-Message as this is inside of a script block #>
-                Write-Verbose "Searching Cert:\$Store\$Folder"
-                $cert = Get-CoreCertificate -Store $Store -Folder $Folder -Thumbprint $Thumbprint
-            } catch {
-                # don't care - there's a weird issue with remoting where an exception gets thrown for no apparent reason
-                # here to avoid an empty catch
-                $null = 1
-            }
-        }
-
-        if ($cert) {
-            $certstore = Get-CoreCertStore -Store $Store -Folder $Folder -Flag ReadWrite
-            $certstore.Remove($cert)
-            $status = "Removed"
-        } else {
-            $status = "Certificate not found in Cert:\$Store\$Folder"
-        }
-
-        [pscustomobject]@{
-            ComputerName = $env:COMPUTERNAME
-            Store        = $Store
-            Folder       = $Folder
-            Thumbprint   = $thumbprint
-            Status       = $status
-        }
-    }
-    #endregion Scriptblock for remoting
-}
-
-process {
-    foreach ($computer in $computername) {
-        foreach ($thumb in $Thumbprint) {
-            if ($PScmdlet.ShouldProcess("local", "Connecting to $computer to remove cert from Cert:\$Store\$Folder")) {
+            if ($Thumbprint) {
                 try {
-                    Invoke-Command2 -ComputerName $computer -Credential $Credential -ArgumentList $thumb, $Store, $Folder -ScriptBlock $scriptblock -ErrorAction Stop
+                    <# DO NOT use Write-Message as this is inside of a script block #>
+                    Write-Verbose "Searching Cert:\$Store\$Folder"
+                    $cert = Get-CoreCertificate -Store $Store -Folder $Folder -Thumbprint $Thumbprint
                 } catch {
-                    Stop-Function -Message $_ -ErrorRecord $_ -Target $computer -Continue
+                    # don't care - there's a weird issue with remoting where an exception gets thrown for no apparent reason
+                    # here to avoid an empty catch
+                    $null = 1
+                }
+            }
+
+            if ($cert) {
+                $certstore = Get-CoreCertStore -Store $Store -Folder $Folder -Flag ReadWrite
+                $certstore.Remove($cert)
+                $status = "Removed"
+            } else {
+                $status = "Certificate not found in Cert:\$Store\$Folder"
+            }
+
+            [pscustomobject]@{
+                ComputerName = $env:COMPUTERNAME
+                Store        = $Store
+                Folder       = $Folder
+                Thumbprint   = $thumbprint
+                Status       = $status
+            }
+        }
+        #endregion Scriptblock for remoting
+    }
+
+    process {
+        foreach ($computer in $computername) {
+            foreach ($thumb in $Thumbprint) {
+                if ($PScmdlet.ShouldProcess("local", "Connecting to $computer to remove cert from Cert:\$Store\$Folder")) {
+                    try {
+                        Invoke-Command2 -ComputerName $computer -Credential $Credential -ArgumentList $thumb, $Store, $Folder -ScriptBlock $scriptblock -ErrorAction Stop
+                    } catch {
+                        Stop-Function -Message $_ -ErrorRecord $_ -Target $computer -Continue
+                    }
                 }
             }
         }
     }
-}
 }

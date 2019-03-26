@@ -80,13 +80,13 @@ function Test-DbaConnection {
                 PowerShell = $PSVersionTable.PSversion.ToString()
                 CLR        = [string]$PSVersionTable.CLRVersion
                 SMO        = ((([AppDomain]::CurrentDomain.GetAssemblies() | Where-Object { $_.Fullname -like "Microsoft.SqlServer.SMO,*" }).FullName -Split ", ")[1]).TrimStart("Version=")
-            DomainUser     = $env:computername -ne $env:USERDOMAIN
-            RunAsAdmin     = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
-        }
+                DomainUser = $env:computername -ne $env:USERDOMAIN
+                RunAsAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
+            }
 
-        try {
-            <# gather following properties #>
-            <#
+            try {
+                <# gather following properties #>
+                <#
                         InputName        :
                         ComputerName     :
                         IPAddress        :
@@ -97,107 +97,107 @@ function Test-DbaConnection {
                         FQDN             :
                         FullComputerName :
                      #>
-            $resolved = Resolve-DbaNetworkName -ComputerName $instance.ComputerName -Credential $Credential
-        } catch {
-            Stop-Function -Message "Unable to resolve server information" -Category ConnectionError -Target $instance -ErrorRecord $_ -Continue
-        }
+                $resolved = Resolve-DbaNetworkName -ComputerName $instance.ComputerName -Credential $Credential
+            } catch {
+                Stop-Function -Message "Unable to resolve server information" -Category ConnectionError -Target $instance -ErrorRecord $_ -Continue
+            }
 
-        # Test for WinRM #Test-WinRM neh
-        Write-Message -Level Verbose -Message "Checking remote acccess"
-        try {
-            $null = Invoke-Command2 -ComputerName $instance.ComputerName -Credential $Credential -ScriptBlock { Get-ChildItem } -ErrorAction Stop
-            $remoting = $true
-        } catch {
-            $remoting = $_
-        }
+            # Test for WinRM #Test-WinRM neh
+            Write-Message -Level Verbose -Message "Checking remote acccess"
+            try {
+                $null = Invoke-Command2 -ComputerName $instance.ComputerName -Credential $Credential -ScriptBlock { Get-ChildItem } -ErrorAction Stop
+                $remoting = $true
+            } catch {
+                $remoting = $_
+            }
 
-        # Test Connection first using Ping class which requires ICMP access then failback to tcp if pings are blocked
-        Write-Message -Level Verbose -Message "Testing ping to $($instance.ComputerName)"
-        $ping = New-Object System.Net.NetworkInformation.Ping
-        $timeout = 1000 #milliseconds
-        $reply = $ping.Send($instance.ComputerName, $timeout)
-        $pingable = $reply.Status -eq 'Success'
+            # Test Connection first using Ping class which requires ICMP access then failback to tcp if pings are blocked
+            Write-Message -Level Verbose -Message "Testing ping to $($instance.ComputerName)"
+            $ping = New-Object System.Net.NetworkInformation.Ping
+            $timeout = 1000 #milliseconds
+            $reply = $ping.Send($instance.ComputerName, $timeout)
+            $pingable = $reply.Status -eq 'Success'
 
-        # this whole section does nothing and returns errors for default instances with a non-default port - baseaddress not defined
-        # commenting it all out
-        # SQL Server connection
-        # if ($instance.InstanceName -ne "MSSQLSERVER") {
-        #     #Variable marked as unused by PSScriptAnalyzer, need to be in PSCustomObject?
-        #     #$sqlport = "N/A"
-        # } else {
-        #     Write-Message -Level Verbose -Message "Testing raw socket connection to default SQL port"
-        #     $tcp = New-Object System.Net.Sockets.TcpClient
-        #     try {
-        #         $tcp.Connect($baseaddress, 1433)
-        #         $tcp.Close()
-        #         $tcp.Dispose()
-        #     } catch {
-        #         # here to avoid an empty catch
-        #         $null = 1
-        #     }
-        # }
+            # this whole section does nothing and returns errors for default instances with a non-default port - baseaddress not defined
+            # commenting it all out
+            # SQL Server connection
+            # if ($instance.InstanceName -ne "MSSQLSERVER") {
+            #     #Variable marked as unused by PSScriptAnalyzer, need to be in PSCustomObject?
+            #     #$sqlport = "N/A"
+            # } else {
+            #     Write-Message -Level Verbose -Message "Testing raw socket connection to default SQL port"
+            #     $tcp = New-Object System.Net.Sockets.TcpClient
+            #     try {
+            #         $tcp.Connect($baseaddress, 1433)
+            #         $tcp.Close()
+            #         $tcp.Dispose()
+            #     } catch {
+            #         # here to avoid an empty catch
+            #         $null = 1
+            #     }
+            # }
 
-        try {
-            $server = Connect-SqlInstance -SqlInstance $instance.FullSmoName -SqlCredential $SqlCredential
-            $connectSuccess = $true
-            $instanceName = $server.InstanceName
-        } catch {
-            $connectSuccess = $false
-            $instanceName = $instance.InstanceName
-            Stop-Function -Message "Issue connection to SQL Server on $instance" -Category ConnectionError -Target $instance -ErrorRecord $_ -Continue
-        }
+            try {
+                $server = Connect-SqlInstance -SqlInstance $instance.FullSmoName -SqlCredential $SqlCredential
+                $connectSuccess = $true
+                $instanceName = $server.InstanceName
+            } catch {
+                $connectSuccess = $false
+                $instanceName = $instance.InstanceName
+                Stop-Function -Message "Issue connection to SQL Server on $instance" -Category ConnectionError -Target $instance -ErrorRecord $_ -Continue
+            }
 
-        $username = $server.ConnectionContext.TrueLogin
-        if ($username -like "*\*") {
-            $authType = "Windows Authentication"
-        } else {
-            $authType = "SQL Authentication"
-        }
+            $username = $server.ConnectionContext.TrueLogin
+            if ($username -like "*\*") {
+                $authType = "Windows Authentication"
+            } else {
+                $authType = "SQL Authentication"
+            }
 
-        # TCP Port
-        try {
-            $tcpport = (Get-DbaTcpPort -SqlInstance $server -EnableException).Port
-        } catch {
-            $tcpport = $_
-        }
+            # TCP Port
+            try {
+                $tcpport = (Get-DbaTcpPort -SqlInstance $server -EnableException).Port
+            } catch {
+                $tcpport = $_
+            }
 
-        # Auth Scheme
-        try {
-            $authscheme = (Test-DbaConnectionAuthScheme -SqlInstance $server -WarningVariable authwarning -WarningAction SilentlyContinue).AuthScheme
-        } catch {
-            $authscheme = $_
-        }
+            # Auth Scheme
+            try {
+                $authscheme = (Test-DbaConnectionAuthScheme -SqlInstance $server -WarningVariable authwarning -WarningAction SilentlyContinue).AuthScheme
+            } catch {
+                $authscheme = $_
+            }
 
-        if ($authwarning) {
-            $authscheme = "N/A"
-        }
+            if ($authwarning) {
+                $authscheme = "N/A"
+            }
 
-        [pscustomobject]@{
-            ComputerName         = $resolved.ComputerName
-            InstanceName         = $instanceName
-            SqlInstance          = $instance.FullSmoName
-            SqlVersion           = $server.Version
-            ConnectingAsUser     = $username
-            ConnectSuccess       = $connectSuccess
-            AuthType             = $authType
-            AuthScheme           = $authscheme
-            TcpPort              = $tcpport
-            IPAddress            = $resolved.IPAddress
-            NetBiosName          = $resolved.FullComputerName
-            IsPingable           = $pingable
-            PSRemotingAccessible = $remoting
-            DomainName           = $resolved.Domain
-            LocalWindows         = $localInfo.Windows
-            LocalPowerShell      = $localInfo.PowerShell
-            LocalCLR             = $localInfo.CLR
-            LocalSMOVersion      = $localInfo.SMO
-            LocalDomainUser      = $localInfo.DomainUser
-            LocalRunAsAdmin      = $localInfo.RunAsAdmin
-            LocalEdition         = $localInfo.Edition
+            [pscustomobject]@{
+                ComputerName         = $resolved.ComputerName
+                InstanceName         = $instanceName
+                SqlInstance          = $instance.FullSmoName
+                SqlVersion           = $server.Version
+                ConnectingAsUser     = $username
+                ConnectSuccess       = $connectSuccess
+                AuthType             = $authType
+                AuthScheme           = $authscheme
+                TcpPort              = $tcpport
+                IPAddress            = $resolved.IPAddress
+                NetBiosName          = $resolved.FullComputerName
+                IsPingable           = $pingable
+                PSRemotingAccessible = $remoting
+                DomainName           = $resolved.Domain
+                LocalWindows         = $localInfo.Windows
+                LocalPowerShell      = $localInfo.PowerShell
+                LocalCLR             = $localInfo.CLR
+                LocalSMOVersion      = $localInfo.SMO
+                LocalDomainUser      = $localInfo.DomainUser
+                LocalRunAsAdmin      = $localInfo.RunAsAdmin
+                LocalEdition         = $localInfo.Edition
+            }
         }
     }
-}
-end {
-    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Test-SqlConnection
-}
+    end {
+        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Test-SqlConnection
+    }
 }

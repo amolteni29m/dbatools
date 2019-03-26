@@ -88,52 +88,52 @@ function Get-DbaXESessionTemplate {
 
             if ($Template) {
                 $files = $files | Where-Object BaseName -in $Template
+            }
+
+            foreach ($file in $files) {
+                try {
+                    $xml = [xml](Get-Content $file)
+                } catch {
+                    Stop-Function -Message "Failure" -ErrorRecord $_ -Target $file -Continue
+                }
+
+                foreach ($session in $xml.event_sessions) {
+                    $meta = $metadata | Where-Object Name -eq $session.event_session.name
+                    if ($Pattern) {
+                        if (
+                            # There's probably a better way to do this
+                            ($session.event_session.name -match $Pattern) -or
+                            ($session.event_session.TemplateCategory.'#text' -match $Pattern) -or
+                            ($session.event_session.TemplateSource -match $Pattern) -or
+                            ($session.event_session.TemplateDescription.'#text' -match $Pattern) -or
+                            ($session.event_session.TemplateName.'#text' -match $Pattern) -or
+                            ($meta.Source -match $Pattern)
+                        ) {
+                            [pscustomobject]@{
+                                Name          = $session.event_session.name
+                                Category      = $session.event_session.TemplateCategory.'#text'
+                                Source        = $meta.Source
+                                Compatibility = ("$($meta.Compatibility)").ToString().Replace(",", "")
+                                Description   = $session.event_session.TemplateDescription.'#text'
+                                TemplateName  = $session.event_session.TemplateName.'#text'
+                                Path          = $file
+                                File          = $file.Name
+                            } | Select-DefaultView -ExcludeProperty File, TemplateName, Path
+                        }
+                    } else {
+                        [pscustomobject]@{
+                            Name          = $session.event_session.name
+                            Category      = $session.event_session.TemplateCategory.'#text'
+                            Source        = $meta.Source
+                            Compatibility = $meta.Compatibility.ToString().Replace(",", "")
+                            Description   = $session.event_session.TemplateDescription.'#text'
+                            TemplateName  = $session.event_session.TemplateName.'#text'
+                            Path          = $file
+                            File          = $file.Name
+                        } | Select-DefaultView -ExcludeProperty File, TemplateName, Path
+                    }
+                }
+            }
         }
-
-        foreach ($file in $files) {
-            try {
-                $xml = [xml](Get-Content $file)
-            } catch {
-                Stop-Function -Message "Failure" -ErrorRecord $_ -Target $file -Continue
-            }
-
-            foreach ($session in $xml.event_sessions) {
-                $meta = $metadata | Where-Object Name -eq $session.event_session.name
-            if ($Pattern) {
-                if (
-                    # There's probably a better way to do this
-                    ($session.event_session.name -match $Pattern) -or
-                    ($session.event_session.TemplateCategory.'#text' -match $Pattern) -or
-                    ($session.event_session.TemplateSource -match $Pattern) -or
-                    ($session.event_session.TemplateDescription.'#text' -match $Pattern) -or
-                    ($session.event_session.TemplateName.'#text' -match $Pattern) -or
-                    ($meta.Source -match $Pattern)
-                ) {
-                    [pscustomobject]@{
-                        Name          = $session.event_session.name
-                        Category      = $session.event_session.TemplateCategory.'#text'
-                        Source        = $meta.Source
-                        Compatibility = ("$($meta.Compatibility)").ToString().Replace(",", "")
-                        Description   = $session.event_session.TemplateDescription.'#text'
-                        TemplateName  = $session.event_session.TemplateName.'#text'
-                        Path          = $file
-                        File          = $file.Name
-                    } | Select-DefaultView -ExcludeProperty File, TemplateName, Path
-            }
-        } else {
-            [pscustomobject]@{
-                Name          = $session.event_session.name
-                Category      = $session.event_session.TemplateCategory.'#text'
-                Source        = $meta.Source
-                Compatibility = $meta.Compatibility.ToString().Replace(",", "")
-                Description   = $session.event_session.TemplateDescription.'#text'
-                TemplateName  = $session.event_session.TemplateName.'#text'
-                Path          = $file
-                File          = $file.Name
-            } | Select-DefaultView -ExcludeProperty File, TemplateName, Path
     }
-}
-}
-}
-}
 }

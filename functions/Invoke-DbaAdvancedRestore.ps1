@@ -157,219 +157,219 @@ function Invoke-DbaAdvancedRestore {
     end {
         if (Test-FunctionInterrupt) { return }
         $Databases = $InternalHistory.Database | Select-Object -Unique
-    foreach ($Database in $Databases) {
-        $DatabaseRestoreStartTime = Get-Date
-        if ($Database -in $Server.Databases.Name) {
-            if (-not $OutputScriptOnly -and -not $VerifyOnly -and $Server.DatabaseEngineEdition -ne "SqlManagedInstance") {
-                if ($Pscmdlet.ShouldProcess("Killing processes in $Database on $SqlInstance as it exists and WithReplace specified  `n", "Cannot proceed if processes exist, ", "Database Exists and WithReplace specified, need to kill processes to restore")) {
-                    try {
-                        Write-Message -Level Verbose -Message "Killing processes on $Database"
-                        $null = Stop-DbaProcess -SqlInstance $Server -Database $Database -WarningAction Silentlycontinue
-                        $null = $server.Query("Alter database $Database set offline with rollback immediate; alter database $Database set restricted_user; Alter database $Database set online with rollback immediate", 'master')
-                        $server.ConnectionContext.Connect()
-                    } catch {
-                        Write-Message -Level Verbose -Message "No processes to kill in $Database"
+        foreach ($Database in $Databases) {
+            $DatabaseRestoreStartTime = Get-Date
+            if ($Database -in $Server.Databases.Name) {
+                if (-not $OutputScriptOnly -and -not $VerifyOnly -and $Server.DatabaseEngineEdition -ne "SqlManagedInstance") {
+                    if ($Pscmdlet.ShouldProcess("Killing processes in $Database on $SqlInstance as it exists and WithReplace specified  `n", "Cannot proceed if processes exist, ", "Database Exists and WithReplace specified, need to kill processes to restore")) {
+                        try {
+                            Write-Message -Level Verbose -Message "Killing processes on $Database"
+                            $null = Stop-DbaProcess -SqlInstance $Server -Database $Database -WarningAction Silentlycontinue
+                            $null = $server.Query("Alter database $Database set offline with rollback immediate; alter database $Database set restricted_user; Alter database $Database set online with rollback immediate", 'master')
+                            $server.ConnectionContext.Connect()
+                        } catch {
+                            Write-Message -Level Verbose -Message "No processes to kill in $Database"
+                        }
+                    }
+                } elseif (-not $OutputScriptOnly -and -not $VerifyOnly -and $Server.DatabaseEngineEdition -eq "SqlManagedInstance") {
+                    if ($Pscmdlet.ShouldProcess("Dropping $Database on $SqlInstance as it exists and WithReplace specified  `n", "Cannot proceed if database exist, ", "Database Exists and WithReplace specified, need to drop database to restore")) {
+                        try {
+                            Write-Message -Level Verbose "$SqlInstance is a Managed instance so dropping database was WithReplace not supported"
+                            $null = Stop-DbaProcess -SqlInstance $Server -Database $Database -WarningAction Silentlycontinue
+                            $null = Remove-DbaDatabase -SqlInstance $Server -Database $Database -Confirm:$false
+                            $server.ConnectionContext.Connect()
+                        } catch {
+                            Write-Message -Level Verbose -Message "No processes to kill in $Database"
+                        }
+                    }
+
+                } elseif (-not $WithReplace -and (-not $VerifyOnly)) {
+                    Write-Message -Level verbose -Message "$Database exists and WithReplace not specified, stopping"
+                    continue
+                }
+            }
+            Write-Message -Message "WithReplace  = $WithReplace" -Level Debug
+            $backups = @($InternalHistory | Where-Object {$_.Database -eq $Database} | Sort-Object -Property Type, FirstLsn)
+            $BackupCnt = 1
+
+            foreach ($backup in $backups) {
+                $FileRestoreStartTime = Get-Date
+                $Restore = New-Object Microsoft.SqlServer.Management.Smo.Restore
+                if (($backup -ne $backups[-1]) -or $true -eq $NoRecovery) {
+                    $Restore.NoRecovery = $True
+                } elseif ($backup -eq $backups[-1] -and '' -ne $StandbyDirectory) {
+                    $Restore.StandbyFile = $StandByDirectory + "\" + $Database + (get-date -Format yyyMMddHHmmss) + ".bak"
+                    Write-Message -Level Verbose -Message "Setting standby on last file $($Restore.StandbyFile)"
+                } else {
+                    $Restore.NoRecovery = $False
+                }
+                if ($restoretime -gt (Get-Date) -or $Restore.RestoreTime -gt (Get-Date) -or $backup.RecoveryModel -eq 'Simple') {
+                    $Restore.ToPointInTime = $null
+                } else {
+                    if ($RestoreTime -ne $Restore.RestoreTime) {
+                        $Restore.ToPointInTime = $backup.RestoreTime
+                    } else {
+                        $Restore.ToPointInTime = $RestoreTime
                     }
                 }
-            } elseif (-not $OutputScriptOnly -and -not $VerifyOnly -and $Server.DatabaseEngineEdition -eq "SqlManagedInstance") {
-                if ($Pscmdlet.ShouldProcess("Dropping $Database on $SqlInstance as it exists and WithReplace specified  `n", "Cannot proceed if database exist, ", "Database Exists and WithReplace specified, need to drop database to restore")) {
-                    try {
-                        Write-Message -Level Verbose "$SqlInstance is a Managed instance so dropping database was WithReplace not supported"
-                        $null = Stop-DbaProcess -SqlInstance $Server -Database $Database -WarningAction Silentlycontinue
-                        $null = Remove-DbaDatabase -SqlInstance $Server -Database $Database -Confirm:$false
-                        $server.ConnectionContext.Connect()
-                    } catch {
-                        Write-Message -Level Verbose -Message "No processes to kill in $Database"
+
+                $Restore.Database = $database
+                if ($Server.DatabaseEngineEdition -ne "SqlManagedInstance") {
+                    $Restore.ReplaceDatabase = $WithReplace
+                }
+                if ($MaxTransferSize) {
+                    $Restore.MaxTransferSize = $MaxTransferSize
+                }
+                if ($BufferCount) {
+                    $Restore.BufferCount = $BufferCount
+                }
+                if ($BlockSize) {
+                    $Restore.Blocksize = $BlockSize
+                }
+                if ($true -ne $Continue -and ($null -eq $Pages)) {
+                    foreach ($file in $backup.FileList) {
+                        $MoveFile = New-Object Microsoft.SqlServer.Management.Smo.RelocateFile
+                        $MoveFile.LogicalFileName = $File.LogicalName
+                        $MoveFile.PhysicalFileName = $File.PhysicalName
+                        $null = $Restore.RelocateFiles.Add($MoveFile)
                     }
                 }
+                $Action = switch ($backup.Type) {
+                    '1' {'Database'}
+                    '2' {'Log'}
+                    '5' {'Database'}
+                    'Transaction Log' {'Log'}
+                    Default {'Database'}
+                }
 
-            } elseif (-not $WithReplace -and (-not $VerifyOnly)) {
-                Write-Message -Level verbose -Message "$Database exists and WithReplace not specified, stopping"
-                continue
+                Write-Message -Level Debug -Message "restore action = $Action"
+                $Restore.Action = $Action
+                foreach ($File in $backup.FullName) {
+                    Write-Message -Message "Adding device $file" -Level Debug
+                    $Device = New-Object -TypeName Microsoft.SqlServer.Management.Smo.BackupDeviceItem
+                    $Device.Name = $file
+                    if ($file.StartsWith("http")) {
+                        $Device.devicetype = "URL"
+                    } else {
+                        $Device.devicetype = "File"
+                    }
+
+                    if ($AzureCredential) {
+                        $Restore.CredentialName = $AzureCredential
+                    }
+
+                    $Restore.FileNumber = $backup.Position
+                    $Restore.Devices.Add($Device)
+                }
+                Write-Message -Level Verbose -Message "Performing restore action"
+                $ConfirmMessage = "`n Restore Database $Database on $SqlInstance `n from files: $RestoreFileNames `n with these file moves: `n $LogicalFileMovesString `n $ConfirmPointInTime `n"
+                if ($Pscmdlet.ShouldProcess("$Database on $SqlInstance `n `n", $ConfirmMessage)) {
+                    try {
+                        $RestoreComplete = $true
+                        if ($KeepCDC -and $Restore.NoRecovery -eq $false) {
+                            $script = $Restore.Script($server)
+                            if ($script -like '*WITH*') {
+                                $script = $script.TrimEnd() + ' , KEEP_CDC'
+                            } else {
+                                $script = $script.TrimEnd() + ' WITH KEEP_CDC'
+                            }
+                            if ($true -ne $OutputScriptOnly) {
+                                Write-Progress -id 1 -activity "Restoring $Database to $sqlinstance - Backup $BackupCnt of $($Backups.count)" -percentcomplete 0 -status ([System.String]::Format("Progress: {0} %", 0))
+                                $null = $server.ConnectionContext.ExecuteNonQuery($script)
+                                Write-Progress -id 1 -activity "Restoring $Database to $sqlinstance - Backup $BackupCnt of $($Backups.count)" -status "Complete" -Completed
+                            }
+                        } elseif ($null -ne $Pages -and $Action -eq 'Database') {
+                            $script = $Restore.Script($server)
+                            $script = $script -replace "] FROM", "] PAGE='$pages' FROM"
+                            if ($true -ne $OutputScriptOnly) {
+                                Write-Progress -id 1 -activity "Restoring $Database to $sqlinstance - Backup $BackupCnt of $($Backups.count)" -percentcomplete 0 -status ([System.String]::Format("Progress: {0} %", 0))
+                                $null = $server.ConnectionContext.ExecuteNonQuery($script)
+                                Write-Progress -id 1 -activity "Restoring $Database to $sqlinstance - Backup $BackupCnt of $($Backups.count)" -status "Complete" -Completed
+                            }
+                        } elseif ($OutputScriptOnly) {
+                            $script = $Restore.Script($server)
+                        } elseif ($VerifyOnly) {
+                            Write-Message -Message "VerifyOnly restore" -Level Verbose
+                            Write-Progress -id 1 -activity "Verifying $Database backup file on $sqlinstance - Backup $BackupCnt of $($Backups.count)" -percentcomplete 0 -status ([System.String]::Format("Progress: {0} %", 0))
+                            $Verify = $Restore.SqlVerify($server)
+                            Write-Progress -id 1 -activity "Verifying $Database backup file on $sqlinstance - Backup $BackupCnt of $($Backups.count)" -status "Complete" -Completed
+                            if ($verify -eq $true) {
+                                Write-Message -Message "VerifyOnly restore Succeeded" -Level Verbose
+                                return "Verify successful"
+                            } else {
+                                Write-Message -Message "VerifyOnly restore Failed" -Level Verbose
+                                return "Verify failed"
+                            }
+                        } else {
+                            $outerProgress = $BackupCnt / $Backups.Count * 100
+                            if ($BackupCnt -eq 1) {
+                                Write-Progress -id 1 -Activity "Restoring $Database to $sqlinstance - Backup $BackupCnt of $($Backups.count)" -percentcomplete 0
+                            }
+                            Write-Progress -id 2 -ParentId 1 -Activity "Restore $($backup.FullName -Join ',')" -percentcomplete 0
+                            $script = $Restore.Script($Server)
+                            $percentcomplete = [Microsoft.SqlServer.Management.Smo.PercentCompleteEventHandler] {
+                                Write-Progress -id 2 -ParentId 1 -Activity "Restore $($backup.FullName -Join ',')" -percentcomplete $_.Percent -status ([System.String]::Format("Progress: {0} %", $_.Percent))
+                            }
+                            $Restore.add_PercentComplete($percentcomplete)
+                            $Restore.PercentCompleteNotification = 1
+                            $Restore.SqlRestore($Server)
+                            Write-Progress -id 2 -ParentId 1 -Activity "Restore $($backup.FullName -Join ',')" -Completed
+                            Write-Progress -id 1 -Activity "Restoring $Database to $sqlinstance - Backup $BackupCnt of $($Backups.count)" -percentcomplete $outerProgress -status ([System.String]::Format("Progress: {0:N2} %", $outerProgress))
+                        }
+                    } catch {
+                        Write-Message -Level Verbose -Message "Failed, Closing Server connection"
+                        $RestoreComplete = $False
+                        $ExitError = $_.Exception.InnerException
+                        Stop-Function -Message "Failed to restore db $Database, stopping" -ErrorRecord $_
+                        return
+                    } finally {
+                        if ($OutputScriptOnly -eq $false) {
+                            $pathSep = Get-DbaPathSep -Server $server
+                            $RestoreDirectory = ((Split-Path $backup.FileList.PhysicalName -Parent) | Sort-Object -Unique).Replace('\', $pathSep) -Join ','
+                            [PSCustomObject]@{
+                                ComputerName           = $server.ComputerName
+                                InstanceName           = $server.ServiceName
+                                SqlInstance            = $server.DomainInstanceName
+                                Database               = $backup.Database
+                                DatabaseName           = $backup.Database
+                                DatabaseOwner          = $server.ConnectionContext.TrueLogin
+                                Owner                  = $server.ConnectionContext.TrueLogin
+                                NoRecovery             = $Restore.NoRecovery
+                                WithReplace            = $WithReplace
+                                RestoreComplete        = $RestoreComplete
+                                BackupFilesCount       = $backup.FullName.Count
+                                RestoredFilesCount     = $backup.Filelist.PhysicalName.count
+                                BackupSizeMB           = if ([bool]($backup.psobject.Properties.Name -contains 'TotalSize')) { [Math]::Round(($backup | Measure-Object -Property TotalSize -Sum).Sum / 1mb, 2) } else { $null }
+                                CompressedBackupSizeMB = if ([bool]($backup.psobject.Properties.Name -contains 'CompressedBackupSize')) { [Math]::Round(($backup | Measure-Object -Property CompressedBackupSize -Sum).Sum / 1mb, 2) } else { $null }
+                                BackupFile             = $backup.FullName -Join ','
+                                RestoredFile           = $((Split-Path $backup.FileList.PhysicalName -Leaf) | Sort-Object -Unique) -Join ','
+                                RestoredFileFull       = ($backup.Filelist.PhysicalName -Join ',')
+                                RestoreDirectory       = $RestoreDirectory
+                                BackupSize             = if ([bool]($backup.psobject.Properties.Name -contains 'TotalSize')) { [dbasize](($backup | Measure-Object -Property TotalSize -Sum).Sum) } else { $null }
+                                CompressedBackupSize   = if ([bool]($backup.psobject.Properties.Name -contains 'CompressedBackupSize')) { [dbasize](($backup | Measure-Object -Property CompressedBackupSize -Sum).Sum) } else { $null }
+                                Script                 = $script
+                                BackupFileRaw          = ($backups.Fullname)
+                                FileRestoreTime        = New-TimeSpan -Seconds ((Get-Date) - $FileRestoreStartTime).TotalSeconds
+                                DatabaseRestoreTime    = New-TimeSpan -Seconds ((Get-Date) - $DatabaseRestoreStartTime).TotalSeconds
+                                ExitError              = $ExitError
+                            } | Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, BackupFile, BackupFilesCount, BackupSize, CompressedBackupSize, Database, Owner, DatabaseRestoreTime, FileRestoreTime, NoRecovery, RestoreComplete, RestoredFile, RestoredFilesCount, Script, RestoreDirectory, WithReplace
+                        } else {
+                            $script
+                        }
+                        if ($Restore.Devices.Count -gt 0) {
+                            $Restore.Devices.Clear()
+                        }
+                        Write-Message -Level Verbose -Message "Succeeded, Closing Server connection"
+                        $server.ConnectionContext.Disconnect()
+                    }
+                }
+                $BackupCnt++
             }
-        }
-        Write-Message -Message "WithReplace  = $WithReplace" -Level Debug
-        $backups = @($InternalHistory | Where-Object { $_.Database -eq $Database } | Sort-Object -Property Type, FirstLsn)
-$BackupCnt = 1
-
-foreach ($backup in $backups) {
-    $FileRestoreStartTime = Get-Date
-    $Restore = New-Object Microsoft.SqlServer.Management.Smo.Restore
-    if (($backup -ne $backups[-1]) -or $true -eq $NoRecovery) {
-        $Restore.NoRecovery = $True
-    } elseif ($backup -eq $backups[-1] -and '' -ne $StandbyDirectory) {
-        $Restore.StandbyFile = $StandByDirectory + "\" + $Database + (Get-Date -Format yyyMMddHHmmss) + ".bak"
-        Write-Message -Level Verbose -Message "Setting standby on last file $($Restore.StandbyFile)"
-    } else {
-        $Restore.NoRecovery = $False
-    }
-    if ($restoretime -gt (Get-Date) -or $Restore.RestoreTime -gt (Get-Date) -or $backup.RecoveryModel -eq 'Simple') {
-        $Restore.ToPointInTime = $null
-    } else {
-        if ($RestoreTime -ne $Restore.RestoreTime) {
-            $Restore.ToPointInTime = $backup.RestoreTime
-        } else {
-            $Restore.ToPointInTime = $RestoreTime
-        }
-    }
-
-    $Restore.Database = $database
-    if ($Server.DatabaseEngineEdition -ne "SqlManagedInstance") {
-        $Restore.ReplaceDatabase = $WithReplace
-    }
-    if ($MaxTransferSize) {
-        $Restore.MaxTransferSize = $MaxTransferSize
-    }
-    if ($BufferCount) {
-        $Restore.BufferCount = $BufferCount
-    }
-    if ($BlockSize) {
-        $Restore.Blocksize = $BlockSize
-    }
-    if ($true -ne $Continue -and ($null -eq $Pages)) {
-        foreach ($file in $backup.FileList) {
-            $MoveFile = New-Object Microsoft.SqlServer.Management.Smo.RelocateFile
-            $MoveFile.LogicalFileName = $File.LogicalName
-            $MoveFile.PhysicalFileName = $File.PhysicalName
-            $null = $Restore.RelocateFiles.Add($MoveFile)
-        }
-    }
-    $Action = switch ($backup.Type) {
-        '1' { 'Database' }
-        '2' { 'Log' }
-        '5' { 'Database' }
-        'Transaction Log' { 'Log' }
-        Default { 'Database' }
-    }
-
-    Write-Message -Level Debug -Message "restore action = $Action"
-    $Restore.Action = $Action
-    foreach ($File in $backup.FullName) {
-        Write-Message -Message "Adding device $file" -Level Debug
-        $Device = New-Object -TypeName Microsoft.SqlServer.Management.Smo.BackupDeviceItem
-        $Device.Name = $file
-        if ($file.StartsWith("http")) {
-            $Device.devicetype = "URL"
-        } else {
-            $Device.devicetype = "File"
-        }
-
-        if ($AzureCredential) {
-            $Restore.CredentialName = $AzureCredential
-        }
-
-        $Restore.FileNumber = $backup.Position
-        $Restore.Devices.Add($Device)
-    }
-    Write-Message -Level Verbose -Message "Performing restore action"
-    $ConfirmMessage = "`n Restore Database $Database on $SqlInstance `n from files: $RestoreFileNames `n with these file moves: `n $LogicalFileMovesString `n $ConfirmPointInTime `n"
-    if ($Pscmdlet.ShouldProcess("$Database on $SqlInstance `n `n", $ConfirmMessage)) {
-        try {
-            $RestoreComplete = $true
-            if ($KeepCDC -and $Restore.NoRecovery -eq $false) {
-                $script = $Restore.Script($server)
-                if ($script -like '*WITH*') {
-                    $script = $script.TrimEnd() + ' , KEEP_CDC'
-                } else {
-                    $script = $script.TrimEnd() + ' WITH KEEP_CDC'
-                }
-                if ($true -ne $OutputScriptOnly) {
-                    Write-Progress -id 1 -activity "Restoring $Database to $sqlinstance - Backup $BackupCnt of $($Backups.count)" -percentcomplete 0 -status ([System.String]::Format("Progress: {0} %", 0))
-                    $null = $server.ConnectionContext.ExecuteNonQuery($script)
-                    Write-Progress -id 1 -activity "Restoring $Database to $sqlinstance - Backup $BackupCnt of $($Backups.count)" -status "Complete" -Completed
-                }
-            } elseif ($null -ne $Pages -and $Action -eq 'Database') {
-                $script = $Restore.Script($server)
-                $script = $script -replace "] FROM", "] PAGE='$pages' FROM"
-                if ($true -ne $OutputScriptOnly) {
-                    Write-Progress -id 1 -activity "Restoring $Database to $sqlinstance - Backup $BackupCnt of $($Backups.count)" -percentcomplete 0 -status ([System.String]::Format("Progress: {0} %", 0))
-                    $null = $server.ConnectionContext.ExecuteNonQuery($script)
-                    Write-Progress -id 1 -activity "Restoring $Database to $sqlinstance - Backup $BackupCnt of $($Backups.count)" -status "Complete" -Completed
-                }
-            } elseif ($OutputScriptOnly) {
-                $script = $Restore.Script($server)
-            } elseif ($VerifyOnly) {
-                Write-Message -Message "VerifyOnly restore" -Level Verbose
-                Write-Progress -id 1 -activity "Verifying $Database backup file on $sqlinstance - Backup $BackupCnt of $($Backups.count)" -percentcomplete 0 -status ([System.String]::Format("Progress: {0} %", 0))
-                $Verify = $Restore.SqlVerify($server)
-                Write-Progress -id 1 -activity "Verifying $Database backup file on $sqlinstance - Backup $BackupCnt of $($Backups.count)" -status "Complete" -Completed
-                if ($verify -eq $true) {
-                    Write-Message -Message "VerifyOnly restore Succeeded" -Level Verbose
-                    return "Verify successful"
-                } else {
-                    Write-Message -Message "VerifyOnly restore Failed" -Level Verbose
-                    return "Verify failed"
-                }
-            } else {
-                $outerProgress = $BackupCnt / $Backups.Count * 100
-                if ($BackupCnt -eq 1) {
-                    Write-Progress -id 1 -Activity "Restoring $Database to $sqlinstance - Backup $BackupCnt of $($Backups.count)" -percentcomplete 0
-                }
-                Write-Progress -id 2 -ParentId 1 -Activity "Restore $($backup.FullName -Join ',')" -percentcomplete 0
-                $script = $Restore.Script($Server)
-                $percentcomplete = [Microsoft.SqlServer.Management.Smo.PercentCompleteEventHandler] {
-                    Write-Progress -id 2 -ParentId 1 -Activity "Restore $($backup.FullName -Join ',')" -percentcomplete $_.Percent -status ([System.String]::Format("Progress: {0} %", $_.Percent))
-                }
-                $Restore.add_PercentComplete($percentcomplete)
-                $Restore.PercentCompleteNotification = 1
-                $Restore.SqlRestore($Server)
-                Write-Progress -id 2 -ParentId 1 -Activity "Restore $($backup.FullName -Join ',')" -Completed
-                Write-Progress -id 1 -Activity "Restoring $Database to $sqlinstance - Backup $BackupCnt of $($Backups.count)" -percentcomplete $outerProgress -status ([System.String]::Format("Progress: {0:N2} %", $outerProgress))
+            Write-Progress -id 2 -Activity "Finished" -Completed
+            if ($server.ConnsectionContext.exists) {
+                $server.ConnectionContext.Disconnect()
             }
-        } catch {
-            Write-Message -Level Verbose -Message "Failed, Closing Server connection"
-            $RestoreComplete = $False
-            $ExitError = $_.Exception.InnerException
-            Stop-Function -Message "Failed to restore db $Database, stopping" -ErrorRecord $_
-            return
-        } finally {
-            if ($OutputScriptOnly -eq $false) {
-                $pathSep = Get-DbaPathSep -Server $server
-                $RestoreDirectory = ((Split-Path $backup.FileList.PhysicalName -Parent) | Sort-Object -Unique).Replace('\', $pathSep) -Join ','
-            [PSCustomObject]@{
-                ComputerName       = $server.ComputerName
-                InstanceName       = $server.ServiceName
-                SqlInstance        = $server.DomainInstanceName
-                Database           = $backup.Database
-                DatabaseName       = $backup.Database
-                DatabaseOwner      = $server.ConnectionContext.TrueLogin
-                Owner              = $server.ConnectionContext.TrueLogin
-                NoRecovery         = $Restore.NoRecovery
-                WithReplace        = $WithReplace
-                RestoreComplete    = $RestoreComplete
-                BackupFilesCount   = $backup.FullName.Count
-                RestoredFilesCount = $backup.Filelist.PhysicalName.count
-                BackupSizeMB       = if ([bool]($backup.psobject.Properties.Name -contains 'TotalSize')) { [Math]::Round(($backup | Measure-Object -Property TotalSize -Sum).Sum / 1mb, 2) } else { $null }
-            CompressedBackupSizeMB = if ([bool]($backup.psobject.Properties.Name -contains 'CompressedBackupSize')) { [Math]::Round(($backup | Measure-Object -Property CompressedBackupSize -Sum).Sum / 1mb, 2) } else { $null }
-        BackupFile                 = $backup.FullName -Join ','
-        RestoredFile               = $((Split-Path $backup.FileList.PhysicalName -Leaf) | Sort-Object -Unique) -Join ','
-    RestoredFileFull               = ($backup.Filelist.PhysicalName -Join ',')
-    RestoreDirectory               = $RestoreDirectory
-    BackupSize                     = if ([bool]($backup.psobject.Properties.Name -contains 'TotalSize')) { [dbasize](($backup | Measure-Object -Property TotalSize -Sum).Sum) } else { $null }
-CompressedBackupSize               = if ([bool]($backup.psobject.Properties.Name -contains 'CompressedBackupSize')) { [dbasize](($backup | Measure-Object -Property CompressedBackupSize -Sum).Sum) } else { $null }
-Script                             = $script
-BackupFileRaw                      = ($backups.Fullname)
-FileRestoreTime                    = New-TimeSpan -Seconds ((Get-Date) - $FileRestoreStartTime).TotalSeconds
-DatabaseRestoreTime                = New-TimeSpan -Seconds ((Get-Date) - $DatabaseRestoreStartTime).TotalSeconds
-ExitError                          = $ExitError
-} | Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, BackupFile, BackupFilesCount, BackupSize, CompressedBackupSize, Database, Owner, DatabaseRestoreTime, FileRestoreTime, NoRecovery, RestoreComplete, RestoredFile, RestoredFilesCount, Script, RestoreDirectory, WithReplace
-} else {
-    $script
-}
-if ($Restore.Devices.Count -gt 0) {
-    $Restore.Devices.Clear()
-}
-Write-Message -Level Verbose -Message "Succeeded, Closing Server connection"
-$server.ConnectionContext.Disconnect()
-}
-}
-$BackupCnt++
-}
-Write-Progress -id 2 -Activity "Finished" -Completed
-if ($server.ConnsectionContext.exists) {
-    $server.ConnectionContext.Disconnect()
-}
-Write-Progress -id 1 -Activity "Finished" -Completed
-}
-}
+            Write-Progress -id 1 -Activity "Finished" -Completed
+        }
+    }
 }

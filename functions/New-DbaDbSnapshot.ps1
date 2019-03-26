@@ -172,161 +172,161 @@ function New-DbaDbSnapshot {
 
             if ($Database) {
                 $dbs = $server.Databases | Where-Object { $Database -contains $_.Name }
-        }
-
-        if ($ExcludeDatabase) {
-            $dbs = $server.Databases | Where-Object { $ExcludeDatabase -notcontains $_.Name }
-    }
-
-    ## double check for gotchas
-    foreach ($db in $dbs) {
-        if ($db.IsDatabaseSnapshot) {
-            Write-Message -Level Warning -Message "$($db.name) is a snapshot, skipping"
-        } elseif ($db.name -in $NoSupportForSnap) {
-            Write-Message -Level Warning -Message "$($db.name) snapshots are prohibited"
-        } elseif ($db.IsAccessible -ne $true) {
-            Write-Message -Level Verbose -Message "$($db.name) is not accessible, skipping"
-        } else {
-            $InputObject += $db
-        }
-    }
-
-    if ($InputObject.Length -gt 1 -and $Name) {
-        Stop-Function -Message "You passed the Name parameter that is fixed but selected multiple databases to snapshot: use the NameSuffix parameter" -Continue -EnableException $EnableException
-    }
-}
-
-foreach ($db in $InputObject) {
-    $server = $db.Parent
-
-    # In case stuff is piped in
-    if ($server.VersionMajor -lt 9) {
-        Stop-Function -Message "SQL Server version 9 required - $server not supported" -Continue
-    }
-
-    if ($NameSuffix.Length -gt 0) {
-        $SnapName = $NameSuffix -f $db.Name
-        if ($SnapName -eq $NameSuffix) {
-            #no interpolation, just append
-            $SnapName = '{0}{1}' -f $db.Name, $NameSuffix
-        }
-    } elseif ($Name.Length -gt 0) {
-        $SnapName = $Name
-    } else {
-        $SnapName = "{0}_{1}" -f $db.Name, $DefaultSuffix
-    }
-    if ($SnapName -in $server.Databases.Name) {
-        Write-Message -Level Warning -Message "A database named $Snapname already exists, skipping"
-        continue
-    }
-    $all_FSD = $db.FileGroups | Where-Object FileGroupType -eq 'FileStreamDataFileGroup'
-$all_MMO = $db.FileGroups | Where-Object FileGroupType -eq 'MemoryOptimizedDataFileGroup'
-$has_FSD = $all_FSD.Count -gt 0
-$has_MMO = $all_MMO.Count -gt 0
-if ($has_MMO) {
-    Write-Message -Level Warning -Message "MEMORY_OPTIMIZED_DATA detected, snapshots are not possible"
-    continue
-}
-if ($has_FSD -and $Force -eq $false) {
-    Write-Message -Level Warning -Message "Filestream detected, skipping. You need to specify -Force. See Get-Help for details"
-    continue
-}
-$snaptype = "db snapshot"
-if ($has_FSD) {
-    $snaptype = "partial db snapshot"
-}
-If ($Pscmdlet.ShouldProcess($server, "Create $snaptype $SnapName of $($db.Name)")) {
-    $CustomFileStructure = @{ }
-    $counter = 0
-    foreach ($fg in $db.FileGroups) {
-        $CustomFileStructure[$fg.Name] = @()
-        if ($fg.FileGroupType -eq 'FileStreamDataFileGroup') {
-            Continue
-        }
-        foreach ($file in $fg.Files) {
-            $counter += 1
-            $basename = [IO.Path]::GetFileNameWithoutExtension($file.FileName)
-            $basepath = Split-Path $file.FileName -Parent
-            # change path if specified
-            if ($Path.Length -gt 0) {
-                $basepath = $Path
             }
-            # we need to avoid cases where basename is the same for multiple FG
-            $fname = [IO.Path]::Combine($basepath, ("{0}_{1}_{2:0000}_{3:000}" -f $basename, $DefaultSuffix, (Get-Date).MilliSecond, $counter))
-            # fixed extension is hardcoded as "ss", which seems a "de-facto" standard
-            $fname = [IO.Path]::ChangeExtension($fname, "ss")
-            $CustomFileStructure[$fg.Name] += @{ 'name' = $file.name; 'filename' = $fname }
+
+            if ($ExcludeDatabase) {
+                $dbs = $server.Databases | Where-Object { $ExcludeDatabase -notcontains $_.Name }
+            }
+
+            ## double check for gotchas
+            foreach ($db in $dbs) {
+                if ($db.IsDatabaseSnapshot) {
+                    Write-Message -Level Warning -Message "$($db.name) is a snapshot, skipping"
+                } elseif ($db.name -in $NoSupportForSnap) {
+                    Write-Message -Level Warning -Message "$($db.name) snapshots are prohibited"
+                } elseif ($db.IsAccessible -ne $true) {
+                    Write-Message -Level Verbose -Message "$($db.name) is not accessible, skipping"
+                } else {
+                    $InputObject += $db
+                }
+            }
+
+            if ($InputObject.Length -gt 1 -and $Name) {
+                Stop-Function -Message "You passed the Name parameter that is fixed but selected multiple databases to snapshot: use the NameSuffix parameter" -Continue -EnableException $EnableException
+            }
         }
-    }
 
-    $SnapDB = New-Object -TypeName Microsoft.SqlServer.Management.Smo.Database -ArgumentList $server, $Snapname
-    $SnapDB.DatabaseSnapshotBaseName = $db.Name
+        foreach ($db in $InputObject) {
+            $server = $db.Parent
 
-    foreach ($fg in $CustomFileStructure.Keys) {
-        $SnapFG = New-Object -TypeName Microsoft.SqlServer.Management.Smo.FileGroup $SnapDB, $fg
-        $SnapDB.FileGroups.Add($SnapFG)
-        foreach ($file in $CustomFileStructure[$fg]) {
-            $SnapFile = New-Object -TypeName Microsoft.SqlServer.Management.Smo.DataFile $SnapFG, $file['name'], $file['filename']
-            $SnapDB.FileGroups[$fg].Files.Add($SnapFile)
-        }
-    }
+            # In case stuff is piped in
+            if ($server.VersionMajor -lt 9) {
+                Stop-Function -Message "SQL Server version 9 required - $server not supported" -Continue
+            }
 
-    # we're ready to issue a Create, but SMO is a little uncooperative here
-    # there are cases we can manage and others we can't, and we need all the
-    # info we can get both from testers and from users
-
-    $sql = $SnapDB.Script()
-
-    try {
-        $SnapDB.Create()
-        $server.Databases.Refresh()
-        Get-DbaDbSnapshot -SqlInstance $server -Snapshot $Snapname
-    } catch {
-        try {
-            $server.Databases.Refresh()
-            if ($SnapName -notin $server.Databases.Name) {
-                # previous creation failed completely, snapshot is not there already
-                $null = $server.Query($sql[0])
-                $server.Databases.Refresh()
-                $SnapDB = Get-DbaDbSnapshot -SqlInstance $server -Snapshot $Snapname
+            if ($NameSuffix.Length -gt 0) {
+                $SnapName = $NameSuffix -f $db.Name
+                if ($SnapName -eq $NameSuffix) {
+                    #no interpolation, just append
+                    $SnapName = '{0}{1}' -f $db.Name, $NameSuffix
+                }
+            } elseif ($Name.Length -gt 0) {
+                $SnapName = $Name
             } else {
-                $SnapDB = Get-DbaDbSnapshot -SqlInstance $server -Snapshot $Snapname
+                $SnapName = "{0}_{1}" -f $db.Name, $DefaultSuffix
             }
-
-            $Notes = @()
-            if ($db.ReadOnly -eq $true) {
-                $Notes += 'SMO is probably trying to set a property on a read-only snapshot, run with -Debug to find out and report back'
+            if ($SnapName -in $server.Databases.Name) {
+                Write-Message -Level Warning -Message "A database named $Snapname already exists, skipping"
+                continue
             }
+            $all_FSD = $db.FileGroups | Where-Object FileGroupType -eq 'FileStreamDataFileGroup'
+            $all_MMO = $db.FileGroups | Where-Object FileGroupType -eq 'MemoryOptimizedDataFileGroup'
+            $has_FSD = $all_FSD.Count -gt 0
+            $has_MMO = $all_MMO.Count -gt 0
+            if ($has_MMO) {
+                Write-Message -Level Warning -Message "MEMORY_OPTIMIZED_DATA detected, snapshots are not possible"
+                continue
+            }
+            if ($has_FSD -and $Force -eq $false) {
+                Write-Message -Level Warning -Message "Filestream detected, skipping. You need to specify -Force. See Get-Help for details"
+                continue
+            }
+            $snaptype = "db snapshot"
             if ($has_FSD) {
-                #Variable marked as unused by PSScriptAnalyzer
-                #$Status = 'Partial'
-                $Notes += 'Filestream groups are not viable for snapshot'
+                $snaptype = "partial db snapshot"
             }
-            $Notes = $Notes -Join ';'
+            If ($Pscmdlet.ShouldProcess($server, "Create $snaptype $SnapName of $($db.Name)")) {
+                $CustomFileStructure = @{ }
+                $counter = 0
+                foreach ($fg in $db.FileGroups) {
+                    $CustomFileStructure[$fg.Name] = @()
+                    if ($fg.FileGroupType -eq 'FileStreamDataFileGroup') {
+                        Continue
+                    }
+                    foreach ($file in $fg.Files) {
+                        $counter += 1
+                        $basename = [IO.Path]::GetFileNameWithoutExtension($file.FileName)
+                        $basepath = Split-Path $file.FileName -Parent
+                        # change path if specified
+                        if ($Path.Length -gt 0) {
+                            $basepath = $Path
+                        }
+                        # we need to avoid cases where basename is the same for multiple FG
+                        $fname = [IO.Path]::Combine($basepath, ("{0}_{1}_{2:0000}_{3:000}" -f $basename, $DefaultSuffix, (Get-Date).MilliSecond, $counter))
+                        # fixed extension is hardcoded as "ss", which seems a "de-facto" standard
+                        $fname = [IO.Path]::ChangeExtension($fname, "ss")
+                        $CustomFileStructure[$fg.Name] += @{ 'name' = $file.name; 'filename' = $fname }
+                    }
+                }
 
-            $hints = @("Executing these commands led to a partial failure")
-            foreach ($stmt in $sql) {
-                $hints += $stmt
+                $SnapDB = New-Object -TypeName Microsoft.SqlServer.Management.Smo.Database -ArgumentList $server, $Snapname
+                $SnapDB.DatabaseSnapshotBaseName = $db.Name
+
+                foreach ($fg in $CustomFileStructure.Keys) {
+                    $SnapFG = New-Object -TypeName Microsoft.SqlServer.Management.Smo.FileGroup $SnapDB, $fg
+                    $SnapDB.FileGroups.Add($SnapFG)
+                    foreach ($file in $CustomFileStructure[$fg]) {
+                        $SnapFile = New-Object -TypeName Microsoft.SqlServer.Management.Smo.DataFile $SnapFG, $file['name'], $file['filename']
+                        $SnapDB.FileGroups[$fg].Files.Add($SnapFile)
+                    }
+                }
+
+                # we're ready to issue a Create, but SMO is a little uncooperative here
+                # there are cases we can manage and others we can't, and we need all the
+                # info we can get both from testers and from users
+
+                $sql = $SnapDB.Script()
+
+                try {
+                    $SnapDB.Create()
+                    $server.Databases.Refresh()
+                    Get-DbaDbSnapshot -SqlInstance $server -Snapshot $Snapname
+                } catch {
+                    try {
+                        $server.Databases.Refresh()
+                        if ($SnapName -notin $server.Databases.Name) {
+                            # previous creation failed completely, snapshot is not there already
+                            $null = $server.Query($sql[0])
+                            $server.Databases.Refresh()
+                            $SnapDB = Get-DbaDbSnapshot -SqlInstance $server -Snapshot $Snapname
+                        } else {
+                            $SnapDB = Get-DbaDbSnapshot -SqlInstance $server -Snapshot $Snapname
+                        }
+
+                        $Notes = @()
+                        if ($db.ReadOnly -eq $true) {
+                            $Notes += 'SMO is probably trying to set a property on a read-only snapshot, run with -Debug to find out and report back'
+                        }
+                        if ($has_FSD) {
+                            #Variable marked as unused by PSScriptAnalyzer
+                            #$Status = 'Partial'
+                            $Notes += 'Filestream groups are not viable for snapshot'
+                        }
+                        $Notes = $Notes -Join ';'
+
+                        $hints = @("Executing these commands led to a partial failure")
+                        foreach ($stmt in $sql) {
+                            $hints += $stmt
+                        }
+
+                        Write-Message -Level Debug -Message ($hints -Join "`n")
+
+                        $SnapDB
+                    } catch {
+                        # Resolve-SnapshotError $server
+                        $hints = @("Executing these commands led to a failure")
+                        foreach ($stmt in $sql) {
+                            $hints += $stmt
+                        }
+                        Write-Message -Level Debug -Message ($hints -Join "`n")
+
+                        Stop-Function -Message "Failure" -ErrorRecord $_ -Target $SnapDB -Continue
+                    }
+                }
             }
-
-            Write-Message -Level Debug -Message ($hints -Join "`n")
-
-            $SnapDB
-        } catch {
-            # Resolve-SnapshotError $server
-            $hints = @("Executing these commands led to a failure")
-            foreach ($stmt in $sql) {
-                $hints += $stmt
-            }
-            Write-Message -Level Debug -Message ($hints -Join "`n")
-
-            Stop-Function -Message "Failure" -ErrorRecord $_ -Target $SnapDB -Continue
         }
     }
-}
-}
-}
-end {
-    Test-DbaDeprecation -DeprecatedOn "1.0.0" -Alias New-DbaDatabaseSnapshot
-}
+    end {
+        Test-DbaDeprecation -DeprecatedOn "1.0.0" -Alias New-DbaDatabaseSnapshot
+    }
 }

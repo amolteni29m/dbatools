@@ -54,9 +54,9 @@ function Get-DbaWsfcRole {
             $cluster = Get-DbaWsfcCluster -ComputerName $computer -Credential $Credential
             $role = Get-DbaCmObject -Computername $computer -Credential $Credential -Namespace root\MSCluster -ClassName MSCluster_ResourceGroup
             $role | Add-Member -Force -NotePropertyName State -NotePropertyValue (Get-ResourceState $resource.State)
-        $role | Add-Member -Force -NotePropertyName ClusterName -NotePropertyValue $cluster.Name
-    $role | Add-Member -Force -NotePropertyName ClusterFqdn -NotePropertyValue $cluster.Fqdn
-$role | Select-DefaultView -Property ClusterName, ClusterFqdn, Name, OwnerNode, State
-}
-}
+            $role | Add-Member -Force -NotePropertyName ClusterName -NotePropertyValue $cluster.Name
+            $role | Add-Member -Force -NotePropertyName ClusterFqdn -NotePropertyValue $cluster.Fqdn
+            $role | Select-DefaultView -Property ClusterName, ClusterFqdn, Name, OwnerNode, State
+        }
+    }
 }

@@ -133,7 +133,7 @@ function Get-DbaDbMemoryUsage {
                     Size         = [DbaSize]$row.SizeMb * 1024
                     PercentUsed  = $percentUsed
                 } | Select-DefaultView -ExcludeProperty 'PageCount'
+            }
         }
     }
-}
 }

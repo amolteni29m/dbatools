@@ -89,16 +89,16 @@ function Get-DbaDbccHelp {
                 Write-Message -Message "Query to run: $query" -Level Verbose
                 $results = $server | Invoke-DbaQuery  -Query $query -MessagesToOutput
 
-        } catch {
-            Stop-Function -Message "Failure" -ErrorRecord $_ -Target $server -Continue
-        }
+            } catch {
+                Stop-Function -Message "Failure" -ErrorRecord $_ -Target $server -Continue
+            }
 
-        [PSCustomObject]@{
-            Operation = $Statement
-            Cmd       = "DBCC HELP($Statement)"
-            Output    = $results
-        }
+            [PSCustomObject]@{
+                Operation = $Statement
+                Cmd       = "DBCC HELP($Statement)"
+                Output    = $results
+            }
 
+        }
     }
-}
 }

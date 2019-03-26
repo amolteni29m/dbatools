@@ -94,88 +94,88 @@ function Copy-DbaStartupProcedure {
         }
         # Includes properties: Name, Schema (both as strings)
         $startupProcs = Get-DbaModule -SqlInstance $sourceServer -Type StoredProcedure -Database master | Where-Object ExecIsStartup
-}
-process {
-    if (Test-FunctionInterrupt) { return }
-    foreach ($destInstance in $Destination) {
-        try {
-            $destServer = Connect-SqlInstance -SqlInstance $destInstance -SqlCredential $DestinationSqlCredential -MinimumVersion 9
-        } catch {
-            Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $destInstance -Continue
-        }
-
-        $destStartupProcs = Get-DbaModule -SqlInstance $destServer -Type StoredProcedure -Database master
-
-        foreach ($currentProc in $startupProcs) {
-            $currentProcName = $currentProc.Name
-            $currentProcSchema = $currentProc.SchemaName
-            $currentProcFullName = "$currentProcSchema.$currentProcName"
-
-            $copyStartupProcStatus = [PSCustomObject]@{
-                SourceServer      = $sourceServer.Name
-                DestinationServer = $destServer.Name
-                Name              = $currentProcName
-                Schema            = $currentProcSchema
-                Status            = $null
-                Notes             = $null
-                Type              = "Startup Stored Procedure"
-                DateTime          = [DbaDateTime](Get-Date)
+    }
+    process {
+        if (Test-FunctionInterrupt) { return }
+        foreach ($destInstance in $Destination) {
+            try {
+                $destServer = Connect-SqlInstance -SqlInstance $destInstance -SqlCredential $DestinationSqlCredential -MinimumVersion 9
+            } catch {
+                Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $destInstance -Continue
             }
 
-            if ($Procedure -and ($Procedure -notcontains $currentProcName)) {
-                continue
-            }
+            $destStartupProcs = Get-DbaModule -SqlInstance $destServer -Type StoredProcedure -Database master
 
-            if ($ExcludeProcedure -and ($ExcludeProcedure -contains $currentProcName)) {
-                continue
-            }
+            foreach ($currentProc in $startupProcs) {
+                $currentProcName = $currentProc.Name
+                $currentProcSchema = $currentProc.SchemaName
+                $currentProcFullName = "$currentProcSchema.$currentProcName"
 
-            if ($destStartupProcs.Name -contains $currentProcName) {
-                if ($force -eq $false) {
-                    $copyStartupProcStatus.Status = "Skipped"
-                    $copyStartupProcStatus.Notes = "Already exists on destination"
-                    $copyStartupProcStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+                $copyStartupProcStatus = [PSCustomObject]@{
+                    SourceServer      = $sourceServer.Name
+                    DestinationServer = $destServer.Name
+                    Name              = $currentProcName
+                    Schema            = $currentProcSchema
+                    Status            = $null
+                    Notes             = $null
+                    Type              = "Startup Stored Procedure"
+                    DateTime          = [DbaDateTime](Get-Date)
+                }
 
-                Write-Message -Level Verbose -Message "Startup procedure $currentProcFullName exists at destination. Use -Force to drop and migrate."
-                continue
-            } else {
-                if ($Pscmdlet.ShouldProcess($destInstance, "Dropping startup procedure $currentProcFullName and recreating")) {
+                if ($Procedure -and ($Procedure -notcontains $currentProcName)) {
+                    continue
+                }
+
+                if ($ExcludeProcedure -and ($ExcludeProcedure -contains $currentProcName)) {
+                    continue
+                }
+
+                if ($destStartupProcs.Name -contains $currentProcName) {
+                    if ($force -eq $false) {
+                        $copyStartupProcStatus.Status = "Skipped"
+                        $copyStartupProcStatus.Notes = "Already exists on destination"
+                        $copyStartupProcStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+
+                        Write-Message -Level Verbose -Message "Startup procedure $currentProcFullName exists at destination. Use -Force to drop and migrate."
+                        continue
+                    } else {
+                        if ($Pscmdlet.ShouldProcess($destInstance, "Dropping startup procedure $currentProcFullName and recreating")) {
+                            try {
+                                Write-Message -Level Verbose -Message "Dropping startup procedure $currentProcFullName"
+                                $destServer.Query("DROP PROCEDURE [$($currentProcSchema)].[$($currentProcName)]")
+                            } catch {
+                                $copyStartupProcStatus.Status = "Failed"
+                                $copyStartupProcStatus.Notes = $_
+                                $copyStartupProcStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+
+                                Stop-Function -Message "Issue dropping startup procedure" -Target $currentProcFullName -ErrorRecord $_ -Continue
+                            }
+                        }
+                    }
+                }
+
+                if ($Pscmdlet.ShouldProcess($destInstance, "Creating startup procedure $currentProcFullName")) {
                     try {
-                        Write-Message -Level Verbose -Message "Dropping startup procedure $currentProcFullName"
-                        $destServer.Query("DROP PROCEDURE [$($currentProcSchema)].[$($currentProcName)]")
+                        Write-Message -Level Verbose -Message "Copying startup procedure $currentProcFullName"
+                        $sp = $sourceServer.Databases['master'].StoredProcedures.Item($currentProcName, $currentProcSchema)
+                        $header = $sp.TextHeader
+                        $body = $sp.TextBody
+                        $sql = $header + $body
+                        Write-Message -Level Verbose -Message $sql
+                        $null = Invoke-DbaQuery -SqlInstance $destServer -Query $sql -Database master -EnableException
+                        $startupsql = "EXEC SP_PROCOPTION '$currentProcName', 'STARTUP', 'ON'"
+                        Write-Message -Level Verbose -Message $startupsql
+                        $null = Invoke-DbaQuery -SqlInstance $destServer -Query $startupsql -Database master -EnableException
+
+                        $copyStartupProcStatus.Status = "Successful"
+                        $copyStartupProcStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
                     } catch {
                         $copyStartupProcStatus.Status = "Failed"
                         $copyStartupProcStatus.Notes = $_
                         $copyStartupProcStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-
-                    Stop-Function -Message "Issue dropping startup procedure" -Target $currentProcFullName -ErrorRecord $_ -Continue
+                    }
                 }
             }
         }
     }
-
-    if ($Pscmdlet.ShouldProcess($destInstance, "Creating startup procedure $currentProcFullName")) {
-        try {
-            Write-Message -Level Verbose -Message "Copying startup procedure $currentProcFullName"
-            $sp = $sourceServer.Databases['master'].StoredProcedures.Item($currentProcName, $currentProcSchema)
-            $header = $sp.TextHeader
-            $body = $sp.TextBody
-            $sql = $header + $body
-            Write-Message -Level Verbose -Message $sql
-            $null = Invoke-DbaQuery -SqlInstance $destServer -Query $sql -Database master -EnableException
-            $startupsql = "EXEC SP_PROCOPTION '$currentProcName', 'STARTUP', 'ON'"
-            Write-Message -Level Verbose -Message $startupsql
-            $null = Invoke-DbaQuery -SqlInstance $destServer -Query $startupsql -Database master -EnableException
-
-            $copyStartupProcStatus.Status = "Successful"
-            $copyStartupProcStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-    } catch {
-        $copyStartupProcStatus.Status = "Failed"
-        $copyStartupProcStatus.Notes = $_
-        $copyStartupProcStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-}
-}
-}
-}
-}
 }

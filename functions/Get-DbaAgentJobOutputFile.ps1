@@ -112,28 +112,28 @@ function Get-DbaAgentJobOutputFile {
             $jobs = $Server.JobServer.Jobs
             if ($Job) {
                 $jobs = $jobs | Where-Object Name -In $Job
+            }
+            if ($ExcludeJob) {
+                $jobs = $jobs | Where-Object Name -NotIn $ExcludeJob
+            }
+            foreach ($j in $Jobs) {
+                foreach ($Step in $j.JobSteps) {
+                    if ($Step.OutputFileName) {
+                        [pscustomobject]@{
+                            ComputerName         = $server.ComputerName
+                            InstanceName         = $server.ServiceName
+                            SqlInstance          = $server.DomainInstanceName
+                            Job                  = $j.Name
+                            JobStep              = $Step.Name
+                            OutputFileName       = $Step.OutputFileName
+                            RemoteOutputFileName = Join-AdminUNC $Server.ComputerName $Step.OutputFileName
+                            StepId               = $Step.Id
+                        } | Select-DefaultView -ExcludeProperty StepId
+                    } else {
+                        Write-Message -Level Verbose -Message "$step for $j has no output file"
+                    }
+                }
+            }
         }
-        if ($ExcludeJob) {
-            $jobs = $jobs | Where-Object Name -NotIn $ExcludeJob
     }
-    foreach ($j in $Jobs) {
-        foreach ($Step in $j.JobSteps) {
-            if ($Step.OutputFileName) {
-                [pscustomobject]@{
-                    ComputerName         = $server.ComputerName
-                    InstanceName         = $server.ServiceName
-                    SqlInstance          = $server.DomainInstanceName
-                    Job                  = $j.Name
-                    JobStep              = $Step.Name
-                    OutputFileName       = $Step.OutputFileName
-                    RemoteOutputFileName = Join-AdminUNC $Server.ComputerName $Step.OutputFileName
-                    StepId               = $Step.Id
-                } | Select-DefaultView -ExcludeProperty StepId
-        } else {
-            Write-Message -Level Verbose -Message "$step for $j has no output file"
-        }
-    }
-}
-}
-}
 }

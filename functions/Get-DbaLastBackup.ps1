@@ -89,75 +89,75 @@ function Get-DbaLastBackup {
 
             $dbs = $server.Databases | Where-Object { $_.name -ne 'tempdb' }
 
-        if ($Database) {
-            $dbs = $dbs | Where-Object Name -In $Database
+            if ($Database) {
+                $dbs = $dbs | Where-Object Name -In $Database
+            }
+
+            if ($ExcludeDatabase) {
+                $dbs = $dbs | Where-Object Name -NotIn $ExcludeDatabase
+            }
+            # Get-DbaBackupHistory -Last would make the job in one query but SMO's (and this) report the last backup of this type irregardless of the chain
+            $FullHistory = Get-DbaBackupHistory -SqlInstance $server -Database $dbs.Name -LastFull -IncludeCopyOnly -Raw
+            $DiffHistory = Get-DbaBackupHistory -SqlInstance $server -Database $dbs.Name -LastDiff -IncludeCopyOnly -Raw
+            $IncrHistory = Get-DbaBackupHistory -SqlInstance $server -Database $dbs.Name -LastLog -IncludeCopyOnly -Raw
+            foreach ($db in $dbs) {
+                Write-Message -Level Verbose -Message "Processing $db on $instance"
+
+                if ($db.IsAccessible -eq $false) {
+                    Write-Message -Level Warning -Message "The database $db on server $instance is not accessible. Skipping database."
+                    Continue
+                }
+                $LastFullBackup = ($FullHistory | Where-Object Database -eq $db.Name | Sort-Object -Property End -Descending | Select-Object -First 1).End
+                if ($null -ne $LastFullBackup) {
+                    $SinceFull_ = [DbaTimeSpan](New-TimeSpan -Start $LastFullBackup)
+                } else {
+                    $SinceFull_ = $StartOfTime
+                }
+
+                $LastDiffBackup = ($DiffHistory | Where-Object Database -eq $db.Name | Sort-Object -Property End -Descending | Select-Object -First 1).End
+                if ($null -ne $LastDiffBackup) {
+                    $SinceDiff_ = [DbaTimeSpan](New-TimeSpan -Start $LastDiffBackup)
+                } else {
+                    $SinceDiff_ = $StartOfTime
+                }
+
+                $LastIncrBackup = ($IncrHistory | Where-Object Database -eq $db.Name | Sort-Object -Property End -Descending | Select-Object -First 1).End
+                if ($null -ne $LastIncrBackup) {
+                    $SinceLog_ = [DbaTimeSpan](New-TimeSpan -Start $LastIncrBackup)
+                } else {
+                    $SinceLog_ = $StartOfTime
+                }
+
+                $daysSinceDbCreated = (New-TimeSpan -Start $db.createDate).Days
+
+                if ($daysSinceDbCreated -lt 1 -and $SinceFull_ -eq 0) {
+                    $Status = 'New database, not backed up yet'
+                } elseif ($SinceFull_.Days -gt 0 -and $SinceDiff_.Days -gt 0) {
+                    $Status = 'No Full or Diff Back Up in the last day'
+                } elseif ($db.RecoveryModel -eq "Full" -and $SinceLog_.Hours -gt 0) {
+                    $Status = 'No Log Back Up in the last hour'
+                } else {
+                    $Status = 'OK'
+                }
+
+                $result = [PSCustomObject]@{
+                    ComputerName       = $server.ComputerName
+                    InstanceName       = $server.ServiceName
+                    SqlInstance        = $server.DomainInstanceName
+                    Database           = $db.Name
+                    RecoveryModel      = $db.RecoveryModel
+                    LastFullBackup     = [DbaDateTime]$LastFullBackup
+                    LastDiffBackup     = [DbaDateTime]$LastDiffBackup
+                    LastLogBackup      = [DbaDateTime]$LastIncrBackup
+                    SinceFull          = Get-DbaDateOrNull -TimeSpan $SinceFull_
+                    SinceDiff          = Get-DbaDateOrNull -TimeSpan $SinceDiff_
+                    SinceLog           = Get-DbaDateOrNull -TimeSpan $SinceLog_
+                    DatabaseCreated    = $db.createDate
+                    DaysSinceDbCreated = $daysSinceDbCreated
+                    Status             = $status
+                }
+                Select-DefaultView -InputObject $result -Property ComputerName, InstanceName, SqlInstance, Database, LastFullBackup, LastDiffBackup, LastLogBackup
+            }
+        }
     }
-
-    if ($ExcludeDatabase) {
-        $dbs = $dbs | Where-Object Name -NotIn $ExcludeDatabase
-}
-# Get-DbaBackupHistory -Last would make the job in one query but SMO's (and this) report the last backup of this type irregardless of the chain
-$FullHistory = Get-DbaBackupHistory -SqlInstance $server -Database $dbs.Name -LastFull -IncludeCopyOnly -Raw
-$DiffHistory = Get-DbaBackupHistory -SqlInstance $server -Database $dbs.Name -LastDiff -IncludeCopyOnly -Raw
-$IncrHistory = Get-DbaBackupHistory -SqlInstance $server -Database $dbs.Name -LastLog -IncludeCopyOnly -Raw
-foreach ($db in $dbs) {
-    Write-Message -Level Verbose -Message "Processing $db on $instance"
-
-    if ($db.IsAccessible -eq $false) {
-        Write-Message -Level Warning -Message "The database $db on server $instance is not accessible. Skipping database."
-        Continue
-    }
-    $LastFullBackup = ($FullHistory | Where-Object Database -eq $db.Name | Sort-Object -Property End -Descending | Select-Object -First 1).End
-if ($null -ne $LastFullBackup) {
-    $SinceFull_ = [DbaTimeSpan](New-TimeSpan -Start $LastFullBackup)
-} else {
-    $SinceFull_ = $StartOfTime
-}
-
-$LastDiffBackup = ($DiffHistory | Where-Object Database -eq $db.Name | Sort-Object -Property End -Descending | Select-Object -First 1).End
-if ($null -ne $LastDiffBackup) {
-    $SinceDiff_ = [DbaTimeSpan](New-TimeSpan -Start $LastDiffBackup)
-} else {
-    $SinceDiff_ = $StartOfTime
-}
-
-$LastIncrBackup = ($IncrHistory | Where-Object Database -eq $db.Name | Sort-Object -Property End -Descending | Select-Object -First 1).End
-if ($null -ne $LastIncrBackup) {
-    $SinceLog_ = [DbaTimeSpan](New-TimeSpan -Start $LastIncrBackup)
-} else {
-    $SinceLog_ = $StartOfTime
-}
-
-$daysSinceDbCreated = (New-TimeSpan -Start $db.createDate).Days
-
-if ($daysSinceDbCreated -lt 1 -and $SinceFull_ -eq 0) {
-    $Status = 'New database, not backed up yet'
-} elseif ($SinceFull_.Days -gt 0 -and $SinceDiff_.Days -gt 0) {
-    $Status = 'No Full or Diff Back Up in the last day'
-} elseif ($db.RecoveryModel -eq "Full" -and $SinceLog_.Hours -gt 0) {
-    $Status = 'No Log Back Up in the last hour'
-} else {
-    $Status = 'OK'
-}
-
-$result = [PSCustomObject]@{
-    ComputerName       = $server.ComputerName
-    InstanceName       = $server.ServiceName
-    SqlInstance        = $server.DomainInstanceName
-    Database           = $db.Name
-    RecoveryModel      = $db.RecoveryModel
-    LastFullBackup     = [DbaDateTime]$LastFullBackup
-    LastDiffBackup     = [DbaDateTime]$LastDiffBackup
-    LastLogBackup      = [DbaDateTime]$LastIncrBackup
-    SinceFull          = Get-DbaDateOrNull -TimeSpan $SinceFull_
-    SinceDiff          = Get-DbaDateOrNull -TimeSpan $SinceDiff_
-    SinceLog           = Get-DbaDateOrNull -TimeSpan $SinceLog_
-    DatabaseCreated    = $db.createDate
-    DaysSinceDbCreated = $daysSinceDbCreated
-    Status             = $status
-}
-Select-DefaultView -InputObject $result -Property ComputerName, InstanceName, SqlInstance, Database, LastFullBackup, LastDiffBackup, LastLogBackup
-}
-}
-}
 }

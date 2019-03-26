@@ -72,17 +72,17 @@ function Get-DbaAgListener {
 
         if (Test-Bound -ParameterName Listener) {
             $InputObject = $InputObject | Where-Object { $_.AvailabilityGroupListeners.Name -contains $Listener }
-    }
+        }
 
-    $defaults = 'ComputerName', 'InstanceName', 'SqlInstance', 'AvailabilityGroup', 'Name', 'PortNumber', 'ClusterIPConfiguration'
+        $defaults = 'ComputerName', 'InstanceName', 'SqlInstance', 'AvailabilityGroup', 'Name', 'PortNumber', 'ClusterIPConfiguration'
 
-    foreach ($aglistener in $InputObject.AvailabilityGroupListeners) {
-        $server = $aglistener.Parent.Parent
-        Add-Member -Force -InputObject $aglistener -MemberType NoteProperty -Name ComputerName -value $server.ComputerName
-        Add-Member -Force -InputObject $aglistener -MemberType NoteProperty -Name InstanceName -value $server.ServiceName
-        Add-Member -Force -InputObject $aglistener -MemberType NoteProperty -Name SqlInstance -value $server.DomainInstanceName
-        Add-Member -Force -InputObject $aglistener -MemberType NoteProperty -Name AvailabilityGroup -value $aglistener.Parent.Name
-        Select-DefaultView -InputObject $aglistener -Property $defaults
+        foreach ($aglistener in $InputObject.AvailabilityGroupListeners) {
+            $server = $aglistener.Parent.Parent
+            Add-Member -Force -InputObject $aglistener -MemberType NoteProperty -Name ComputerName -value $server.ComputerName
+            Add-Member -Force -InputObject $aglistener -MemberType NoteProperty -Name InstanceName -value $server.ServiceName
+            Add-Member -Force -InputObject $aglistener -MemberType NoteProperty -Name SqlInstance -value $server.DomainInstanceName
+            Add-Member -Force -InputObject $aglistener -MemberType NoteProperty -Name AvailabilityGroup -value $aglistener.Parent.Name
+            Select-DefaultView -InputObject $aglistener -Property $defaults
+        }
     }
-}
 }

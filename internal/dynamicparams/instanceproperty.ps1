@@ -33,25 +33,25 @@ $ScriptBlock = {
 
     try {
         [DbaInstanceParameter]$parServer = $server | Select-Object -First 1
-} catch {
-    return
-}
+    } catch {
+        return
+    }
 
-if ([Sqlcollaborative.Dbatools.TabExpansion.TabExpansionHost]::Cache["instanceproperty"][$parServer.FullSmoName.ToLower()]) {
-    foreach ($name in ([Sqlcollaborative.Dbatools.TabExpansion.TabExpansionHost]::Cache["instanceproperty"][$parServer.FullSmoName.ToLower()] | Where-DbaObject -Like "$wordToComplete*")) {
-    New-DbaTeppCompletionResult -CompletionText $name -ToolTip $name
-}
-return
-}
+    if ([Sqlcollaborative.Dbatools.TabExpansion.TabExpansionHost]::Cache["instanceproperty"][$parServer.FullSmoName.ToLower()]) {
+        foreach ($name in ([Sqlcollaborative.Dbatools.TabExpansion.TabExpansionHost]::Cache["instanceproperty"][$parServer.FullSmoName.ToLower()] | Where-DbaObject -Like "$wordToComplete*")) {
+            New-DbaTeppCompletionResult -CompletionText $name -ToolTip $name
+        }
+        return
+    }
 
-try {
-    foreach ($name in ([Sqlcollaborative.Dbatools.TabExpansion.TabExpansionHost]::Cache["instanceproperty"][$parServer.FullSmoName.ToLower()] | Where-DbaObject -Like "$wordToComplete*")) {
-    New-DbaTeppCompletionResult -CompletionText $name -ToolTip $name
-}
-return
-} catch {
-    return
-}
+    try {
+        foreach ($name in ([Sqlcollaborative.Dbatools.TabExpansion.TabExpansionHost]::Cache["instanceproperty"][$parServer.FullSmoName.ToLower()] | Where-DbaObject -Like "$wordToComplete*")) {
+            New-DbaTeppCompletionResult -CompletionText $name -ToolTip $name
+        }
+        return
+    } catch {
+        return
+    }
 }
 
 Register-DbaTeppScriptblock -ScriptBlock $ScriptBlock -Name InstanceProperty

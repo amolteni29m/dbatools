@@ -57,10 +57,10 @@ function Remove-DbaXESmartTarget {
                 $id = $InputObject.Id
                 Write-Message -Level Output -Message "Removing job $id, this may take a couple minutes."
                 Get-Job -ID $InputObject.Id | Remove-Job -Force
-            Write-Message -Level Output -Message "Successfully removed $id."
-        } catch {
-            Stop-Function -Message "Failure" -ErrorRecord $_
+                Write-Message -Level Output -Message "Successfully removed $id."
+            } catch {
+                Stop-Function -Message "Failure" -ErrorRecord $_
+            }
         }
     }
-}
 }

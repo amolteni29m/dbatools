@@ -22,7 +22,7 @@ function Get-BackupAncientHistory {
        Copyright: (c) 2018 by dbatools, licensed under MIT
         License: MIT https://opensource.org/licenses/MIT
 
-    #>
+       #>
     [CmdletBinding(DefaultParameterSetName = "Default")]
     param (
         [parameter(Mandatory)]
@@ -49,7 +49,7 @@ function Get-BackupAncientHistory {
         $databases = @()
         if ($null -ne $Database) {
             ForEach ($db in $Database) {
-                $databases += [PScustomObject]@{name = $db }
+                $databases += [PScustomObject]@{name = $db}
             }
         } else {
             $databases = $server.Databases
@@ -135,51 +135,51 @@ function Get-BackupAncientHistory {
             where  a.backupsetid in (Select max(backup_set_id) from msdb..backupset where database_name='$db')"
             Write-Message -Level Debug -Message $sql
             $results = $server.ConnectionContext.ExecuteWithResults($sql).Tables.Rows | Select-Object * -ExcludeProperty BackupSetRank, RowError, Rowstate, table, itemarray, haserrors
-        Write-Message -Level SomewhatVerbose -Message "Processing as grouped output."
-        $GroupedResults = $results | Group-Object -Property backupsetid
-    Write-Message -Level SomewhatVerbose -Message "$($GroupedResults.Count) result-groups found."
-    $groupResults = @()
-    foreach ($group in $GroupedResults) {
+            Write-Message -Level SomewhatVerbose -Message "Processing as grouped output."
+            $GroupedResults = $results | Group-Object -Property backupsetid
+            Write-Message -Level SomewhatVerbose -Message "$($GroupedResults.Count) result-groups found."
+            $groupResults = @()
+            foreach ($group in $GroupedResults) {
 
-        $fileSql = "select file_type as FileType, logical_name as LogicalName, physical_name as PhysicalName
+                $fileSql = "select file_type as FileType, logical_name as LogicalName, physical_name as PhysicalName
                             from msdb.dbo.backupfile where backup_set_id='$($Group.group[0].BackupSetID)'"
 
-        Write-Message -Level Debug -Message "FileSQL: $fileSql"
+                Write-Message -Level Debug -Message "FileSQL: $fileSql"
 
-        $historyObject = New-Object Sqlcollaborative.Dbatools.Database.BackupHistory
-        $historyObject.ComputerName = $server.ComputerName
-        $historyObject.InstanceName = $server.ServiceName
-        $historyObject.SqlInstance = $server.DomainInstanceName
-        $historyObject.Database = $group.Group[0].Database
-        $historyObject.UserName = $group.Group[0].UserName
-        $historyObject.Start = ($group.Group.Start | Measure-Object -Minimum).Minimum
-    $historyObject.End = ($group.Group.End | Measure-Object -Maximum).Maximum
-$historyObject.Duration = New-TimeSpan -Seconds ($group.Group.Duration | Measure-Object -Maximum).Maximum
-$historyObject.Path = $group.Group.Path
-$historyObject.TotalSize = $NULL
-$historyObject.Type = $group.Group[0].Type
-$historyObject.BackupSetId = $group.Group[0].BackupSetId
-$historyObject.DeviceType = $group.Group[0].DeviceType
-$historyObject.Software = $group.Group[0].Software
-$historyObject.FullName = $group.Group.Path
-$historyObject.FileList = $server.ConnectionContext.ExecuteWithResults($fileSql).Tables.Rows
-$historyObject.Position = $group.Group[0].Position
-$historyObject.FirstLsn = $group.Group[0].First_LSN
-$historyObject.DatabaseBackupLsn = $group.Group[0].database_backup_lsn
-$historyObject.CheckpointLsn = $group.Group[0].checkpoint_lsn
-$historyObject.LastLsn = $group.Group[0].Last_Lsn
-$historyObject.SoftwareVersionMajor = $group.Group[0].Software_Major_Version
-$historyObject.IsCopyOnly = if ($group.Group[0].is_copy_only -eq 1) {
-    $true
-} else {
-    $false
-}
-$groupResults += $historyObject
-}
-$groupResults | Sort-Object -Property LastLsn, Type
-}
+                $historyObject = New-Object Sqlcollaborative.Dbatools.Database.BackupHistory
+                $historyObject.ComputerName = $server.ComputerName
+                $historyObject.InstanceName = $server.ServiceName
+                $historyObject.SqlInstance = $server.DomainInstanceName
+                $historyObject.Database = $group.Group[0].Database
+                $historyObject.UserName = $group.Group[0].UserName
+                $historyObject.Start = ($group.Group.Start | Measure-Object -Minimum).Minimum
+                $historyObject.End = ($group.Group.End | Measure-Object -Maximum).Maximum
+                $historyObject.Duration = New-TimeSpan -Seconds ($group.Group.Duration | Measure-Object -Maximum).Maximum
+                $historyObject.Path = $group.Group.Path
+                $historyObject.TotalSize = $NULL
+                $historyObject.Type = $group.Group[0].Type
+                $historyObject.BackupSetId = $group.Group[0].BackupSetId
+                $historyObject.DeviceType = $group.Group[0].DeviceType
+                $historyObject.Software = $group.Group[0].Software
+                $historyObject.FullName = $group.Group.Path
+                $historyObject.FileList = $server.ConnectionContext.ExecuteWithResults($fileSql).Tables.Rows
+                $historyObject.Position = $group.Group[0].Position
+                $historyObject.FirstLsn = $group.Group[0].First_LSN
+                $historyObject.DatabaseBackupLsn = $group.Group[0].database_backup_lsn
+                $historyObject.CheckpointLsn = $group.Group[0].checkpoint_lsn
+                $historyObject.LastLsn = $group.Group[0].Last_Lsn
+                $historyObject.SoftwareVersionMajor = $group.Group[0].Software_Major_Version
+                $historyObject.IsCopyOnly = if ($group.Group[0].is_copy_only -eq 1) {
+                    $true
+                } else {
+                    $false
+                }
+                $groupResults += $historyObject
+            }
+            $groupResults | Sort-Object -Property LastLsn, Type
+        }
 
-}
+    }
 
-END { }
+    END {}
 }

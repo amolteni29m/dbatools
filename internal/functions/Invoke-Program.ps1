@@ -187,6 +187,6 @@ function Invoke-Program {
         } else {
             # Select * to ensure that the object is a generic object and not a de-serialized one from a remote session
             return $output | Select-Object -Property * -ExcludeProperty PSComputerName, RunspaceId | Select-DefaultView -Property ComputerName, Path, Successful, ExitCode, stdout
-}
-}
+        }
+    }
 }

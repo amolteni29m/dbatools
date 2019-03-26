@@ -127,189 +127,189 @@ function Set-DbaDbCompression {
                 Stop-Function -Message "Only SQL Server Enterprise Edition supports compression on $server" -Target $server -Continue
             }
             try {
-                $dbs = $server.Databases | Where-Object { $_.IsAccessible -and $_.IsSystemObject -eq 0 }
-            if ($Database) {
-                $dbs = $dbs | Where-Object { $_.Name -in $Database }
+                $dbs = $server.Databases | Where-Object { $_.IsAccessible -and $_.IsSystemObject -eq 0}
+                if ($Database) {
+                    $dbs = $dbs | Where-Object { $_.Name -in $Database }
+                }
+                if ($ExcludeDatabase) {
+                    $dbs = $dbs | Where-Object { $_.Name -NotIn $ExcludeDatabase }
+                }
+            } catch {
+                Stop-Function -Message "Unable to gather list of databases for $instance" -Target $instance -ErrorRecord $_ -Continue
+            }
+
+            foreach ($db in $dbs) {
+                try {
+                    Write-Message -Level Verbose -Message "Querying $instance - $db"
+                    if ($db.status -ne 'Normal' -or $db.IsAccessible -eq $false) {
+                        Write-Message -Level Warning -Message "$db is not accessible" -Target $db
+                        continue
+                    }
+                    if ($db.CompatibilityLevel -lt 'Version100') {
+                        Stop-Function -Message "$db has a compatibility level lower than Version100 and will be skipped." -Target $db -Continue
+                    }
+                    if ($CompressionType -eq "Recommended") {
+                        if (Test-Bound "InputObject") {
+                            Write-Message -Level Verbose -Message "Using passed in compression suggestions"
+                            $compressionSuggestion = $InputObject | Where-Object {$_.Database -eq $db.name}
+                        } else {
+                            Write-Message -Level Verbose -Message "Testing database for compression suggestions for $instance.$db"
+                            $compressionSuggestion = Test-DbaDbCompression -SqlInstance $server -Database $db.Name
+                        }
+                    }
+                } catch {
+                    Stop-Function -Message "Unable to query $instance - $db" -Target $db -ErrorRecord $_ -Continue
+                }
+
+                try {
+                    if ($CompressionType -eq "Recommended") {
+                        if ($Pscmdlet.ShouldProcess($db, "Applying suggested compression using results from Test-DbaDbCompression")) {
+                            Write-Message -Level Verbose -Message "Applying suggested compression settings using Test-DbaDbCompression"
+                            $results += $compressionSuggestion | Select-Object *, @{l = 'AlreadyProcessed'; e = {"False"}}
+                            foreach ($obj in ($results | Where-Object {$_.CompressionTypeRecommendation -notin @('NO_GAIN', '?') -and $_.PercentCompression -ge $PercentCompression} | Sort-Object PercentCompression -Descending)) {
+                                if ($MaxRunTime -ne 0 -and ($(get-date) - $starttime).TotalMinutes -ge $MaxRunTime) {
+                                    Write-Message -Level Verbose -Message "Reached max run time of $MaxRunTime"
+                                    break
+                                }
+                                if ($obj.indexId -le 1) {
+                                    ##heaps and clustered indexes
+                                    Write-Message -Level Verbose -Message "Applying $($obj.CompressionTypeRecommendation) compression to $($obj.Database).$($obj.Schema).$($obj.TableName)"
+                                    $($server.Databases[$obj.Database].Tables[$obj.TableName, $obj.Schema].PhysicalPartitions | Where-Object {$_.PartitionNumber -eq $obj.Partition}).DataCompression = $($obj.CompressionTypeRecommendation)
+                                    $server.Databases[$obj.Database].Tables[$obj.TableName, $($obj.Schema)].Rebuild()
+                                    $obj.AlreadyProcessed = "True"
+                                } else {
+                                    ##nonclustered indexes
+                                    Write-Message -Level Verbose -Message "Applying $($obj.CompressionTypeRecommendation) compression to $($obj.Database).$($obj.Schema).$($obj.TableName).$($obj.IndexName)"
+                                    $($server.Databases[$obj.Database].Tables[$obj.TableName, $obj.Schema].Indexes[$obj.IndexName].PhysicalPartitions | Where-Object {$_.PartitionNumber -eq $obj.Partition}).DataCompression = $($obj.CompressionTypeRecommendation)
+                                    $server.Databases[$obj.Database].Tables[$obj.TableName, $obj.Schema].Indexes[$obj.IndexName].Rebuild()
+                                    $obj.AlreadyProcessed = "True"
+                                }
+                                $obj
+                            }
+                        }
+                    } else {
+                        if ($Pscmdlet.ShouldProcess($db, "Applying $CompressionType compression")) {
+                            Write-Message -Level Verbose -Message "Applying $CompressionType compression to all objects in $($db.name)"
+                            foreach ($obj in $server.Databases[$($db.name)].Tables | Where-Object {!$_.IsMemoryOptimized}) {
+                                if ($MaxRunTime -ne 0 -and ($(get-date) - $starttime).TotalMinutes -ge $MaxRunTime) {
+                                    Write-Message -Level Verbose -Message "Reached max run time of $MaxRunTime"
+                                    break
+                                }
+                                foreach ($p in $($obj.PhysicalPartitions | Where-Object {$_.DataCompression -notin ($CompressionType, 'ColumnStore', 'ColumnStoreArchive')})) {
+                                    Write-Message -Level Verbose -Message "Compressing table $($obj.Schema).$($obj.Name)"
+                                    $($obj.PhysicalPartitions | Where-Object {$_.PartitionNumber -eq $P.PartitionNumber}).DataCompression = $CompressionType
+                                    $obj.Rebuild()
+                                    [pscustomobject]@{
+                                        ComputerName                  = $server.ComputerName
+                                        InstanceName                  = $server.ServiceName
+                                        SqlInstance                   = $server.DomainInstanceName
+                                        Database                      = $db.Name
+                                        Schema                        = $obj.Schema
+                                        TableName                     = $obj.Name
+                                        IndexName                     = $null
+                                        Partition                     = $p.PartitionNumber
+                                        IndexID                       = 0
+                                        IndexType                     = Switch ($obj.HasHeapIndex) {$false {"ClusteredIndex"} $true {"Heap"}}
+                                        PercentScan                   = $null
+                                        PercentUpdate                 = $null
+                                        RowEstimatePercentOriginal    = $null
+                                        PageEstimatePercentOriginal   = $null
+                                        CompressionTypeRecommendation = $CompressionType.ToUpper()
+                                        SizeCurrent                   = $null
+                                        SizeRequested                 = $null
+                                        PercentCompression            = $null
+                                        AlreadyProcessed              = "True"
+                                    }
+                                }
+
+                                foreach ($index in $($obj.Indexes | Where-Object {!$_.IsMemoryOptimized -and $_.IndexType -notmatch 'Columnstore'})) {
+                                    if ($MaxRunTime -ne 0 -and ($(get-date) - $starttime).TotalMinutes -ge $MaxRunTime) {
+                                        Write-Message -Level Verbose -Message "Reached max run time of $MaxRunTime"
+                                        break
+                                    }
+                                    foreach ($p in $($index.PhysicalPartitions | Where-Object {$_.DataCompression -ne $CompressionType})) {
+                                        Write-Message -Level Verbose -Message "Compressing $($Index.IndexType) $($Index.Name) Partition $($p.PartitionNumber)"
+
+                                        ## There is a bug in SMO where setting compression to None at the index level doesn't work
+                                        ## Once this UserVoice item is fixed the workaround can be removed
+                                        ## https://feedback.azure.com/forums/908035-sql-server/suggestions/34080112-data-compression-smo-bug
+                                        if ($CompressionType -eq "None") {
+                                            $query = "ALTER INDEX [$($index.Name)] ON $($index.Parent) REBUILD PARTITION = ALL WITH (DATA_COMPRESSION = $CompressionType)"
+                                            $Server.Query($query, $db.Name)
+                                        } else {
+                                            $($Index.PhysicalPartitions | Where-Object {$_.PartitionNumber -eq $P.PartitionNumber}).DataCompression = $CompressionType
+                                            $index.Rebuild()
+                                        }
+
+                                        [pscustomobject]@{
+                                            ComputerName                  = $server.ComputerName
+                                            InstanceName                  = $server.ServiceName
+                                            SqlInstance                   = $server.DomainInstanceName
+                                            Database                      = $db.Name
+                                            Schema                        = $obj.Schema
+                                            TableName                     = $obj.Name
+                                            IndexName                     = $index.Name
+                                            Partition                     = $p.PartitionNumber
+                                            IndexID                       = $index.Id
+                                            IndexType                     = $index.IndexType
+                                            PercentScan                   = $null
+                                            PercentUpdate                 = $null
+                                            RowEstimatePercentOriginal    = $null
+                                            PageEstimatePercentOriginal   = $null
+                                            CompressionTypeRecommendation = $CompressionType.ToUpper()
+                                            SizeCurrent                   = $null
+                                            SizeRequested                 = $null
+                                            PercentCompression            = $null
+                                            AlreadyProcessed              = "True"
+                                        }
+                                    }
+                                }
+                            }
+                            foreach ($index in $($server.Databases[$($db.name)].Views | Where-Object {$_.Indexes}).Indexes) {
+                                foreach ($p in $($index.PhysicalPartitions | Where-Object {$_.DataCompression -ne $CompressionType})) {
+                                    Write-Message -Level Verbose -Message "Compressing $($index.IndexType) $($index.Name) Partition $($p.PartitionNumber)"
+
+                                    ## There is a bug in SMO where setting compression to None at the index level doesn't work
+                                    ## Once this UserVoice item is fixed the workaround can be removed
+                                    ## https://feedback.azure.com/forums/908035-sql-server/suggestions/34080112-data-compression-smo-bug
+                                    if ($CompressionType -eq "None") {
+                                        $query = "ALTER INDEX [$($index.Name)] ON $($index.Parent) REBUILD PARTITION = ALL WITH (DATA_COMPRESSION = $CompressionType)"
+                                        $query
+                                        $Server.Query($query, $db.Name)
+                                    } else {
+                                        $($index.PhysicalPartitions | Where-Object {$_.PartitionNumber -eq $P.PartitionNumber}).DataCompression = $CompressionType
+                                        $index.Rebuild()
+                                    }
+
+                                    [pscustomobject]@{
+                                        ComputerName                  = $server.ComputerName
+                                        InstanceName                  = $server.ServiceName
+                                        SqlInstance                   = $server.DomainInstanceName
+                                        Database                      = $db.Name
+                                        Schema                        = $obj.Schema
+                                        TableName                     = $obj.Name
+                                        IndexName                     = $index.Name
+                                        Partition                     = $p.PartitionNumber
+                                        IndexID                       = $index.Id
+                                        IndexType                     = $index.IndexType
+                                        PercentScan                   = $null
+                                        PercentUpdate                 = $null
+                                        RowEstimatePercentOriginal    = $null
+                                        PageEstimatePercentOriginal   = $null
+                                        CompressionTypeRecommendation = $CompressionType.ToUpper()
+                                        SizeCurrent                   = $null
+                                        SizeRequested                 = $null
+                                        PercentCompression            = $null
+                                        AlreadyProcessed              = "True"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch {
+                    Stop-Function -Message "Compression failed for $instance - $db" -Target $db -ErrorRecord $_ -Continue
+                }
+            }
         }
-        if ($ExcludeDatabase) {
-            $dbs = $dbs | Where-Object { $_.Name -NotIn $ExcludeDatabase }
     }
-} catch {
-    Stop-Function -Message "Unable to gather list of databases for $instance" -Target $instance -ErrorRecord $_ -Continue
-}
-
-foreach ($db in $dbs) {
-    try {
-        Write-Message -Level Verbose -Message "Querying $instance - $db"
-        if ($db.status -ne 'Normal' -or $db.IsAccessible -eq $false) {
-            Write-Message -Level Warning -Message "$db is not accessible" -Target $db
-            continue
-        }
-        if ($db.CompatibilityLevel -lt 'Version100') {
-            Stop-Function -Message "$db has a compatibility level lower than Version100 and will be skipped." -Target $db -Continue
-        }
-        if ($CompressionType -eq "Recommended") {
-            if (Test-Bound "InputObject") {
-                Write-Message -Level Verbose -Message "Using passed in compression suggestions"
-                $compressionSuggestion = $InputObject | Where-Object { $_.Database -eq $db.name }
-        } else {
-            Write-Message -Level Verbose -Message "Testing database for compression suggestions for $instance.$db"
-            $compressionSuggestion = Test-DbaDbCompression -SqlInstance $server -Database $db.Name
-        }
-    }
-} catch {
-    Stop-Function -Message "Unable to query $instance - $db" -Target $db -ErrorRecord $_ -Continue
-}
-
-try {
-    if ($CompressionType -eq "Recommended") {
-        if ($Pscmdlet.ShouldProcess($db, "Applying suggested compression using results from Test-DbaDbCompression")) {
-            Write-Message -Level Verbose -Message "Applying suggested compression settings using Test-DbaDbCompression"
-            $results += $compressionSuggestion | Select-Object *, @{l = 'AlreadyProcessed'; e = { "False" } }
-        foreach ($obj in ($results | Where-Object { $_.CompressionTypeRecommendation -notin @('NO_GAIN', '?') -and $_.PercentCompression -ge $PercentCompression } | Sort-Object PercentCompression -Descending)) {
-    if ($MaxRunTime -ne 0 -and ($(Get-Date) - $starttime).TotalMinutes -ge $MaxRunTime) {
-        Write-Message -Level Verbose -Message "Reached max run time of $MaxRunTime"
-        break
-    }
-    if ($obj.indexId -le 1) {
-        ##heaps and clustered indexes
-        Write-Message -Level Verbose -Message "Applying $($obj.CompressionTypeRecommendation) compression to $($obj.Database).$($obj.Schema).$($obj.TableName)"
-        $($server.Databases[$obj.Database].Tables[$obj.TableName, $obj.Schema].PhysicalPartitions | Where-Object { $_.PartitionNumber -eq $obj.Partition }).DataCompression = $($obj.CompressionTypeRecommendation)
-    $server.Databases[$obj.Database].Tables[$obj.TableName, $($obj.Schema)].Rebuild()
-    $obj.AlreadyProcessed = "True"
-} else {
-    ##nonclustered indexes
-    Write-Message -Level Verbose -Message "Applying $($obj.CompressionTypeRecommendation) compression to $($obj.Database).$($obj.Schema).$($obj.TableName).$($obj.IndexName)"
-    $($server.Databases[$obj.Database].Tables[$obj.TableName, $obj.Schema].Indexes[$obj.IndexName].PhysicalPartitions | Where-Object { $_.PartitionNumber -eq $obj.Partition }).DataCompression = $($obj.CompressionTypeRecommendation)
-$server.Databases[$obj.Database].Tables[$obj.TableName, $obj.Schema].Indexes[$obj.IndexName].Rebuild()
-$obj.AlreadyProcessed = "True"
-}
-$obj
-}
-}
-} else {
-    if ($Pscmdlet.ShouldProcess($db, "Applying $CompressionType compression")) {
-        Write-Message -Level Verbose -Message "Applying $CompressionType compression to all objects in $($db.name)"
-        foreach ($obj in $server.Databases[$($db.name)].Tables | Where-Object { !$_.IsMemoryOptimized }) {
-        if ($MaxRunTime -ne 0 -and ($(Get-Date) - $starttime).TotalMinutes -ge $MaxRunTime) {
-            Write-Message -Level Verbose -Message "Reached max run time of $MaxRunTime"
-            break
-        }
-        foreach ($p in $($obj.PhysicalPartitions | Where-Object { $_.DataCompression -notin ($CompressionType, 'ColumnStore', 'ColumnStoreArchive') })) {
-        Write-Message -Level Verbose -Message "Compressing table $($obj.Schema).$($obj.Name)"
-        $($obj.PhysicalPartitions | Where-Object { $_.PartitionNumber -eq $P.PartitionNumber }).DataCompression = $CompressionType
-    $obj.Rebuild()
-    [pscustomobject]@{
-        ComputerName                  = $server.ComputerName
-        InstanceName                  = $server.ServiceName
-        SqlInstance                   = $server.DomainInstanceName
-        Database                      = $db.Name
-        Schema                        = $obj.Schema
-        TableName                     = $obj.Name
-        IndexName                     = $null
-        Partition                     = $p.PartitionNumber
-        IndexID                       = 0
-        IndexType                     = Switch ($obj.HasHeapIndex) { $false { "ClusteredIndex" } $true { "Heap" } }
-        PercentScan                   = $null
-        PercentUpdate                 = $null
-        RowEstimatePercentOriginal    = $null
-        PageEstimatePercentOriginal   = $null
-        CompressionTypeRecommendation = $CompressionType.ToUpper()
-        SizeCurrent                   = $null
-        SizeRequested                 = $null
-        PercentCompression            = $null
-        AlreadyProcessed              = "True"
-    }
-}
-
-foreach ($index in $($obj.Indexes | Where-Object { !$_.IsMemoryOptimized -and $_.IndexType -notmatch 'Columnstore' })) {
-    if ($MaxRunTime -ne 0 -and ($(Get-Date) - $starttime).TotalMinutes -ge $MaxRunTime) {
-        Write-Message -Level Verbose -Message "Reached max run time of $MaxRunTime"
-        break
-    }
-    foreach ($p in $($index.PhysicalPartitions | Where-Object { $_.DataCompression -ne $CompressionType })) {
-    Write-Message -Level Verbose -Message "Compressing $($Index.IndexType) $($Index.Name) Partition $($p.PartitionNumber)"
-
-    ## There is a bug in SMO where setting compression to None at the index level doesn't work
-    ## Once this UserVoice item is fixed the workaround can be removed
-    ## https://feedback.azure.com/forums/908035-sql-server/suggestions/34080112-data-compression-smo-bug
-    if ($CompressionType -eq "None") {
-        $query = "ALTER INDEX [$($index.Name)] ON $($index.Parent) REBUILD PARTITION = ALL WITH (DATA_COMPRESSION = $CompressionType)"
-        $Server.Query($query, $db.Name)
-    } else {
-        $($Index.PhysicalPartitions | Where-Object { $_.PartitionNumber -eq $P.PartitionNumber }).DataCompression = $CompressionType
-    $index.Rebuild()
-}
-
-[pscustomobject]@{
-    ComputerName                  = $server.ComputerName
-    InstanceName                  = $server.ServiceName
-    SqlInstance                   = $server.DomainInstanceName
-    Database                      = $db.Name
-    Schema                        = $obj.Schema
-    TableName                     = $obj.Name
-    IndexName                     = $index.Name
-    Partition                     = $p.PartitionNumber
-    IndexID                       = $index.Id
-    IndexType                     = $index.IndexType
-    PercentScan                   = $null
-    PercentUpdate                 = $null
-    RowEstimatePercentOriginal    = $null
-    PageEstimatePercentOriginal   = $null
-    CompressionTypeRecommendation = $CompressionType.ToUpper()
-    SizeCurrent                   = $null
-    SizeRequested                 = $null
-    PercentCompression            = $null
-    AlreadyProcessed              = "True"
-}
-}
-}
-}
-foreach ($index in $($server.Databases[$($db.name)].Views | Where-Object { $_.Indexes }).Indexes) {
-    foreach ($p in $($index.PhysicalPartitions | Where-Object { $_.DataCompression -ne $CompressionType })) {
-    Write-Message -Level Verbose -Message "Compressing $($index.IndexType) $($index.Name) Partition $($p.PartitionNumber)"
-
-    ## There is a bug in SMO where setting compression to None at the index level doesn't work
-    ## Once this UserVoice item is fixed the workaround can be removed
-    ## https://feedback.azure.com/forums/908035-sql-server/suggestions/34080112-data-compression-smo-bug
-    if ($CompressionType -eq "None") {
-        $query = "ALTER INDEX [$($index.Name)] ON $($index.Parent) REBUILD PARTITION = ALL WITH (DATA_COMPRESSION = $CompressionType)"
-        $query
-        $Server.Query($query, $db.Name)
-    } else {
-        $($index.PhysicalPartitions | Where-Object { $_.PartitionNumber -eq $P.PartitionNumber }).DataCompression = $CompressionType
-    $index.Rebuild()
-}
-
-[pscustomobject]@{
-    ComputerName                  = $server.ComputerName
-    InstanceName                  = $server.ServiceName
-    SqlInstance                   = $server.DomainInstanceName
-    Database                      = $db.Name
-    Schema                        = $obj.Schema
-    TableName                     = $obj.Name
-    IndexName                     = $index.Name
-    Partition                     = $p.PartitionNumber
-    IndexID                       = $index.Id
-    IndexType                     = $index.IndexType
-    PercentScan                   = $null
-    PercentUpdate                 = $null
-    RowEstimatePercentOriginal    = $null
-    PageEstimatePercentOriginal   = $null
-    CompressionTypeRecommendation = $CompressionType.ToUpper()
-    SizeCurrent                   = $null
-    SizeRequested                 = $null
-    PercentCompression            = $null
-    AlreadyProcessed              = "True"
-}
-}
-}
-}
-}
-} catch {
-    Stop-Function -Message "Compression failed for $instance - $db" -Target $db -ErrorRecord $_ -Continue
-}
-}
-}
-}
 }

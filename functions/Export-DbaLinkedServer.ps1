@@ -81,71 +81,71 @@ function Export-DbaLinkedServer {
 
             if ($LinkedServer) {
                 $InputObject = $InputObject | Where-Object Name -in $LinkedServer
-        }
+            }
 
-        if (-not $InputObject) {
-            Write-Message -Level Verbose -Message "Nothing to export"
-            continue
-        }
+            if (-not $InputObject) {
+                Write-Message -Level Verbose -Message "Nothing to export"
+                continue
+            }
 
-        if (!(Test-SqlSa -SqlInstance $instance -SqlCredential $sqlcredential)) {
-            Stop-Function -Message "Not a sysadmin on $instance. Quitting." -Target $instance -Continue
-        }
+            if (!(Test-SqlSa -SqlInstance $instance -SqlCredential $sqlcredential)) {
+                Stop-Function -Message "Not a sysadmin on $instance. Quitting." -Target $instance -Continue
+            }
 
-        Write-Message -Level Verbose -Message "Getting NetBios name for $instance."
-        $sourceNetBios = Resolve-NetBiosName $server
+            Write-Message -Level Verbose -Message "Getting NetBios name for $instance."
+            $sourceNetBios = Resolve-NetBiosName $server
 
-        Write-Message -Level Verbose -Message "Checking if Remote Registry is enabled on $instance."
-        try {
-            Invoke-Command2 -Raw -Credential $Credential -ComputerName $sourceNetBios -ScriptBlock { Get-ItemProperty -Path "HKLM:\SOFTWARE\" } -ErrorAction Stop
-        } catch {
-            Stop-Function -Message "Can't connect to registry on $instance." -Target $sourceNetBios -ErrorRecord $_
-            return
-        }
-
-        if (-not (Test-Bound -ParameterName Path)) {
-            $timenow = (Get-Date -uformat "%m%d%Y%H%M%S")
-            $mydocs = [Environment]::GetFolderPath('MyDocuments')
-            $path = "$mydocs\$($server.name.replace('\', '$'))-$timenow-linkedserver.sql"
-        }
-
-        $sql = @()
-
-        if ($ExcludePassword) {
-            $sql += $InputObject.Script()
-        } else {
+            Write-Message -Level Verbose -Message "Checking if Remote Registry is enabled on $instance."
             try {
-                $decrypted = Get-DecryptedObject -SqlInstance $server -Type LinkedServer
+                Invoke-Command2 -Raw -Credential $Credential -ComputerName $sourceNetBios -ScriptBlock { Get-ItemProperty -Path "HKLM:\SOFTWARE\" } -ErrorAction Stop
             } catch {
-                Stop-Function -Continue -Message "Failure" -ErrorRecord $_
+                Stop-Function -Message "Can't connect to registry on $instance." -Target $sourceNetBios -ErrorRecord $_
+                return
             }
 
-            foreach ($ls in $InputObject) {
-                $currentls = $decrypted | Where-Object Name -eq $ls.Name
-            if ($currentls.Password) {
-                $tempsql = $ls.Script()
-                foreach ($map in $currentls) {
-                    $rmtuser = $map.Identity.Replace("'", "''")
-                    $password = $map.Password.Replace("'", "''")
-                    $tempsql = $tempsql.Replace(' /* For security reasons the linked server remote logins password is changed with ######## */', '')
-                    $tempsql = $tempsql.Replace("rmtuser=N'$rmtuser',@rmtpassword='########'", "rmtuser=N'$rmtuser',@rmtpassword='$password'")
-                }
-                $sql += $tempsql
+            if (-not (Test-Bound -ParameterName Path)) {
+                $timenow = (Get-Date -uformat "%m%d%Y%H%M%S")
+                $mydocs = [Environment]::GetFolderPath('MyDocuments')
+                $path = "$mydocs\$($server.name.replace('\', '$'))-$timenow-linkedserver.sql"
+            }
+
+            $sql = @()
+
+            if ($ExcludePassword) {
+                $sql += $InputObject.Script()
             } else {
-                $sql += $ls.Script()
+                try {
+                    $decrypted = Get-DecryptedObject -SqlInstance $server -Type LinkedServer
+                } catch {
+                    Stop-Function -Continue -Message "Failure" -ErrorRecord $_
+                }
+
+                foreach ($ls in $InputObject) {
+                    $currentls = $decrypted | Where-Object Name -eq $ls.Name
+                    if ($currentls.Password) {
+                        $tempsql = $ls.Script()
+                        foreach ($map in $currentls) {
+                            $rmtuser = $map.Identity.Replace("'", "''")
+                            $password = $map.Password.Replace("'", "''")
+                            $tempsql = $tempsql.Replace(' /* For security reasons the linked server remote logins password is changed with ######## */', '')
+                            $tempsql = $tempsql.Replace("rmtuser=N'$rmtuser',@rmtpassword='########'", "rmtuser=N'$rmtuser',@rmtpassword='$password'")
+                        }
+                        $sql += $tempsql
+                    } else {
+                        $sql += $ls.Script()
+                    }
+                }
+            }
+            try {
+                if ($Append) {
+                    Add-Content -Path $path -Value $sql
+                } else {
+                    Set-Content -Path $path -Value $sql
+                }
+                Get-ChildItem -Path $path
+            } catch {
+                Stop-Function -Message "Can't write to $path" -ErrorRecord $_ -Continue
             }
         }
     }
-    try {
-        if ($Append) {
-            Add-Content -Path $path -Value $sql
-        } else {
-            Set-Content -Path $path -Value $sql
-        }
-        Get-ChildItem -Path $path
-    } catch {
-        Stop-Function -Message "Can't write to $path" -ErrorRecord $_ -Continue
-    }
-}
-}
 }

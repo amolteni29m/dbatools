@@ -274,84 +274,84 @@ function Get-DbaDatabase {
                 ($_.state -ne 6 -or !$OnlyAccessible)
             }
 
-        $inputObject = @()
-        foreach ($dt in $backed_info) {
-            if ($server.DatabaseEngineType -eq "SqlAzureDatabase") {
-                $inputObject += $server.Databases[$dt.name]
-            } else {
-                $inputObject += $server.Databases | Where-Object Name -ceq $dt.name
+            $inputObject = @()
+            foreach ($dt in $backed_info) {
+                if ($server.DatabaseEngineType -eq "SqlAzureDatabase") {
+                    $inputObject += $server.Databases[$dt.name]
+                } else {
+                    $inputObject += $server.Databases | Where-Object Name -ceq $dt.name
+                }
+            }
+            $inputobject = $inputObject |
+                Where-Object {
+                ($_.Name -in $Database -or !$Database) -and
+                ($_.Name -notin $ExcludeDatabase -or !$ExcludeDatabase) -and
+                ($_.Owner -in $Owner -or !$Owner) -and
+                $_.ReadOnly -in $Readonly -and
+                $_.IsAccessible -in $AccessibleFilter -and
+                $_.IsSystemObject -in $DBType -and
+                ((Compare-Object @($_.Status.tostring().split(',').trim()) $Status -ExcludeDifferent -IncludeEqual).inputobject.count -ge 1 -or !$status) -and
+                ($_.RecoveryModel -in $RecoveryModel -or !$_.RecoveryModel) -and
+                $_.EncryptionEnabled -in $Encrypt
+            }
+            if ($NoFullBackup -or $NoFullBackupSince) {
+                $dabs = (Get-DbaBackupHistory -SqlInstance $server -LastFull )
+                if ($null -ne $NoFullBackupSince) {
+                    $dabsWithinScope = ($dabs | Where-Object End -lt $NoFullBackupSince)
+
+                    $inputobject = $inputobject | Where-Object { $_.Name -in $dabsWithinScope.Database -and $_.Name -ne 'tempdb' }
+                } else {
+                    $inputObject = $inputObject | Where-Object { $_.Name -notin $dabs.Database -and $_.Name -ne 'tempdb' }
+                }
+
+            }
+            if ($NoLogBackup -or $NoLogBackupSince) {
+                $dabs = (Get-DbaBackupHistory -SqlInstance $server -LastLog )
+                if ($null -ne $NoLogBackupSince) {
+                    $dabsWithinScope = ($dabs | Where-Object End -lt $NoLogBackupSince)
+                    $inputobject = $inputobject |
+                        Where-Object { $_.Name -in $dabsWithinScope.Database -and $_.Name -ne 'tempdb' -and $_.RecoveryModel -ne 'Simple' }
+                } else {
+                    $inputobject = $inputObject |
+                        Where-Object { $_.Name -notin $dabs.Database -and $_.Name -ne 'tempdb' -and $_.RecoveryModel -ne 'Simple' }
+                }
+            }
+
+            $defaults = 'ComputerName', 'InstanceName', 'SqlInstance', 'Name', 'Status', 'IsAccessible', 'RecoveryModel',
+            'LogReuseWaitStatus', 'Size as SizeMB', 'CompatibilityLevel as Compatibility', 'Collation', 'Owner',
+            'LastBackupDate as LastFullBackup', 'LastDifferentialBackupDate as LastDiffBackup',
+            'LastLogBackupDate as LastLogBackup'
+
+            if ($NoFullBackup -or $NoFullBackupSince -or $NoLogBackup -or $NoLogBackupSince) {
+                $defaults += ('Notes')
+            }
+            if ($IncludeLastUsed) {
+                # Add Last Used to the default view
+                $defaults += ('LastRead as LastIndexRead', 'LastWrite as LastIndexWrite')
+            }
+
+            try {
+                foreach ($db in $inputobject) {
+
+                    $Notes = $null
+                    if ($NoFullBackup -or $NoFullBackupSince) {
+                        if (@($db.EnumBackupSets()).count -eq @($db.EnumBackupSets() | Where-Object { $_.IsCopyOnly }).count -and (@($db.EnumBackupSets()).count -gt 0)) {
+                            $Notes = "Only CopyOnly backups"
+                        }
+                    }
+
+                    $lastusedinfo = $dblastused | Where-Object { $_.dbname -eq $db.name }
+                    Add-Member -Force -InputObject $db -MemberType NoteProperty BackupStatus -value $Notes
+                    Add-Member -Force -InputObject $db -MemberType NoteProperty -Name ComputerName -value $server.ComputerName
+                    Add-Member -Force -InputObject $db -MemberType NoteProperty -Name InstanceName -value $server.ServiceName
+                    Add-Member -Force -InputObject $db -MemberType NoteProperty -Name SqlInstance -value $server.DomainInstanceName
+                    Add-Member -Force -InputObject $db -MemberType NoteProperty -Name LastRead -value $lastusedinfo.last_read
+                    Add-Member -Force -InputObject $db -MemberType NoteProperty -Name LastWrite -value $lastusedinfo.last_write
+                    Select-DefaultView -InputObject $db -Property $defaults
+                }
+            } catch {
+                Stop-Function -ErrorRecord $_ -Target $instance -Message "Failure. Collection may have been modified. If so, please use parens (Get-DbaDatabase ....) | when working with commands that modify the collection such as Remove-DbaDatabase." -Continue
+            }
         }
     }
-    $inputobject = $inputObject |
-        Where-Object {
-            ($_.Name -in $Database -or !$Database) -and
-            ($_.Name -notin $ExcludeDatabase -or !$ExcludeDatabase) -and
-            ($_.Owner -in $Owner -or !$Owner) -and
-            $_.ReadOnly -in $Readonly -and
-            $_.IsAccessible -in $AccessibleFilter -and
-            $_.IsSystemObject -in $DBType -and
-            ((Compare-Object @($_.Status.tostring().split(',').trim()) $Status -ExcludeDifferent -IncludeEqual).inputobject.count -ge 1 -or !$status) -and
-            ($_.RecoveryModel -in $RecoveryModel -or !$_.RecoveryModel) -and
-            $_.EncryptionEnabled -in $Encrypt
-        }
-    if ($NoFullBackup -or $NoFullBackupSince) {
-        $dabs = (Get-DbaBackupHistory -SqlInstance $server -LastFull )
-        if ($null -ne $NoFullBackupSince) {
-            $dabsWithinScope = ($dabs | Where-Object End -lt $NoFullBackupSince)
-
-        $inputobject = $inputobject | Where-Object { $_.Name -in $dabsWithinScope.Database -and $_.Name -ne 'tempdb' }
-} else {
-    $inputObject = $inputObject | Where-Object { $_.Name -notin $dabs.Database -and $_.Name -ne 'tempdb' }
-}
-
-}
-if ($NoLogBackup -or $NoLogBackupSince) {
-    $dabs = (Get-DbaBackupHistory -SqlInstance $server -LastLog )
-    if ($null -ne $NoLogBackupSince) {
-        $dabsWithinScope = ($dabs | Where-Object End -lt $NoLogBackupSince)
-    $inputobject = $inputobject |
-        Where-Object { $_.Name -in $dabsWithinScope.Database -and $_.Name -ne 'tempdb' -and $_.RecoveryModel -ne 'Simple' }
-} else {
-    $inputobject = $inputObject |
-        Where-Object { $_.Name -notin $dabs.Database -and $_.Name -ne 'tempdb' -and $_.RecoveryModel -ne 'Simple' }
-}
-}
-
-$defaults = 'ComputerName', 'InstanceName', 'SqlInstance', 'Name', 'Status', 'IsAccessible', 'RecoveryModel',
-'LogReuseWaitStatus', 'Size as SizeMB', 'CompatibilityLevel as Compatibility', 'Collation', 'Owner',
-'LastBackupDate as LastFullBackup', 'LastDifferentialBackupDate as LastDiffBackup',
-'LastLogBackupDate as LastLogBackup'
-
-if ($NoFullBackup -or $NoFullBackupSince -or $NoLogBackup -or $NoLogBackupSince) {
-    $defaults += ('Notes')
-}
-if ($IncludeLastUsed) {
-    # Add Last Used to the default view
-    $defaults += ('LastRead as LastIndexRead', 'LastWrite as LastIndexWrite')
-}
-
-try {
-    foreach ($db in $inputobject) {
-
-        $Notes = $null
-        if ($NoFullBackup -or $NoFullBackupSince) {
-            if (@($db.EnumBackupSets()).count -eq @($db.EnumBackupSets() | Where-Object { $_.IsCopyOnly }).count -and (@($db.EnumBackupSets()).count -gt 0)) {
-            $Notes = "Only CopyOnly backups"
-        }
-    }
-
-    $lastusedinfo = $dblastused | Where-Object { $_.dbname -eq $db.name }
-Add-Member -Force -InputObject $db -MemberType NoteProperty BackupStatus -value $Notes
-Add-Member -Force -InputObject $db -MemberType NoteProperty -Name ComputerName -value $server.ComputerName
-Add-Member -Force -InputObject $db -MemberType NoteProperty -Name InstanceName -value $server.ServiceName
-Add-Member -Force -InputObject $db -MemberType NoteProperty -Name SqlInstance -value $server.DomainInstanceName
-Add-Member -Force -InputObject $db -MemberType NoteProperty -Name LastRead -value $lastusedinfo.last_read
-Add-Member -Force -InputObject $db -MemberType NoteProperty -Name LastWrite -value $lastusedinfo.last_write
-Select-DefaultView -InputObject $db -Property $defaults
-}
-} catch {
-    Stop-Function -ErrorRecord $_ -Target $instance -Message "Failure. Collection may have been modified. If so, please use parens (Get-DbaDatabase ....) | when working with commands that modify the collection such as Remove-DbaDatabase." -Continue
-}
-}
-}
 }

@@ -58,34 +58,34 @@ function Get-DbaNetworkActivity {
     )
 
     begin {
-        $ComputerName = $ComputerName | ForEach-Object { $_.split("\")[0] } | Select-Object -Unique
-$sessionoption = New-CimSessionOption -Protocol DCom
-}
-process {
-    foreach ($computer in $ComputerName) {
-        $Server = Resolve-DbaNetworkName -ComputerName $Computer -Credential $credential
-        if ( $Server.FullComputerName ) {
-            $Computer = $server.FullComputerName
-            Write-Message -Level Verbose -Message "Creating CIMSession on $computer over WSMan"
-            $CIMsession = New-CimSession -ComputerName $Computer -ErrorAction SilentlyContinue -Credential $Credential
-            if ( -not $CIMSession ) {
-                Write-Message -Level Verbose -Message "Creating CIMSession on $computer over WSMan failed. Creating CIMSession on $computer over DCom"
-                $CIMsession = New-CimSession -ComputerName $Computer -SessionOption $sessionoption -ErrorAction SilentlyContinue -Credential $Credential
-            }
-            if ( $CIMSession ) {
-                Write-Message -Level Verbose -Message "Getting properties for Network Interfaces on $computer"
-                $NICs = Get-CimInstance -CimSession $CIMSession -ClassName Win32_PerfFormattedData_Tcpip_NetworkInterface
-                $NICs | Add-Member -Force -MemberType ScriptProperty -Name ComputerName -Value { $computer }
-            $NICs | Add-Member -Force -MemberType ScriptProperty -Name Bandwith -Value { switch ( $this.CurrentBandWidth ) { 10000000000 { '10Gb' } 1000000000 { '1Gb' } 100000000 { '100Mb' } 10000000 { '10Mb' } 1000000 { '1Mb' } 100000 { '100Kb' } default { 'Low' } } }
-        foreach ( $NIC in $NICs ) { Select-DefaultView -InputObject $NIC -Property 'ComputerName', 'Name as NIC', 'BytesReceivedPersec', 'BytesSentPersec', 'BytesTotalPersec', 'Bandwidth' }
-    } #if CIMSession
-    else {
-        Write-Message -Level Warning -Message "Can't create CIMSession on $computer"
+        $ComputerName = $ComputerName | ForEach-Object {$_.split("\")[0]} | Select-Object -Unique
+        $sessionoption = New-CimSessionOption -Protocol DCom
     }
-} #if computername
-else {
-    Write-Message -Level Warning -Message "can't connect to $computer"
-}
-} #foreach computer
-} #PROCESS
+    process {
+        foreach ($computer in $ComputerName) {
+            $Server = Resolve-DbaNetworkName -ComputerName $Computer -Credential $credential
+            if ( $Server.FullComputerName ) {
+                $Computer = $server.FullComputerName
+                Write-Message -Level Verbose -Message "Creating CIMSession on $computer over WSMan"
+                $CIMsession = New-CimSession -ComputerName $Computer -ErrorAction SilentlyContinue -Credential $Credential
+                if ( -not $CIMSession ) {
+                    Write-Message -Level Verbose -Message "Creating CIMSession on $computer over WSMan failed. Creating CIMSession on $computer over DCom"
+                    $CIMsession = New-CimSession -ComputerName $Computer -SessionOption $sessionoption -ErrorAction SilentlyContinue -Credential $Credential
+                }
+                if ( $CIMSession ) {
+                    Write-Message -Level Verbose -Message "Getting properties for Network Interfaces on $computer"
+                    $NICs = Get-CimInstance -CimSession $CIMSession -ClassName Win32_PerfFormattedData_Tcpip_NetworkInterface
+                    $NICs | Add-Member -Force -MemberType ScriptProperty -Name ComputerName -Value { $computer }
+                    $NICs | Add-Member -Force -MemberType ScriptProperty -Name Bandwith -Value { switch ( $this.CurrentBandWidth ) { 10000000000 { '10Gb' } 1000000000 { '1Gb' } 100000000 { '100Mb' } 10000000 { '10Mb' } 1000000 { '1Mb' } 100000 { '100Kb' } default { 'Low' } } }
+                    foreach ( $NIC in $NICs ) { Select-DefaultView -InputObject $NIC -Property 'ComputerName', 'Name as NIC', 'BytesReceivedPersec', 'BytesSentPersec', 'BytesTotalPersec', 'Bandwidth'}
+                } #if CIMSession
+                else {
+                    Write-Message -Level Warning -Message "Can't create CIMSession on $computer"
+                }
+            } #if computername
+            else {
+                Write-Message -Level Warning -Message "can't connect to $computer"
+            }
+        } #foreach computer
+    } #PROCESS
 } #function

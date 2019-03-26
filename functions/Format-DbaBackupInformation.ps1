@@ -94,7 +94,7 @@ function Format-DbaBackupInformation {
 
         This example changes the location that SQL Server will look for the backups. This is useful if you've moved the backups to a different location
 
-    #>
+       #>
     [CmdletBinding()]
     param (
         [parameter(Mandatory, ValueFromPipeline)]
@@ -147,80 +147,80 @@ function Format-DbaBackupInformation {
         foreach ($History in $BackupHistory) {
             if ("OriginalDatabase" -notin $History.PSobject.Properties.name) {
                 $History | Add-Member -Name 'OriginalDatabase' -Type NoteProperty -Value $History.Database
-        }
-        if ("OriginalFileList" -notin $History.PSobject.Properties.name) {
-            $History | Add-Member -Name 'OriginalFileList' -Type NoteProperty -Value ''
-        $History | ForEach-Object { $_.OriginalFileList = $_.FileList }
-}
-if ("OriginalFullName" -notin $History.PSobject.Properties.name) {
-    $History | Add-Member -Name 'OriginalFullName' -Type NoteProperty -Value $History.FullName
-}
-if ("IsVerified" -notin $History.PSobject.Properties.name) {
-    $History | Add-Member -Name 'IsVerified' -Type NoteProperty -Value $False
-}
-switch ($History.Type) {
-    'Full' { $History.Type = 'Database' }
-    'Differential' { $History.Type = 'Database Differential' }
-    'Log' { $History.Type = 'Transaction Log' }
-}
-
-
-if ($ReplaceDatabaseNameType -eq 'single' -and $ReplaceDatabaseName -ne '' ) {
-    $History.Database = $ReplaceDatabaseName
-    Write-Message -Message "New DbName (String) = $($History.Database)" -Level Verbose
-} elseif ($ReplaceDatabaseNameType -eq 'multi') {
-    if ($null -ne $ReplaceDatabaseName[$History.Database]) {
-        $History.Database = $ReplaceDatabaseName[$History.Database]
-        Write-Message -Message "New DbName (Hash) = $($History.Database)" -Level Verbose
-    }
-}
-$History.Database = $DatabaseNamePrefix + $History.Database
-
-$History.FileList | ForEach-Object {
-    if ($null -ne $FileMapping ) {
-        if ($null -ne $FileMapping[$_.LogicalName]) {
-            $_.PhysicalName = $FileMapping[$_.LogicalName]
-        }
-    } else {
-        if ($ReplaceDbNameInFile -eq $true) {
-            $_.PhysicalName = $_.PhysicalName -Replace $History.OriginalDatabase, $History.Database
-        }
-        Write-Message -Message " 1 PhysicalName = $($_.PhysicalName) " -Level Verbose
-        $Pname = [System.Io.FileInfo]$_.PhysicalName
-        $RestoreDir = $Pname.DirectoryName
-        if ($_.Type -eq 'D' -or $_.FileType -eq 'D') {
-            if ('' -ne $DataFileDirectory) {
-                $RestoreDir = $DataFileDirectory
             }
-        } elseif ($_.Type -eq 'L' -or $_.FileType -eq 'L') {
-            if ('' -ne $LogFileDirectory) {
-                $RestoreDir = $LogFileDirectory
-            } elseif ('' -ne $DataFileDirectory) {
-                $RestoreDir = $DataFileDirectory
+            if ("OriginalFileList" -notin $History.PSobject.Properties.name) {
+                $History | Add-Member -Name 'OriginalFileList' -Type NoteProperty -Value ''
+                $History | ForEach-Object {$_.OriginalFileList = $_.FileList}
             }
-        } elseif ($_.Type -eq 'S' -or $_.FileType -eq 'S') {
-            if ('' -ne $DestinationFileStreamDirectory) {
-                $RestoreDir = $DestinationFileStreamDirectory
-            } elseif ('' -ne $DataFileDirectory) {
-                $RestoreDir = $DataFileDirectory
+            if ("OriginalFullName" -notin $History.PSobject.Properties.name) {
+                $History | Add-Member -Name 'OriginalFullName' -Type NoteProperty -Value $History.FullName
             }
+            if ("IsVerified" -notin $History.PSobject.Properties.name) {
+                $History | Add-Member -Name 'IsVerified' -Type NoteProperty -Value $False
+            }
+            switch ($History.Type) {
+                'Full' {$History.Type = 'Database'}
+                'Differential' {$History.Type = 'Database Differential'}
+                'Log' {$History.Type = 'Transaction Log'}
+            }
+
+
+            if ($ReplaceDatabaseNameType -eq 'single' -and $ReplaceDatabaseName -ne '' ) {
+                $History.Database = $ReplaceDatabaseName
+                Write-Message -Message "New DbName (String) = $($History.Database)" -Level Verbose
+            } elseif ($ReplaceDatabaseNameType -eq 'multi') {
+                if ($null -ne $ReplaceDatabaseName[$History.Database]) {
+                    $History.Database = $ReplaceDatabaseName[$History.Database]
+                    Write-Message -Message "New DbName (Hash) = $($History.Database)" -Level Verbose
+                }
+            }
+            $History.Database = $DatabaseNamePrefix + $History.Database
+
+            $History.FileList | ForEach-Object {
+                if ($null -ne $FileMapping ) {
+                    if ($null -ne $FileMapping[$_.LogicalName]) {
+                        $_.PhysicalName = $FileMapping[$_.LogicalName]
+                    }
+                } else {
+                    if ($ReplaceDbNameInFile -eq $true) {
+                        $_.PhysicalName = $_.PhysicalName -Replace $History.OriginalDatabase, $History.Database
+                    }
+                    Write-Message -Message " 1 PhysicalName = $($_.PhysicalName) " -Level Verbose
+                    $Pname = [System.Io.FileInfo]$_.PhysicalName
+                    $RestoreDir = $Pname.DirectoryName
+                    if ($_.Type -eq 'D' -or $_.FileType -eq 'D') {
+                        if ('' -ne $DataFileDirectory) {
+                            $RestoreDir = $DataFileDirectory
+                        }
+                    } elseif ($_.Type -eq 'L' -or $_.FileType -eq 'L') {
+                        if ('' -ne $LogFileDirectory) {
+                            $RestoreDir = $LogFileDirectory
+                        } elseif ('' -ne $DataFileDirectory) {
+                            $RestoreDir = $DataFileDirectory
+                        }
+                    } elseif ($_.Type -eq 'S' -or $_.FileType -eq 'S') {
+                        if ('' -ne $DestinationFileStreamDirectory) {
+                            $RestoreDir = $DestinationFileStreamDirectory
+                        } elseif ('' -ne $DataFileDirectory) {
+                            $RestoreDir = $DataFileDirectory
+                        }
+                    }
+
+                    $_.PhysicalName = $RestoreDir + $PathSep + $DatabaseFilePrefix + $Pname.BaseName + $DatabaseFileSuffix + $Pname.extension
+                    Write-Message -Message "PhysicalName = $($_.PhysicalName) " -Level Verbose
+                }
+            }
+            if ('' -ne $RebaseBackupFolder -and $History.FullName[0] -notmatch 'http') {
+                Write-Message -Message 'Rebasing backup files' -Level Verbose
+
+                for ($j = 0; $j -lt $History.fullname.count; $j++) {
+                    $file = [System.IO.FileInfo]($History.fullname[$j])
+                    $History.fullname[$j] = $RebaseBackupFolder + $PathSep + $file.BaseName + $file.Extension
+                }
+
+            }
+
+            $History
         }
-
-        $_.PhysicalName = $RestoreDir + $PathSep + $DatabaseFilePrefix + $Pname.BaseName + $DatabaseFileSuffix + $Pname.extension
-        Write-Message -Message "PhysicalName = $($_.PhysicalName) " -Level Verbose
     }
-}
-if ('' -ne $RebaseBackupFolder -and $History.FullName[0] -notmatch 'http') {
-    Write-Message -Message 'Rebasing backup files' -Level Verbose
-
-    for ($j = 0; $j -lt $History.fullname.count; $j++) {
-        $file = [System.IO.FileInfo]($History.fullname[$j])
-        $History.fullname[$j] = $RebaseBackupFolder + $PathSep + $file.BaseName + $file.Extension
-    }
-
-}
-
-$History
-}
-}
 }

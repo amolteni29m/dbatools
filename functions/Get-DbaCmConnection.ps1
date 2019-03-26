@@ -67,9 +67,9 @@ function Get-DbaCmConnection {
         foreach ($name in $ComputerName) {
             Write-Message -Level VeryVerbose -Message "Processing search. ComputerName: '$name' | Username: '$UserName'"
             ([Sqlcollaborative.Dbatools.Connection.ConnectionHost]::Connections.Values | Where-Object { ($_.ComputerName -like $name) -and ($_.Credentials.UserName -like $UserName) })
+        }
     }
-}
-end {
-    Write-Message -Level InternalComment -Message "Ending"
-}
+    end {
+        Write-Message -Level InternalComment -Message "Ending"
+    }
 }

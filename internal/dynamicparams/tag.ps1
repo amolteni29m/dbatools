@@ -67,22 +67,22 @@ $ScriptBlock = {
     $moduledirectory = (Get-Module -Name dbatools).ModuleBase
     $idxfile = "$moduledirectory\bin\dbatools-index.json"
     $json = Get-Content $idxfile | ConvertFrom-Json
-$cleantags = @()
-$tags = $json.Tags
+    $cleantags = @()
+    $tags = $json.Tags
 
-foreach ($tag in $tags) {
-    if ($null -ne $tag) {
-        $cleantags += $tag.Trim()
+    foreach ($tag in $tags) {
+        if ($null -ne $tag) {
+            $cleantags += $tag.Trim()
+        }
     }
-}
 
-$collection = $cleantags | Select-Object -Unique
+    $collection = $cleantags | Select-Object -Unique
 
-if ($collection) {
-    foreach ($item in $collection) {
-        New-CompletionResult -CompletionText $item -ToolTip $item
+    if ($collection) {
+        foreach ($item in $collection) {
+            New-CompletionResult -CompletionText $item -ToolTip $item
+        }
     }
-}
 }
 
 Register-DbaTeppScriptblock -ScriptBlock $ScriptBlock -Name "tag"

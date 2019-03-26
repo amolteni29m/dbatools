@@ -188,151 +188,151 @@ function Invoke-DbaDbShrink {
             $server.ConnectionContext.StatementTimeout = $StatementTimeoutSeconds
             Write-Message -Level Verbose -Message "Connection timeout set to $StatementTimeout"
 
-            $dbs = $server.Databases | Where-Object { $_.IsAccessible }
+            $dbs = $server.Databases | Where-Object {$_.IsAccessible}
 
-        if ($AllUserDatabases) {
-            $dbs = $dbs | Where-Object { $_.IsSystemObject -eq $false }
-    }
+            if ($AllUserDatabases) {
+                $dbs = $dbs | Where-Object { $_.IsSystemObject -eq $false }
+            }
 
-    if ($Database) {
-        $dbs = $dbs | Where-Object Name -In $Database
-}
+            if ($Database) {
+                $dbs = $dbs | Where-Object Name -In $Database
+            }
 
-if ($ExcludeDatabase) {
-    $dbs = $dbs | Where-Object Name -NotIn $ExcludeDatabase
-}
+            if ($ExcludeDatabase) {
+                $dbs = $dbs | Where-Object Name -NotIn $ExcludeDatabase
+            }
 
-foreach ($db in $dbs) {
+            foreach ($db in $dbs) {
 
-    Write-Message -Level Verbose -Message "Processing $db on $instance"
+                Write-Message -Level Verbose -Message "Processing $db on $instance"
 
-    if ($db.IsDatabaseSnapshot) {
-        Write-Message -Level Warning -Message "The database $db on server $instance is a snapshot and cannot be shrunk. Skipping database."
-        continue
-    }
-
-    $files = @()
-    if ($FileType -in ('Log', 'All')) {
-        $files += $db.LogFiles
-    }
-    if ($FileType -in ('Data', 'All')) {
-        $files += $db.FileGroups.Files
-    }
-
-    foreach ($file in $files) {
-        $startingSize = $file.Size
-        $spaceUsed = $file.UsedSpace
-        $spaceAvailable = ($file.Size - $file.UsedSpace)
-        $desiredSpaceAvailable = [math]::ceiling((($PercentFreeSpace / 100)) * $spaceUsed)
-        $desiredFileSize = $spaceUsed + $desiredSpaceAvailable
-
-        Write-Message -Level Verbose -Message "File: $($file.Name)"
-        Write-Message -Level Verbose -Message "Initial Size (KB): $([int]$startingSize)"
-        Write-Message -Level Verbose -Message "Space Used (KB): $([int]$spaceUsed)"
-        Write-Message -Level Verbose -Message "Initial Freespace (KB): $([int]$spaceAvailable)"
-        Write-Message -Level Verbose -Message "Target Freespace (KB): $([int]$desiredSpaceAvailable)"
-        Write-Message -Level Verbose -Message "Target FileSize (KB): $([int]$desiredFileSize)"
-
-        if ($spaceAvailable -le $desiredSpaceAvailable) {
-            Write-Message -Level Warning -Message "File size of ($startingSize) is less than or equal to the desired outcome ($desiredFileSize) for $($file.Name)"
-        } else {
-            if ($Pscmdlet.ShouldProcess("$db on $instance", "Shrinking from $([int]$startingSize)KB to $([int]$desiredFileSize)KB")) {
-                if ($server.VersionMajor -gt 8 -and $ExcludeIndexStats -eq $false) {
-                    Write-Message -Level Verbose -Message "Getting starting average fragmentation"
-                    $dataRow = $server.Query($sql, $db.name)
-                    $startingFrag = $dataRow.avg_fragmentation_in_percent
-                    $startingTopFrag = $dataRow.max_fragmentation_in_percent
-                } else {
-                    $startingTopFrag = $startingFrag = $null
-                }
-
-                $start = Get-Date
-                try {
-                    Write-Message -Level Verbose -Message "Beginning shrink of files"
-
-                    $shrinkGap = ($startingSize - $desiredFileSize)
-                    Write-Message -Level Verbose -Message "ShrinkGap: $([int]$shrinkGap) KB"
-                    Write-Message -Level Verbose -Message "Step Size: $($stepSizeKB) KB"
-
-                    if ($stepSizeKB -and ($shrinkGap -ge $stepSizeKB)) {
-                        for ($i = 1; $i -le [int](($shrinkGap) / $stepSizeKB); $i++) {
-                            Write-Message -Level Verbose -Message "Step: $i / $([int](($shrinkGap) / $stepSizeKB))"
-                            $shrinkSize = $startingSize - ($stepSizeKB * $i)
-                            if ($shrinkSize -lt $desiredFileSize) {
-                                $shrinkSize = $desiredFileSize
-                            }
-                            Write-Message -Level Verbose -Message ("Shrinking {0} to {1}" -f $file.Name, $shrinkSize)
-                            $file.Shrink(($shrinkSize / 1024), $ShrinkMethod)
-                            $file.Refresh()
-
-                            if ($startingSize -eq $file.Size) {
-                                Write-Message -Level Verbose -Message ("Unable to shrink further")
-                                break
-                            }
-                        }
-                    } else {
-                        $file.Shrink(($desiredFileSize / 1024), $ShrinkMethod)
-                        $file.Refresh()
-                    }
-                    $success = $true
-                } catch {
-                    $success = $false
-                    Stop-Function -message "Failure" -EnableException $EnableException -ErrorRecord $_ -Continue
+                if ($db.IsDatabaseSnapshot) {
+                    Write-Message -Level Warning -Message "The database $db on server $instance is a snapshot and cannot be shrunk. Skipping database."
                     continue
                 }
-                $end = Get-Date
-                $finalFileSize = $file.Size
-                $finalSpaceAvailable = ($file.Size - $file.UsedSpace)
-                Write-Message -Level Verbose -Message "Final file size: $([int]$finalFileSize) KB"
-                Write-Message -Level Verbose -Message "Final file space available: $($finalSpaceAvailable) KB"
 
-                if ($server.VersionMajor -gt 8 -and $ExcludeIndexStats -eq $false -and $success -and $FileType -ne 'Log') {
-                    Write-Message -Level Verbose -Message "Getting ending average fragmentation"
-                    $dataRow = $server.Query($sql, $db.name)
-                    $endingDefrag = $dataRow.avg_fragmentation_in_percent
-                    $endingTopDefrag = $dataRow.max_fragmentation_in_percent
-                } else {
-                    $endingTopDefrag = $endingDefrag = $null
+                $files = @()
+                if ($FileType -in ('Log', 'All')) {
+                    $files += $db.LogFiles
+                }
+                if ($FileType -in ('Data', 'All')) {
+                    $files += $db.FileGroups.Files
                 }
 
-                $timSpan = New-TimeSpan -Start $start -End $end
-                $ts = [TimeSpan]::fromseconds($timSpan.TotalSeconds)
-                $elapsed = "{0:HH:mm:ss}" -f ([datetime]$ts.Ticks)
+                foreach ($file in $files) {
+                    $startingSize = $file.Size
+                    $spaceUsed = $file.UsedSpace
+                    $spaceAvailable = ($file.Size - $file.UsedSpace)
+                    $desiredSpaceAvailable = [math]::ceiling((($PercentFreeSpace / 100)) * $spaceUsed)
+                    $desiredFileSize = $spaceUsed + $desiredSpaceAvailable
 
-                $object = [PSCustomObject]@{
-                    ComputerName                = $server.ComputerName
-                    InstanceName                = $server.ServiceName
-                    SqlInstance                 = $server.DomainInstanceName
-                    Database                    = $db.name
-                    File                        = $file.name
-                    Start                       = $start
-                    End                         = $end
-                    Elapsed                     = $elapsed
-                    Success                     = $success
-                    InitialSize                 = [dbasize]($startingSize * 1024)
-                    InitialUsed                 = [dbasize]($spaceUsed * 1024)
-                    InitialAvailable            = [dbasize]($spaceAvailable * 1024)
-                    TargetAvailable             = [dbasize]($desiredSpaceAvailable * 1024)
-                    FinalAvailable              = [dbasize]($finalSpaceAvailable * 1024)
-                    FinalSize                   = [dbasize]($finalFileSize * 1024)
-                    InitialAverageFragmentation = [math]::Round($startingFrag, 1)
-                    FinalAverageFragmentation   = [math]::Round($endingDefrag, 1)
-                    InitialTopFragmentation     = [math]::Round($startingTopFrag, 1)
-                    FinalTopFragmentation       = [math]::Round($endingTopDefrag, 1)
-                    Notes                       = "Database shrinks can cause massive index fragmentation and negatively impact performance. You should now run DBCC INDEXDEFRAG or ALTER INDEX ... REORGANIZE"
-                }
-                if ($ExcludeIndexStats) {
-                    Select-DefaultView -InputObject $object -ExcludeProperty InitialAverageFragmentation, FinalAverageFragmentation, InitialTopFragmentation, FinalTopFragmentation
-                } else {
-                    $object
+                    Write-Message -Level Verbose -Message "File: $($file.Name)"
+                    Write-Message -Level Verbose -Message "Initial Size (KB): $([int]$startingSize)"
+                    Write-Message -Level Verbose -Message "Space Used (KB): $([int]$spaceUsed)"
+                    Write-Message -Level Verbose -Message "Initial Freespace (KB): $([int]$spaceAvailable)"
+                    Write-Message -Level Verbose -Message "Target Freespace (KB): $([int]$desiredSpaceAvailable)"
+                    Write-Message -Level Verbose -Message "Target FileSize (KB): $([int]$desiredFileSize)"
+
+                    if ($spaceAvailable -le $desiredSpaceAvailable) {
+                        Write-Message -Level Warning -Message "File size of ($startingSize) is less than or equal to the desired outcome ($desiredFileSize) for $($file.Name)"
+                    } else {
+                        if ($Pscmdlet.ShouldProcess("$db on $instance", "Shrinking from $([int]$startingSize)KB to $([int]$desiredFileSize)KB")) {
+                            if ($server.VersionMajor -gt 8 -and $ExcludeIndexStats -eq $false) {
+                                Write-Message -Level Verbose -Message "Getting starting average fragmentation"
+                                $dataRow = $server.Query($sql, $db.name)
+                                $startingFrag = $dataRow.avg_fragmentation_in_percent
+                                $startingTopFrag = $dataRow.max_fragmentation_in_percent
+                            } else {
+                                $startingTopFrag = $startingFrag = $null
+                            }
+
+                            $start = Get-Date
+                            try {
+                                Write-Message -Level Verbose -Message "Beginning shrink of files"
+
+                                $shrinkGap = ($startingSize - $desiredFileSize)
+                                Write-Message -Level Verbose -Message "ShrinkGap: $([int]$shrinkGap) KB"
+                                Write-Message -Level Verbose -Message "Step Size: $($stepSizeKB) KB"
+
+                                if ($stepSizeKB -and ($shrinkGap -ge $stepSizeKB)) {
+                                    for ($i = 1; $i -le [int](($shrinkGap) / $stepSizeKB); $i++) {
+                                        Write-Message -Level Verbose -Message "Step: $i / $([int](($shrinkGap) / $stepSizeKB))"
+                                        $shrinkSize = $startingSize - ($stepSizeKB * $i)
+                                        if ($shrinkSize -lt $desiredFileSize) {
+                                            $shrinkSize = $desiredFileSize
+                                        }
+                                        Write-Message -Level Verbose -Message ("Shrinking {0} to {1}" -f $file.Name, $shrinkSize)
+                                        $file.Shrink(($shrinkSize / 1024), $ShrinkMethod)
+                                        $file.Refresh()
+
+                                        if ($startingSize -eq $file.Size) {
+                                            Write-Message -Level Verbose -Message ("Unable to shrink further")
+                                            break
+                                        }
+                                    }
+                                } else {
+                                    $file.Shrink(($desiredFileSize / 1024), $ShrinkMethod)
+                                    $file.Refresh()
+                                }
+                                $success = $true
+                            } catch {
+                                $success = $false
+                                Stop-Function -message "Failure" -EnableException $EnableException -ErrorRecord $_ -Continue
+                                continue
+                            }
+                            $end = Get-Date
+                            $finalFileSize = $file.Size
+                            $finalSpaceAvailable = ($file.Size - $file.UsedSpace)
+                            Write-Message -Level Verbose -Message "Final file size: $([int]$finalFileSize) KB"
+                            Write-Message -Level Verbose -Message "Final file space available: $($finalSpaceAvailable) KB"
+
+                            if ($server.VersionMajor -gt 8 -and $ExcludeIndexStats -eq $false -and $success -and $FileType -ne 'Log') {
+                                Write-Message -Level Verbose -Message "Getting ending average fragmentation"
+                                $dataRow = $server.Query($sql, $db.name)
+                                $endingDefrag = $dataRow.avg_fragmentation_in_percent
+                                $endingTopDefrag = $dataRow.max_fragmentation_in_percent
+                            } else {
+                                $endingTopDefrag = $endingDefrag = $null
+                            }
+
+                            $timSpan = New-TimeSpan -Start $start -End $end
+                            $ts = [TimeSpan]::fromseconds($timSpan.TotalSeconds)
+                            $elapsed = "{0:HH:mm:ss}" -f ([datetime]$ts.Ticks)
+
+                            $object = [PSCustomObject]@{
+                                ComputerName                = $server.ComputerName
+                                InstanceName                = $server.ServiceName
+                                SqlInstance                 = $server.DomainInstanceName
+                                Database                    = $db.name
+                                File                        = $file.name
+                                Start                       = $start
+                                End                         = $end
+                                Elapsed                     = $elapsed
+                                Success                     = $success
+                                InitialSize                 = [dbasize]($startingSize * 1024)
+                                InitialUsed                 = [dbasize]($spaceUsed * 1024)
+                                InitialAvailable            = [dbasize]($spaceAvailable * 1024)
+                                TargetAvailable             = [dbasize]($desiredSpaceAvailable * 1024)
+                                FinalAvailable              = [dbasize]($finalSpaceAvailable * 1024)
+                                FinalSize                   = [dbasize]($finalFileSize * 1024)
+                                InitialAverageFragmentation = [math]::Round($startingFrag, 1)
+                                FinalAverageFragmentation   = [math]::Round($endingDefrag, 1)
+                                InitialTopFragmentation     = [math]::Round($startingTopFrag, 1)
+                                FinalTopFragmentation       = [math]::Round($endingTopDefrag, 1)
+                                Notes                       = "Database shrinks can cause massive index fragmentation and negatively impact performance. You should now run DBCC INDEXDEFRAG or ALTER INDEX ... REORGANIZE"
+                            }
+                            if ($ExcludeIndexStats) {
+                                Select-DefaultView -InputObject $object -ExcludeProperty InitialAverageFragmentation, FinalAverageFragmentation, InitialTopFragmentation, FinalTopFragmentation
+                            } else {
+                                $object
+                            }
+                        }
+                    }
                 }
             }
         }
     }
-}
-}
-}
-end {
-    Test-DbaDeprecation -DeprecatedOn "1.0.0" -Alias Invoke-DbaDatabaseShrink
-}
+    end {
+        Test-DbaDeprecation -DeprecatedOn "1.0.0" -Alias Invoke-DbaDatabaseShrink
+    }
 }

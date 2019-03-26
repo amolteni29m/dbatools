@@ -16,8 +16,8 @@ $ScriptBlock = {
 
 
     foreach ($name in ([Sqlcollaborative.Dbatools.TabExpansion.TabExpansionHost]::Cache["powerplan"] | Where-DbaObject -Like "$wordToComplete*")) {
-    New-DbaTeppCompletionResult -CompletionText $name -ToolTip $name
-}
+        New-DbaTeppCompletionResult -CompletionText $name -ToolTip $name
+    }
 }
 Register-DbaTeppScriptblock -ScriptBlock $ScriptBlock -Name "powerplan"
 #endregion Tepp Data return

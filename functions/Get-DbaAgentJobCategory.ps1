@@ -82,9 +82,9 @@ function Get-DbaAgentJobCategory {
             # get all the job categories
             $jobCategories = $server.JobServer.JobCategories |
                 Where-Object {
-                    ($_.Name -in $Category -or !$Category) -and
-                    ($_.CategoryType -in $CategoryType -or !$CategoryType)
-                }
+                ($_.Name -in $Category -or !$Category) -and
+                ($_.CategoryType -in $CategoryType -or !$CategoryType)
+            }
 
             # Set the default output
             $defaults = 'ComputerName', 'InstanceName', 'SqlInstance', 'Name', 'ID', 'CategoryType', 'JobCount'
@@ -94,28 +94,28 @@ function Get-DbaAgentJobCategory {
                 foreach ($cat in $jobCategories) {
 
                     # Get the jobs associated with the category
-                    $jobCount = ($server.JobServer.Jobs | Where-Object { $_.CategoryID -eq $cat.ID }).Count
+                    $jobCount = ($server.JobServer.Jobs | Where-Object {$_.CategoryID -eq $cat.ID}).Count
 
-                # Add new properties to the category object
-                Add-Member -Force -InputObject $cat -MemberType NoteProperty -Name ComputerName -value $server.ComputerName
-                Add-Member -Force -InputObject $cat -MemberType NoteProperty -Name InstanceName -value $server.ServiceName
-                Add-Member -Force -InputObject $cat -MemberType NoteProperty -Name SqlInstance -value $server.DomainInstanceName
-                Add-Member -Force -InputObject $cat -MemberType NoteProperty -Name JobCount -Value $jobCount
+                    # Add new properties to the category object
+                    Add-Member -Force -InputObject $cat -MemberType NoteProperty -Name ComputerName -value $server.ComputerName
+                    Add-Member -Force -InputObject $cat -MemberType NoteProperty -Name InstanceName -value $server.ServiceName
+                    Add-Member -Force -InputObject $cat -MemberType NoteProperty -Name SqlInstance -value $server.DomainInstanceName
+                    Add-Member -Force -InputObject $cat -MemberType NoteProperty -Name JobCount -Value $jobCount
 
-                # Show the result
-                Select-DefaultView -InputObject $cat -Property $defaults
+                    # Show the result
+                    Select-DefaultView -InputObject $cat -Property $defaults
+                }
+            } catch {
+                Stop-Function -ErrorRecord $_ -Target $instance -Message "Failure. Collection may have been modified" -Continue
             }
-        } catch {
-            Stop-Function -ErrorRecord $_ -Target $instance -Message "Failure. Collection may have been modified" -Continue
-        }
 
-    } # for each instance
+        } # for each instance
 
-} # end process
+    } # end process
 
-end {
-    if (Test-FunctionInterrupt) { return }
-    Write-Message -Message "Finished retrieving job category." -Level Verbose
-}
+    end {
+        if (Test-FunctionInterrupt) { return }
+        Write-Message -Message "Finished retrieving job category." -Level Verbose
+    }
 
 }

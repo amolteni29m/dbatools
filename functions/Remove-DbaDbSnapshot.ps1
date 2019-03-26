@@ -140,35 +140,35 @@ function Remove-DbaDbSnapshot {
 
             if ($Force) {
                 $db | Remove-DbaDatabase -Confirm:$false | Select-DefaultView -Property $defaultprops
-    } else {
-        try {
-            if ($Pscmdlet.ShouldProcess("$db on $server", "Drop snapshot")) {
-                $db.Drop()
-                $server.Refresh()
+            } else {
+                try {
+                    if ($Pscmdlet.ShouldProcess("$db on $server", "Drop snapshot")) {
+                        $db.Drop()
+                        $server.Refresh()
 
-                [pscustomobject]@{
-                    ComputerName = $server.ComputerName
-                    InstanceName = $server.ServiceName
-                    SqlInstance  = $server.DomainInstanceName
-                    Database     = $db.name
-                    Status       = "Dropped"
-                } | Select-DefaultView -Property $defaultprops
+                        [pscustomobject]@{
+                            ComputerName = $server.ComputerName
+                            InstanceName = $server.ServiceName
+                            SqlInstance  = $server.DomainInstanceName
+                            Database     = $db.name
+                            Status       = "Dropped"
+                        } | Select-DefaultView -Property $defaultprops
+                    }
+                } catch {
+                    Write-Message -Level Verbose -Message "Could not drop database $db on $server"
+
+                    [pscustomobject]@{
+                        ComputerName = $server.ComputerName
+                        InstanceName = $server.ServiceName
+                        SqlInstance  = $server.DomainInstanceName
+                        Database     = $db.name
+                        Status       = (Get-ErrorMessage -Record $_)
+                    } | Select-DefaultView -Property $defaultprops
+                }
+            }
         }
-    } catch {
-        Write-Message -Level Verbose -Message "Could not drop database $db on $server"
-
-        [pscustomobject]@{
-            ComputerName = $server.ComputerName
-            InstanceName = $server.ServiceName
-            SqlInstance  = $server.DomainInstanceName
-            Database     = $db.name
-            Status       = (Get-ErrorMessage -Record $_)
-        } | Select-DefaultView -Property $defaultprops
-}
-}
-}
-}
-end {
-    Test-DbaDeprecation -DeprecatedOn "1.0.0" -Alias Remove-DbaDatabaseSnapshot
-}
+    }
+    end {
+        Test-DbaDeprecation -DeprecatedOn "1.0.0" -Alias Remove-DbaDatabaseSnapshot
+    }
 }

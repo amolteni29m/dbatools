@@ -55,10 +55,10 @@ function Get-DbaWsfcResource {
             $resources = Get-DbaCmObject -Computername $computer -Credential $Credential -Namespace root\MSCluster -ClassName MSCluster_Resource
             foreach ($resource in $resources) {
                 $resource | Add-Member -Force -NotePropertyName State -NotePropertyValue (Get-ResourceState $resource.State)
-            $resource | Add-Member -Force -NotePropertyName ClusterName -NotePropertyValue $cluster.Name
-        $resource | Add-Member -Force -NotePropertyName ClusterFqdn -NotePropertyValue $cluster.Fqdn
-    $resource | Select-DefaultView -Property ClusterName, ClusterFqdn, Name, State, Type, OwnerGroup, OwnerNode, PendingTimeout, PersistentState, QuorumCapable, RequiredDependencyClasses, RequiredDependencyTypes, RestartAction, RestartDelay, RestartPeriod, RestartThreshold, RetryPeriodOnFailure, SeparateMonitor
-}
-}
-}
+                $resource | Add-Member -Force -NotePropertyName ClusterName -NotePropertyValue $cluster.Name
+                $resource | Add-Member -Force -NotePropertyName ClusterFqdn -NotePropertyValue $cluster.Fqdn
+                $resource | Select-DefaultView -Property ClusterName, ClusterFqdn, Name, State, Type, OwnerGroup, OwnerNode, PendingTimeout, PersistentState, QuorumCapable, RequiredDependencyClasses, RequiredDependencyTypes, RestartAction, RestartDelay, RestartPeriod, RestartThreshold, RetryPeriodOnFailure, SeparateMonitor
+            }
+        }
+    }
 }

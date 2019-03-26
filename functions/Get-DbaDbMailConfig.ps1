@@ -84,15 +84,15 @@ function Get-DbaDbMailConfig {
 
                 if ($Name) {
                     $configs = $configs | Where-Object Name -in $Name
-            }
+                }
 
-            $configs | Add-Member -Force -MemberType NoteProperty -Name ComputerName -value $mailserver.ComputerName
-        $configs | Add-Member -Force -MemberType NoteProperty -Name InstanceName -value $mailserver.InstanceName
-    $configs | Add-Member -Force -MemberType NoteProperty -Name SqlInstance -value $mailserver.SqlInstance
-$configs | Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, Name, Value, Description
-} catch {
-    Stop-Function -Message "Failure" -ErrorRecord $_ -Continue
-}
-}
-}
+                $configs | Add-Member -Force -MemberType NoteProperty -Name ComputerName -value $mailserver.ComputerName
+                $configs | Add-Member -Force -MemberType NoteProperty -Name InstanceName -value $mailserver.InstanceName
+                $configs | Add-Member -Force -MemberType NoteProperty -Name SqlInstance -value $mailserver.SqlInstance
+                $configs | Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, Name, Value, Description
+            } catch {
+                Stop-Function -Message "Failure" -ErrorRecord $_ -Continue
+            }
+        }
+    }
 }

@@ -127,78 +127,78 @@ function Get-DbaCmsRegServer {
         if ($Name) {
             Write-Message -Level Verbose -Message "Filtering by name for $name"
             $servers = $servers | Where-Object Name -in $Name
-    }
+        }
 
-    if ($ServerName) {
-        Write-Message -Level Verbose -Message "Filtering by servername for $servername"
-        $servers = $servers | Where-Object ServerName -in $ServerName
-}
+        if ($ServerName) {
+            Write-Message -Level Verbose -Message "Filtering by servername for $servername"
+            $servers = $servers | Where-Object ServerName -in $ServerName
+        }
 
-if ($Id) {
-    Write-Message -Level Verbose -Message "Filtering by id for $Id (1 = default/root)"
-    $servers = $servers | Where-Object Id -in $Id
-}
+        if ($Id) {
+            Write-Message -Level Verbose -Message "Filtering by id for $Id (1 = default/root)"
+            $servers = $servers | Where-Object Id -in $Id
+        }
 
-if ($ExcludeGroup) {
-    $excluded = Get-DbaCmsRegServer -SqlInstance $serverstore.ParentServer -Group $ExcludeGroup
-    Write-Message -Level Verbose -Message "Excluding $ExcludeGroup"
-    $servers = $servers | Where-Object { $_.Urn.Value -notin $excluded.Urn.Value }
-}
+        if ($ExcludeGroup) {
+            $excluded = Get-DbaCmsRegServer -SqlInstance $serverstore.ParentServer -Group $ExcludeGroup
+            Write-Message -Level Verbose -Message "Excluding $ExcludeGroup"
+            $servers = $servers | Where-Object { $_.Urn.Value -notin $excluded.Urn.Value }
+        }
 
-foreach ($server in $servers) {
-    $groupname = Get-RegServerGroupReverseParse $server
-    if ($groupname -eq $server.Name) {
-        $groupname = $null
-    } else {
-        $groupname = ($groupname).Split("\")
-        $groupname = $groupname[0 .. ($groupname.Count - 2)]
-        $groupname = ($groupname -join "\")
-    }
-
-
-    Add-Member -Force -InputObject $server -MemberType NoteProperty -Name ComputerName -value $serverstore.ComputerName
-    Add-Member -Force -InputObject $server -MemberType NoteProperty -Name InstanceName -value $serverstore.InstanceName
-    Add-Member -Force -InputObject $server -MemberType NoteProperty -Name SqlInstance -value $serverstore.SqlInstance
-    Add-Member -Force -InputObject $server -MemberType NoteProperty -Name Group -value $groupname
-    Add-Member -Force -InputObject $server -MemberType NoteProperty -Name FQDN -Value $null
-    Add-Member -Force -InputObject $server -MemberType NoteProperty -Name IPAddress -Value $null
-    Add-Member -Force -InputObject $server -MemberType NoteProperty -Name ParentServer -Value $serverstore.ParentServer
-
-    if ($ResolveNetworkName) {
-        try {
-            $lookup = Resolve-DbaNetworkName $server.ServerName -Turbo
-            $server.ComputerName = $lookup.ComputerName
-            $server.FQDN = $lookup.FQDN
-            $server.IPAddress = $lookup.IPAddress
-        } catch {
-            try {
-                $lookup = Resolve-DbaNetworkName $server.ServerName
-                $server.ComputerName = $lookup.ComputerName
-                $server.FQDN = $lookup.FQDN
-                $server.IPAddress = $lookup.IPAddress
-            } catch {
-                # here to avoid an empty catch
-                $null = 1
+        foreach ($server in $servers) {
+            $groupname = Get-RegServerGroupReverseParse $server
+            if ($groupname -eq $server.Name) {
+                $groupname = $null
+            } else {
+                $groupname = ($groupname).Split("\")
+                $groupname = $groupname[0 .. ($groupname.Count - 2)]
+                $groupname = ($groupname -join "\")
             }
+
+
+            Add-Member -Force -InputObject $server -MemberType NoteProperty -Name ComputerName -value $serverstore.ComputerName
+            Add-Member -Force -InputObject $server -MemberType NoteProperty -Name InstanceName -value $serverstore.InstanceName
+            Add-Member -Force -InputObject $server -MemberType NoteProperty -Name SqlInstance -value $serverstore.SqlInstance
+            Add-Member -Force -InputObject $server -MemberType NoteProperty -Name Group -value $groupname
+            Add-Member -Force -InputObject $server -MemberType NoteProperty -Name FQDN -Value $null
+            Add-Member -Force -InputObject $server -MemberType NoteProperty -Name IPAddress -Value $null
+            Add-Member -Force -InputObject $server -MemberType NoteProperty -Name ParentServer -Value $serverstore.ParentServer
+
+            if ($ResolveNetworkName) {
+                try {
+                    $lookup = Resolve-DbaNetworkName $server.ServerName -Turbo
+                    $server.ComputerName = $lookup.ComputerName
+                    $server.FQDN = $lookup.FQDN
+                    $server.IPAddress = $lookup.IPAddress
+                } catch {
+                    try {
+                        $lookup = Resolve-DbaNetworkName $server.ServerName
+                        $server.ComputerName = $lookup.ComputerName
+                        $server.FQDN = $lookup.FQDN
+                        $server.IPAddress = $lookup.IPAddress
+                    } catch {
+                        # here to avoid an empty catch
+                        $null = 1
+                    }
+                }
+            }
+            Add-Member -Force -InputObject $server -MemberType ScriptMethod -Name ToString -Value { $this.ServerName }
+            Select-DefaultView -InputObject $server -Property $defaults
+        }
+
+        if ($IncludeSelf -and $servers) {
+            Write-Message -Level Verbose -Message "Adding CMS instance"
+            $self = $servers[0].PsObject.Copy()
+            $self | Add-Member -MemberType NoteProperty -Name Name -Value "CMS Instance" -Force
+            $self.ServerName = $instance
+            $self.Description = $null
+            $self.SecureConnectionString = $null
+            Select-DefaultView -InputObject $self -Property $defaults
         }
     }
-    Add-Member -Force -InputObject $server -MemberType ScriptMethod -Name ToString -Value { $this.ServerName }
-    Select-DefaultView -InputObject $server -Property $defaults
-}
-
-if ($IncludeSelf -and $servers) {
-    Write-Message -Level Verbose -Message "Adding CMS instance"
-    $self = $servers[0].PsObject.Copy()
-    $self | Add-Member -MemberType NoteProperty -Name Name -Value "CMS Instance" -Force
-$self.ServerName = $instance
-$self.Description = $null
-$self.SecureConnectionString = $null
-Select-DefaultView -InputObject $self -Property $defaults
-}
-}
-end {
-    Test-DbaDeprecation -DeprecatedOn "1.0.0" -Parameter ExcludeCmsServer
-    Test-DbaDeprecation -DeprecatedOn "1.0.0" -Alias Get-DbaRegisteredServerName
-    Test-DbaDeprecation -DeprecatedOn "1.0.0" -Alias Get-SqlRegisteredServerName
-}
+    end {
+        Test-DbaDeprecation -DeprecatedOn "1.0.0" -Parameter ExcludeCmsServer
+        Test-DbaDeprecation -DeprecatedOn "1.0.0" -Alias Get-DbaRegisteredServerName
+        Test-DbaDeprecation -DeprecatedOn "1.0.0" -Alias Get-SqlRegisteredServerName
+    }
 }

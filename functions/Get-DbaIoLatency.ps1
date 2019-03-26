@@ -161,7 +161,7 @@ function Get-DbaIoLatency {
                     AvgBPerWrite         = $row.AvgBPerWrite
                     AvgBPerTransfer      = $row.AvgBPerTransfer
                 } | Select-DefaultView -ExcludeProperty $excludeColumns
+            }
         }
     }
-}
 }

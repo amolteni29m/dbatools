@@ -80,14 +80,14 @@ function Repair-DbaDbMirror {
         foreach ($db in $InputObject) {
             try {
                 Get-DbaEndpoint -SqlInstance $db.Parent | Where-Object EndpointType -eq DatabaseMirroring | Stop-DbaEndPoint
-        Get-DbaEndpoint -SqlInstance $db.Parent | Where-Object EndpointType -eq DatabaseMirroring | Start-DbaEndPoint
-$db | Set-DbaDbMirror -State Resume
-if ($Pscmdlet.ShouldProcess("console", "displaying output")) {
-    $db
-}
-} catch {
-    Stop-Function -Message "Failure" -ErrorRecord $_
-}
-}
-}
+                Get-DbaEndpoint -SqlInstance $db.Parent | Where-Object EndpointType -eq DatabaseMirroring | Start-DbaEndPoint
+                $db | Set-DbaDbMirror -State Resume
+                if ($Pscmdlet.ShouldProcess("console", "displaying output")) {
+                    $db
+                }
+            } catch {
+                Stop-Function -Message "Failure" -ErrorRecord $_
+            }
+        }
+    }
 }

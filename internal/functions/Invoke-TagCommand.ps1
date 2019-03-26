@@ -38,44 +38,44 @@ function Invoke-TagCommand ([string]$Tag, [string]$Keyword) {
             Write-Message -Level Warning -Message "$f needs a tag tag"
             $cmdname = $f.name.replace('.ps1', '')
 
-            $fullhelp = Get-Help $cmdname -full
+            $fullhelp = get-help $cmdname -full
 
-            $as = $fullhelp.alertset | Out-String
+            $as = $fullhelp.alertset | out-string
 
-        $tags = $tagsrex.Match($as).Groups[1].Value
+            $tags = $tagsrex.Match($as).Groups[1].Value
 
-        if ($tags) {
-            $tags = $tags.ToString().split(',').Trim()
-            Write-Message -Level Warning -Message "adding tags to existing ones"
-            if ($tag -in $tags) {
-                Write-Message -Level Warning -Message "tag $tag is already present"
-                continue
-            }
-            $out = @()
-            foreach ($line in $content) {
-                if ($line.trim().startsWith('Tags:')) {
-                    $out += "$line, $tag"
-                } else {
-                    $out += $line
+            if ($tags) {
+                $tags = $tags.ToString().split(',').Trim()
+                Write-Message -Level Warning -Message "adding tags to existing ones"
+                if ($tag -in $tags) {
+                    Write-Message -Level Warning -Message "tag $tag is already present"
+                    continue
                 }
-            }
-            Write-Message -Level Warning -Message "replacing content into $($f.fullname)"
-            $out -join "`r`n" | Set-Content $f.fullname -Encoding UTF8
+                $out = @()
+                foreach ($line in $content) {
+                    if ($line.trim().startsWith('Tags:')) {
+                        $out += "$line, $tag"
+                    } else {
+                        $out += $line
+                    }
+                }
+                Write-Message -Level Warning -Message "replacing content into $($f.fullname)"
+                $out -join "`r`n" | Set-Content $f.fullname -Encoding UTF8
 
-    } else {
-        Write-Message -Level Warning -Message "need to add tags"
-        $out = @()
-        foreach ($line in $content) {
-            if ($line.startsWith('.NOTES')) {
-                $out += '.NOTES'
-                $out += "Tags: $tag"
             } else {
-                $out += $line
+                Write-Message -Level Warning -Message "need to add tags"
+                $out = @()
+                foreach ($line in $content) {
+                    if ($line.startsWith('.NOTES')) {
+                        $out += '.NOTES'
+                        $out += "Tags: $tag"
+                    } else {
+                        $out += $line
+                    }
+                }
+                Write-Message -Level Warning -Message "replacing content into $($f.fullname)"
+                $out -join "`r`n" | Set-Content $f.fullname -Encoding UTF8
             }
         }
-        Write-Message -Level Warning -Message "replacing content into $($f.fullname)"
-        $out -join "`r`n" | Set-Content $f.fullname -Encoding UTF8
-}
-}
-}
+    }
 }

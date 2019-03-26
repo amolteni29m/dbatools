@@ -69,19 +69,19 @@ function Get-DbaPbmCondition {
 
             if (-not $IncludeSystemObject) {
                 $allconditions = $allconditions | Where-Object IsSystemObject -eq $false
+            }
+
+            if ($Condition) {
+                $allconditions = $allconditions | Where-Object Name -in $Condition
+            }
+
+            foreach ($currentcondition in $allconditions) {
+                Write-Message -Level Verbose -Message "Processing $currentcondition"
+                Add-Member -Force -InputObject $currentcondition -MemberType NoteProperty ComputerName -value $store.ComputerName
+                Add-Member -Force -InputObject $currentcondition -MemberType NoteProperty InstanceName -value $store.InstanceName
+                Add-Member -Force -InputObject $currentcondition -MemberType NoteProperty SqlInstance -value $store.SqlInstance
+                Select-DefaultView -InputObject $currentcondition -Property ComputerName, InstanceName, SqlInstance, Id, Name, CreateDate, CreatedBy, DateModified, Description, ExpressionNode, Facet, HasScript, IsSystemObject, ModifiedBy
+            }
         }
-
-        if ($Condition) {
-            $allconditions = $allconditions | Where-Object Name -in $Condition
     }
-
-    foreach ($currentcondition in $allconditions) {
-        Write-Message -Level Verbose -Message "Processing $currentcondition"
-        Add-Member -Force -InputObject $currentcondition -MemberType NoteProperty ComputerName -value $store.ComputerName
-        Add-Member -Force -InputObject $currentcondition -MemberType NoteProperty InstanceName -value $store.InstanceName
-        Add-Member -Force -InputObject $currentcondition -MemberType NoteProperty SqlInstance -value $store.SqlInstance
-        Select-DefaultView -InputObject $currentcondition -Property ComputerName, InstanceName, SqlInstance, Id, Name, CreateDate, CreatedBy, DateModified, Description, ExpressionNode, Facet, HasScript, IsSystemObject, ModifiedBy
-    }
-}
-}
 }

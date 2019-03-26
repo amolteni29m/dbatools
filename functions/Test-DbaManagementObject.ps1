@@ -54,32 +54,32 @@ function Test-DbaManagementObject {
             foreach ($number in $args) {
                 $smoList = (Get-ChildItem -Path "$($env:SystemRoot)\assembly\GAC_MSIL\Microsoft.SqlServer.Smo" -Filter "$number.*" | Sort-Object Name -Descending).Name
 
-            if ($smoList) {
-                [pscustomobject]@{
-                    ComputerName = $env:COMPUTERNAME
-                    Version      = $number
-                    Exists       = $true
-                }
-            } else {
-                [pscustomobject]@{
-                    ComputerName = $env:COMPUTERNAME
-                    Version      = $number
-                    Exists       = $false
+                if ($smoList) {
+                    [pscustomobject]@{
+                        ComputerName = $env:COMPUTERNAME
+                        Version      = $number
+                        Exists       = $true
+                    }
+                } else {
+                    [pscustomobject]@{
+                        ComputerName = $env:COMPUTERNAME
+                        Version      = $number
+                        Exists       = $false
+                    }
                 }
             }
         }
     }
-}
-process {
-    foreach ($computer in $ComputerName.ComputerName) {
-        try {
-            Invoke-Command2 -ComputerName $computer -ScriptBlock $scriptblock -Credential $Credential -ArgumentList $VersionNumber -ErrorAction Stop
-        } catch {
-            Stop-Function -Continue -Message "Failure" -ErrorRecord $_ -Target $computer -Continue
+    process {
+        foreach ($computer in $ComputerName.ComputerName) {
+            try {
+                Invoke-Command2 -ComputerName $computer -ScriptBlock $scriptblock -Credential $Credential -ArgumentList $VersionNumber -ErrorAction Stop
+            } catch {
+                Stop-Function -Continue -Message "Failure" -ErrorRecord $_ -Target $computer -Continue
+            }
         }
     }
-}
-end {
-    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Test-DbaSqlManagementObject
-}
+    end {
+        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Test-DbaSqlManagementObject
+    }
 }

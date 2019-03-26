@@ -121,201 +121,201 @@ function Find-DbaTrigger {
                         $triggerText = $trigger.TextBody.split("`n`r")
                         $trTextFound = $triggerText | Select-String -Pattern $Pattern | ForEach-Object { "(LineNumber: $($_.LineNumber)) $($_.ToString().Trim())" }
 
-                [PSCustomObject]@{
-                    ComputerName     = $server.ComputerName
-                    SqlInstance      = $server.ServiceName
-                    TriggerLevel     = "Server"
-                    Database         = $null
-                    Object           = $null
-                    Name             = $trigger.Name
-                    IsSystemObject   = $trigger.IsSystemObject
-                    CreateDate       = $trigger.CreateDate
-                    LastModified     = $trigger.DateLastModified
-                    TriggerTextFound = $trTextFound -join "`n"
-                    Trigger          = $trigger
-                    TriggerFullText  = $trigger.TextBody
-                } | Select-DefaultView -ExcludeProperty Trigger, TriggerFullText
+                        [PSCustomObject]@{
+                            ComputerName     = $server.ComputerName
+                            SqlInstance      = $server.ServiceName
+                            TriggerLevel     = "Server"
+                            Database         = $null
+                            Object           = $null
+                            Name             = $trigger.Name
+                            IsSystemObject   = $trigger.IsSystemObject
+                            CreateDate       = $trigger.CreateDate
+                            LastModified     = $trigger.DateLastModified
+                            TriggerTextFound = $trTextFound -join "`n"
+                            Trigger          = $trigger
+                            TriggerFullText  = $trigger.TextBody
+                        } | Select-DefaultView -ExcludeProperty Trigger, TriggerFullText
+                    }
+                }
+                Write-Message -Level Verbose -Message "Evaluated $triggercount triggers in $server"
+            }
+
+            if ($IncludeSystemDatabases) {
+                $dbs = $server.Databases | Where-Object { $_.Status -eq "normal" }
+            } else {
+                $dbs = $server.Databases | Where-Object { $_.Status -eq "normal" -and $_.IsSystemObject -eq $false }
+            }
+
+            if ($Database) {
+                $dbs = $dbs | Where-Object Name -In $Database
+            }
+
+            if ($ExcludeDatabase) {
+                $dbs = $dbs | Where-Object Name -NotIn $ExcludeDatabase
+            }
+
+            $totalcount = 0
+            $dbcount = $dbs.count
+
+            if ($TriggerLevel -in @('All', 'Database', 'Object')) {
+                foreach ($db in $dbs) {
+
+                    Write-Message -Level Verbose -Message "Searching on database $db"
+
+                    # If system objects aren't needed, find trigger text using SQL
+                    # This prevents SMO from having to enumerate
+
+                    if (!$IncludeSystemObjects) {
+                        if ($TriggerLevel -in @('All', 'Database')) {
+                            #Get Database Level triggers (DDL)
+                            Write-Message -Level Debug -Message $sqlDatabaseTriggers
+                            $rows = $db.ExecuteWithResults($sqlDatabaseTriggers).Tables.Rows
+                            $triggercount = 0
+
+                            foreach ($row in $rows) {
+                                $totalcount++; $triggercount++; $everyserverstcount++
+
+                                $trigger = $row.name
+
+                                Write-Message -Level Verbose -Message "Looking in trigger $trigger for textBody with pattern $pattern on database $db"
+                                if ($row.TextBody -match $Pattern) {
+                                    $tr = $db.Triggers | Where-Object name -eq $row.name
+
+                                    $triggerText = $tr.TextBody.split("`n`r")
+                                    $trTextFound = $triggerText | Select-String -Pattern $Pattern | ForEach-Object { "(LineNumber: $($_.LineNumber)) $($_.ToString().Trim())" }
+
+                                    [PSCustomObject]@{
+                                        ComputerName     = $server.ComputerName
+                                        SqlInstance      = $server.ServiceName
+                                        TriggerLevel     = "Database"
+                                        Database         = $db.name
+                                        Object           = $tr.Parent
+                                        Name             = $tr.Name
+                                        IsSystemObject   = $tr.IsSystemObject
+                                        CreateDate       = $tr.CreateDate
+                                        LastModified     = $tr.DateLastModified
+                                        TriggerTextFound = $trTextFound -join "`n"
+                                        Trigger          = $tr
+                                        TriggerFullText  = $tr.TextBody
+                                    } | Select-DefaultView -ExcludeProperty Trigger, TriggerFullText
+                                }
+                            }
+                        }
+
+                        if ($TriggerLevel -in @('All', 'Object')) {
+                            #Get Object Level triggers (DML)
+                            Write-Message -Level Debug -Message $sqlTableTriggers
+                            $rows = $db.ExecuteWithResults($sqlTableTriggers).Tables.Rows
+                            $triggercount = 0
+
+                            foreach ($row in $rows) {
+                                $totalcount++; $triggercount++; $everyserverstcount++
+
+                                $trigger = $row.name
+                                $triggerParentSchema = $row.TableSchema
+                                $triggerParent = $row.TableName
+
+                                Write-Message -Level Verbose -Message "Looking in trigger $trigger for textBody with pattern $pattern in object $triggerParentSchema.$triggerParent at database $db"
+                                if ($row.TextBody -match $Pattern) {
+
+                                    $tr = ($db.Tables | Where-Object {$_.Name -eq $triggerParent -and $_.Schema -eq $triggerParentSchema}).Triggers | Where-Object name -eq $row.name
+
+                                    $triggerText = $tr.TextBody.split("`n`r")
+                                    $trTextFound = $triggerText | Select-String -Pattern $Pattern | ForEach-Object { "(LineNumber: $($_.LineNumber)) $($_.ToString().Trim())" }
+
+                                    [PSCustomObject]@{
+                                        ComputerName     = $server.ComputerName
+                                        SqlInstance      = $server.ServiceName
+                                        TriggerLevel     = "Object"
+                                        Database         = $db.name
+                                        Object           = $tr.Parent
+                                        Name             = $tr.Name
+                                        IsSystemObject   = $tr.IsSystemObject
+                                        CreateDate       = $tr.CreateDate
+                                        LastModified     = $tr.DateLastModified
+                                        TriggerTextFound = $trTextFound -join "`n"
+                                        Trigger          = $tr
+                                        TriggerFullText  = $tr.TextBody
+                                    } | Select-DefaultView -ExcludeProperty Trigger, TriggerFullText
+                                }
+                            }
+                        }
+                    } else {
+                        if ($TriggerLevel -in @('All', 'Database')) {
+                            #Get Database Level triggers (DDL)
+                            $triggers = $db.Triggers
+
+                            $triggercount = 0
+
+                            foreach ($tr in $triggers) {
+                                $totalcount++; $triggercount++; $everyserverstcount++
+                                $trigger = $tr.Name
+
+                                Write-Message -Level Verbose -Message "Looking in trigger $trigger for textBody with pattern $pattern on database $db"
+                                if ($tr.TextBody -match $Pattern) {
+
+                                    $triggerText = $tr.TextBody.split("`n`r")
+                                    $trTextFound = $triggerText | Select-String -Pattern $Pattern | ForEach-Object { "(LineNumber: $($_.LineNumber)) $($_.ToString().Trim())" }
+
+                                    [PSCustomObject]@{
+                                        ComputerName     = $server.ComputerName
+                                        SqlInstance      = $server.ServiceName
+                                        TriggerLevel     = "Database"
+                                        Database         = $db.name
+                                        Object           = $tr.Parent
+                                        Name             = $tr.Name
+                                        IsSystemObject   = $tr.IsSystemObject
+                                        CreateDate       = $tr.CreateDate
+                                        LastModified     = $tr.DateLastModified
+                                        TriggerTextFound = $trTextFound -join "`n"
+                                        Trigger          = $tr
+                                        TriggerFullText  = $tr.TextBody
+                                    } | Select-DefaultView -ExcludeProperty Trigger, TriggerFullText
+                                }
+                            }
+                        }
+
+                        if ($TriggerLevel -in @('All', 'Object')) {
+                            #Get Object Level triggers (DML)
+                            $triggers = $db.Tables | ForEach-Object {$_.Triggers}
+
+                            $triggercount = 0
+
+                            foreach ($tr in $triggers) {
+                                $totalcount++; $triggercount++; $everyserverstcount++
+                                $trigger = $tr.Name
+
+                                Write-Message -Level Verbose -Message "Looking in trigger $trigger for textBody with pattern $pattern in object $($tr.Parent) at database $db"
+                                if ($tr.TextBody -match $Pattern) {
+
+                                    $triggerText = $tr.TextBody.split("`n`r")
+                                    $trTextFound = $triggerText | Select-String -Pattern $Pattern | ForEach-Object { "(LineNumber: $($_.LineNumber)) $($_.ToString().Trim())" }
+
+                                    [PSCustomObject]@{
+                                        ComputerName     = $server.ComputerName
+                                        SqlInstance      = $server.ServiceName
+                                        TriggerLevel     = "Object"
+                                        Database         = $db.name
+                                        Object           = $tr.Parent
+                                        Name             = $tr.Name
+                                        IsSystemObject   = $tr.IsSystemObject
+                                        CreateDate       = $tr.CreateDate
+                                        LastModified     = $tr.DateLastModified
+                                        TriggerTextFound = $trTextFound -join "`n"
+                                        Trigger          = $tr
+                                        TriggerFullText  = $tr.TextBody
+                                    } | Select-DefaultView -ExcludeProperty Trigger, TriggerFullText
+                                }
+                            }
+                        }
+                    }
+                    Write-Message -Level Verbose -Message "Evaluated $triggercount triggers in $db"
+                }
+            }
+            Write-Message -Level Verbose -Message "Evaluated $totalcount total triggers in $dbcount databases"
         }
     }
-    Write-Message -Level Verbose -Message "Evaluated $triggercount triggers in $server"
-}
-
-if ($IncludeSystemDatabases) {
-    $dbs = $server.Databases | Where-Object { $_.Status -eq "normal" }
-} else {
-    $dbs = $server.Databases | Where-Object { $_.Status -eq "normal" -and $_.IsSystemObject -eq $false }
-}
-
-if ($Database) {
-    $dbs = $dbs | Where-Object Name -In $Database
-}
-
-if ($ExcludeDatabase) {
-    $dbs = $dbs | Where-Object Name -NotIn $ExcludeDatabase
-}
-
-$totalcount = 0
-$dbcount = $dbs.count
-
-if ($TriggerLevel -in @('All', 'Database', 'Object')) {
-    foreach ($db in $dbs) {
-
-        Write-Message -Level Verbose -Message "Searching on database $db"
-
-        # If system objects aren't needed, find trigger text using SQL
-        # This prevents SMO from having to enumerate
-
-        if (!$IncludeSystemObjects) {
-            if ($TriggerLevel -in @('All', 'Database')) {
-                #Get Database Level triggers (DDL)
-                Write-Message -Level Debug -Message $sqlDatabaseTriggers
-                $rows = $db.ExecuteWithResults($sqlDatabaseTriggers).Tables.Rows
-                $triggercount = 0
-
-                foreach ($row in $rows) {
-                    $totalcount++; $triggercount++; $everyserverstcount++
-
-                    $trigger = $row.name
-
-                    Write-Message -Level Verbose -Message "Looking in trigger $trigger for textBody with pattern $pattern on database $db"
-                    if ($row.TextBody -match $Pattern) {
-                        $tr = $db.Triggers | Where-Object name -eq $row.name
-
-                    $triggerText = $tr.TextBody.split("`n`r")
-                    $trTextFound = $triggerText | Select-String -Pattern $Pattern | ForEach-Object { "(LineNumber: $($_.LineNumber)) $($_.ToString().Trim())" }
-
-            [PSCustomObject]@{
-                ComputerName     = $server.ComputerName
-                SqlInstance      = $server.ServiceName
-                TriggerLevel     = "Database"
-                Database         = $db.name
-                Object           = $tr.Parent
-                Name             = $tr.Name
-                IsSystemObject   = $tr.IsSystemObject
-                CreateDate       = $tr.CreateDate
-                LastModified     = $tr.DateLastModified
-                TriggerTextFound = $trTextFound -join "`n"
-                Trigger          = $tr
-                TriggerFullText  = $tr.TextBody
-            } | Select-DefaultView -ExcludeProperty Trigger, TriggerFullText
+    end {
+        Write-Message -Level Verbose -Message "Evaluated $everyserverstcount total triggers"
     }
-}
-}
-
-if ($TriggerLevel -in @('All', 'Object')) {
-    #Get Object Level triggers (DML)
-    Write-Message -Level Debug -Message $sqlTableTriggers
-    $rows = $db.ExecuteWithResults($sqlTableTriggers).Tables.Rows
-    $triggercount = 0
-
-    foreach ($row in $rows) {
-        $totalcount++; $triggercount++; $everyserverstcount++
-
-        $trigger = $row.name
-        $triggerParentSchema = $row.TableSchema
-        $triggerParent = $row.TableName
-
-        Write-Message -Level Verbose -Message "Looking in trigger $trigger for textBody with pattern $pattern in object $triggerParentSchema.$triggerParent at database $db"
-        if ($row.TextBody -match $Pattern) {
-
-            $tr = ($db.Tables | Where-Object { $_.Name -eq $triggerParent -and $_.Schema -eq $triggerParentSchema }).Triggers | Where-Object name -eq $row.name
-
-    $triggerText = $tr.TextBody.split("`n`r")
-    $trTextFound = $triggerText | Select-String -Pattern $Pattern | ForEach-Object { "(LineNumber: $($_.LineNumber)) $($_.ToString().Trim())" }
-
-[PSCustomObject]@{
-    ComputerName     = $server.ComputerName
-    SqlInstance      = $server.ServiceName
-    TriggerLevel     = "Object"
-    Database         = $db.name
-    Object           = $tr.Parent
-    Name             = $tr.Name
-    IsSystemObject   = $tr.IsSystemObject
-    CreateDate       = $tr.CreateDate
-    LastModified     = $tr.DateLastModified
-    TriggerTextFound = $trTextFound -join "`n"
-    Trigger          = $tr
-    TriggerFullText  = $tr.TextBody
-} | Select-DefaultView -ExcludeProperty Trigger, TriggerFullText
-}
-}
-}
-} else {
-    if ($TriggerLevel -in @('All', 'Database')) {
-        #Get Database Level triggers (DDL)
-        $triggers = $db.Triggers
-
-        $triggercount = 0
-
-        foreach ($tr in $triggers) {
-            $totalcount++; $triggercount++; $everyserverstcount++
-            $trigger = $tr.Name
-
-            Write-Message -Level Verbose -Message "Looking in trigger $trigger for textBody with pattern $pattern on database $db"
-            if ($tr.TextBody -match $Pattern) {
-
-                $triggerText = $tr.TextBody.split("`n`r")
-                $trTextFound = $triggerText | Select-String -Pattern $Pattern | ForEach-Object { "(LineNumber: $($_.LineNumber)) $($_.ToString().Trim())" }
-
-        [PSCustomObject]@{
-            ComputerName     = $server.ComputerName
-            SqlInstance      = $server.ServiceName
-            TriggerLevel     = "Database"
-            Database         = $db.name
-            Object           = $tr.Parent
-            Name             = $tr.Name
-            IsSystemObject   = $tr.IsSystemObject
-            CreateDate       = $tr.CreateDate
-            LastModified     = $tr.DateLastModified
-            TriggerTextFound = $trTextFound -join "`n"
-            Trigger          = $tr
-            TriggerFullText  = $tr.TextBody
-        } | Select-DefaultView -ExcludeProperty Trigger, TriggerFullText
-}
-}
-}
-
-if ($TriggerLevel -in @('All', 'Object')) {
-    #Get Object Level triggers (DML)
-    $triggers = $db.Tables | ForEach-Object { $_.Triggers }
-
-$triggercount = 0
-
-foreach ($tr in $triggers) {
-    $totalcount++; $triggercount++; $everyserverstcount++
-    $trigger = $tr.Name
-
-    Write-Message -Level Verbose -Message "Looking in trigger $trigger for textBody with pattern $pattern in object $($tr.Parent) at database $db"
-    if ($tr.TextBody -match $Pattern) {
-
-        $triggerText = $tr.TextBody.split("`n`r")
-        $trTextFound = $triggerText | Select-String -Pattern $Pattern | ForEach-Object { "(LineNumber: $($_.LineNumber)) $($_.ToString().Trim())" }
-
-[PSCustomObject]@{
-    ComputerName     = $server.ComputerName
-    SqlInstance      = $server.ServiceName
-    TriggerLevel     = "Object"
-    Database         = $db.name
-    Object           = $tr.Parent
-    Name             = $tr.Name
-    IsSystemObject   = $tr.IsSystemObject
-    CreateDate       = $tr.CreateDate
-    LastModified     = $tr.DateLastModified
-    TriggerTextFound = $trTextFound -join "`n"
-    Trigger          = $tr
-    TriggerFullText  = $tr.TextBody
-} | Select-DefaultView -ExcludeProperty Trigger, TriggerFullText
-}
-}
-}
-}
-Write-Message -Level Verbose -Message "Evaluated $triggercount triggers in $db"
-}
-}
-Write-Message -Level Verbose -Message "Evaluated $totalcount total triggers in $dbcount databases"
-}
-}
-end {
-    Write-Message -Level Verbose -Message "Evaluated $everyserverstcount total triggers"
-}
 }

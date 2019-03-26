@@ -68,34 +68,34 @@ function Set-FileSystemSetting {
             } |
                 Sort-Object Name -Descending | Select-Object -First 1
 
-    if (-not $namespace) {
-        $namespace = $ognamespace
-    }
-
-    if ($namespace.Name) {
-        if ($Credential) {
-            $wmi = Get-WmiObject -Credential $Credential -ErrorAction Stop -ComputerName $computerName -Namespace $("root\Microsoft\SQLServer\" + $namespace.Name) -Class FilestreamSettings | Where-Object InstanceName -eq $instanceName | Select-Object -First 1
-} else {
-    $wmi = Get-WmiObject -ErrorAction Stop -ComputerName $computerName -Namespace $("root\Microsoft\SQLServer\" + $namespace.Name) -Class FilestreamSettings | Where-Object InstanceName -eq $instanceName | Select-Object -First 1
-}
-}
-$wmi
-}
-}
-process {
-    # Server level
-    if ($Force -or $PSCmdlet.ShouldProcess($instance, "Enabling filestream")) {
-        try {
-            $wmi = Get-WmiFilestreamSetting -Instance $instance -ErrorAction Stop
-            if ($ShareName) {
-                $null = $wmi.ShareName = $ShareName
+            if (-not $namespace) {
+                $namespace = $ognamespace
             }
-            $return = $wmi.EnableFilestream($FileStreamLevel, $instance.InstanceName)
-            $returnvalue = Get-WmiFilestreamReturnValue -Value $return.ReturnValue
-        } catch {
-            Stop-Function -Message "Failure" -ErrorRecord $_ -Continue
+
+            if ($namespace.Name) {
+                if ($Credential) {
+                    $wmi = Get-WmiObject -Credential $Credential -ErrorAction Stop -ComputerName $computerName -Namespace $("root\Microsoft\SQLServer\" + $namespace.Name) -Class FilestreamSettings | Where-Object InstanceName -eq $instanceName | Select-Object -First 1
+                } else {
+                    $wmi = Get-WmiObject -ErrorAction Stop -ComputerName $computerName -Namespace $("root\Microsoft\SQLServer\" + $namespace.Name) -Class FilestreamSettings | Where-Object InstanceName -eq $instanceName | Select-Object -First 1
+                }
+            }
+            $wmi
         }
     }
-    $returnvalue
-}
+    process {
+        # Server level
+        if ($Force -or $PSCmdlet.ShouldProcess($instance, "Enabling filestream")) {
+            try {
+                $wmi = Get-WmiFilestreamSetting -Instance $instance -ErrorAction Stop
+                if ($ShareName) {
+                    $null = $wmi.ShareName = $ShareName
+                }
+                $return = $wmi.EnableFilestream($FileStreamLevel, $instance.InstanceName)
+                $returnvalue = Get-WmiFilestreamReturnValue -Value $return.ReturnValue
+            } catch {
+                Stop-Function -Message "Failure" -ErrorRecord $_ -Continue
+            }
+        }
+        $returnvalue
+    }
 }

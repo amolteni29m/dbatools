@@ -25,10 +25,10 @@ $scriptBlock = {
         $instance.EnumProcesses().Host | Select-Object -Unique | Where-DbaObject -Like "$wordToComplete*" | ForEach-Object {
             if (-not ([string]::IsNullOrWhiteSpace($_))) { New-DbaTeppCompletionResult -CompletionText $_ -ToolTip $_ }
         }
-} catch {
-    return
-} finally {
-}
+    } catch {
+        return
+    } finally {
+    }
 }
 
 Register-DbaTeppScriptblock -ScriptBlock $scriptBlock -Name processhostname

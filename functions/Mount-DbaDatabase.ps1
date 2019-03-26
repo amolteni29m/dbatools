@@ -93,62 +93,62 @@ function Mount-DbaDatabase {
             if (-not $server.Logins.Item($DatabaseOwner)) {
                 try {
                     $DatabaseOwner = ($server.Logins | Where-Object { $_.id -eq 1 }).Name
-            } catch {
-                $DatabaseOwner = "sa"
-            }
-        }
-
-        foreach ($db in $database) {
-
-            if ($server.Databases[$db]) {
-                Stop-Function -Message "$db is already attached to $server." -Target $db -Continue
+                } catch {
+                    $DatabaseOwner = "sa"
+                }
             }
 
-            if ($server.Databases[$db].IsSystemObject) {
-                Stop-Function -Message "$db is a system database and cannot be attached using this method." -Target $db -Continue
+            foreach ($db in $database) {
+
+                if ($server.Databases[$db]) {
+                    Stop-Function -Message "$db is already attached to $server." -Target $db -Continue
+                }
+
+                if ($server.Databases[$db].IsSystemObject) {
+                    Stop-Function -Message "$db is a system database and cannot be attached using this method." -Target $db -Continue
+                }
+
+                if (-Not (Test-Bound -Parameter FileStructure)) {
+                    $backuphistory = Get-DbaBackupHistory -SqlInstance $server -Database $db -Type Full | Sort-Object End -Descending | Select-Object -First 1
+
+                    if (-not $backuphistory) {
+                        $message = "Could not enumerate backup history to automatically build FileStructure. Rerun the command and provide the filestructure parameter."
+                        Stop-Function -Message $message -Target $db -Continue
+                    }
+
+                    $backupfile = $backuphistory.Path[0]
+                    $filepaths = (Read-DbaBackupHeader -SqlInstance $server -FileList -Path $backupfile).PhysicalName
+
+                    $FileStructure = New-Object System.Collections.Specialized.StringCollection
+                    foreach ($file in $filepaths) {
+                        $exists = Test-Dbapath -SqlInstance $server -Path $file
+                        if (-not $exists) {
+                            $message = "Could not find the files to build the FileStructure. Rerun the command and provide the FileStructure parameter."
+                            Stop-Function -Message $message -Target $file -Continue
+                        }
+
+                        $null = $FileStructure.Add($file)
+                    }
+                }
+
+                If ($Pscmdlet.ShouldProcess($server, "Attaching $Database with $DatabaseOwner as database owner and $AttachOption as attachoption")) {
+                    try {
+                        $server.AttachDatabase($db, $FileStructure, $DatabaseOwner, [Microsoft.SqlServer.Management.Smo.AttachOptions]::$AttachOption)
+
+                        [pscustomobject]@{
+                            ComputerName  = $server.ComputerName
+                            InstanceName  = $server.ServiceName
+                            SqlInstance   = $server.DomainInstanceName
+                            Database      = $db
+                            AttachResult  = "Success"
+                            AttachOption  = $AttachOption
+                            FileStructure = $FileStructure
+                        }
+                    } catch {
+                        Stop-Function -Message "Failure" -ErrorRecord $_ -Target $server
+                    }
+                }
             }
-
-            if (-Not (Test-Bound -Parameter FileStructure)) {
-                $backuphistory = Get-DbaBackupHistory -SqlInstance $server -Database $db -Type Full | Sort-Object End -Descending | Select-Object -First 1
-
-        if (-not $backuphistory) {
-            $message = "Could not enumerate backup history to automatically build FileStructure. Rerun the command and provide the filestructure parameter."
-            Stop-Function -Message $message -Target $db -Continue
-        }
-
-        $backupfile = $backuphistory.Path[0]
-        $filepaths = (Read-DbaBackupHeader -SqlInstance $server -FileList -Path $backupfile).PhysicalName
-
-        $FileStructure = New-Object System.Collections.Specialized.StringCollection
-        foreach ($file in $filepaths) {
-            $exists = Test-Dbapath -SqlInstance $server -Path $file
-            if (-not $exists) {
-                $message = "Could not find the files to build the FileStructure. Rerun the command and provide the FileStructure parameter."
-                Stop-Function -Message $message -Target $file -Continue
-            }
-
-            $null = $FileStructure.Add($file)
         }
     }
-
-    If ($Pscmdlet.ShouldProcess($server, "Attaching $Database with $DatabaseOwner as database owner and $AttachOption as attachoption")) {
-        try {
-            $server.AttachDatabase($db, $FileStructure, $DatabaseOwner, [Microsoft.SqlServer.Management.Smo.AttachOptions]::$AttachOption)
-
-            [pscustomobject]@{
-                ComputerName  = $server.ComputerName
-                InstanceName  = $server.ServiceName
-                SqlInstance   = $server.DomainInstanceName
-                Database      = $db
-                AttachResult  = "Success"
-                AttachOption  = $AttachOption
-                FileStructure = $FileStructure
-            }
-        } catch {
-            Stop-Function -Message "Failure" -ErrorRecord $_ -Target $server
-        }
-    }
-}
-}
-}
 }

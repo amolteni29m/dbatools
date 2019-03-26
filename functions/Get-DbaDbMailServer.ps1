@@ -85,22 +85,22 @@ function Get-DbaDbMailServer {
         foreach ($mailserver in $InputObject) {
             try {
                 $accounts = $mailserver | Get-DbaDbMailAccount -Account $Account
-            $servers = $accounts.MailServers
+                $servers = $accounts.MailServers
 
-            if ($Server) {
-                $servers = $servers | Where-Object Name -in $Server
+                if ($Server) {
+                    $servers = $servers | Where-Object Name -in $Server
+                }
+
+                if ($servers) {
+                    $servers | Add-Member -Force -MemberType NoteProperty -Name ComputerName -value $mailserver.ComputerName
+                    $servers | Add-Member -Force -MemberType NoteProperty -Name InstanceName -value $mailserver.InstanceName
+                    $servers | Add-Member -Force -MemberType NoteProperty -Name SqlInstance -value $mailserver.SqlInstance
+                    $servers | Add-Member -Force -MemberType NoteProperty -Name Account -value $servers[0].Parent.Name
+                    $servers | Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, Account, Name, Port, EnableSsl, ServerType, UserName, UseDefaultCredentials, NoCredentialChange
+                }
+            } catch {
+                Stop-Function -Message "Failure" -ErrorRecord $_ -Continue
+            }
         }
-
-        if ($servers) {
-            $servers | Add-Member -Force -MemberType NoteProperty -Name ComputerName -value $mailserver.ComputerName
-        $servers | Add-Member -Force -MemberType NoteProperty -Name InstanceName -value $mailserver.InstanceName
-    $servers | Add-Member -Force -MemberType NoteProperty -Name SqlInstance -value $mailserver.SqlInstance
-$servers | Add-Member -Force -MemberType NoteProperty -Name Account -value $servers[0].Parent.Name
-$servers | Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, Account, Name, Port, EnableSsl, ServerType, UserName, UseDefaultCredentials, NoCredentialChange
-}
-} catch {
-    Stop-Function -Message "Failure" -ErrorRecord $_ -Continue
-}
-}
-}
+    }
 }

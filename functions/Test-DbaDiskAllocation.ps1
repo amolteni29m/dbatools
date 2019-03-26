@@ -93,138 +93,138 @@ function Test-DbaDiskAllocation {
                 # $query = "Select Label, BlockSize, Name from Win32_Volume WHERE FileSystem='NTFS'"
                 # $disks = Get-WmiObject -ComputerName $ipaddr -Query $query | Sort-Object -Property Name
                 $disks = Get-CimInstance -CimSession $CIMsession -ClassName win32_volume -Filter "FileSystem='NTFS'" -ErrorAction Stop | Sort-Object -Property Name
-        } catch {
-            Stop-Function -Message "Can't connect to WMI on $computer."
-            return
-        }
-
-        if ($NoSqlCheck -eq $false) {
-            Write-Message -Level Verbose -Message "Checking for SQL Services"
-            $sqlservices = Get-Service -ComputerName $ipaddr | Where-Object { $_.DisplayName -like 'SQL Server (*' }
-        foreach ($service in $sqlservices) {
-            $instance = $service.DisplayName.Replace('SQL Server (', '')
-            $instance = $instance.TrimEnd(')')
-
-            $instancename = $instance.Replace("MSSQLSERVER", "Default")
-            Write-Message -Level Verbose -Message "Found instance $instancename."
-
-            if ($instance -eq 'MSSQLSERVER') {
-                $SqlInstances += $ipaddr
-            } else {
-                $SqlInstances += "$ipaddr\$instance"
+            } catch {
+                Stop-Function -Message "Can't connect to WMI on $computer."
+                return
             }
-        }
-        $sqlcount = $SqlInstances.Count
-
-        Write-Message -Level Verbose -Message "$sqlcount instance(s) found."
-    }
-
-    foreach ($disk in $disks) {
-        if (!$disk.name.StartsWith("\\")) {
-            $diskname = $disk.Name
 
             if ($NoSqlCheck -eq $false) {
-                $sqldisk = $false
+                Write-Message -Level Verbose -Message "Checking for SQL Services"
+                $sqlservices = Get-Service -ComputerName $ipaddr | Where-Object { $_.DisplayName -like 'SQL Server (*' }
+                foreach ($service in $sqlservices) {
+                    $instance = $service.DisplayName.Replace('SQL Server (', '')
+                    $instance = $instance.TrimEnd(')')
 
-                foreach ($SqlInstance in $SqlInstances) {
-                    try {
-                        $smoserver = Connect-SqlInstance -SqlInstance $SqlInstance -SqlCredential $SqlCredential
-                        $sql = "Select count(*) as Count from sys.master_files where physical_name like '$diskname%'"
-                        $sqlcount = $smoserver.Databases['master'].ExecuteWithResults($sql).Tables[0].Count
-                        if ($sqlcount -gt 0) {
-                            $sqldisk = $true
-                            break
+                    $instancename = $instance.Replace("MSSQLSERVER", "Default")
+                    Write-Message -Level Verbose -Message "Found instance $instancename."
+
+                    if ($instance -eq 'MSSQLSERVER') {
+                        $SqlInstances += $ipaddr
+                    } else {
+                        $SqlInstances += "$ipaddr\$instance"
+                    }
+                }
+                $sqlcount = $SqlInstances.Count
+
+                Write-Message -Level Verbose -Message "$sqlcount instance(s) found."
+            }
+
+            foreach ($disk in $disks) {
+                if (!$disk.name.StartsWith("\\")) {
+                    $diskname = $disk.Name
+
+                    if ($NoSqlCheck -eq $false) {
+                        $sqldisk = $false
+
+                        foreach ($SqlInstance in $SqlInstances) {
+                            try {
+                                $smoserver = Connect-SqlInstance -SqlInstance $SqlInstance -SqlCredential $SqlCredential
+                                $sql = "Select count(*) as Count from sys.master_files where physical_name like '$diskname%'"
+                                $sqlcount = $smoserver.Databases['master'].ExecuteWithResults($sql).Tables[0].Count
+                                if ($sqlcount -gt 0) {
+                                    $sqldisk = $true
+                                    break
+                                }
+                            } catch {
+                                Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $instance -Continue
+                                continue
+                            }
                         }
-                    } catch {
-                        Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $instance -Continue
-                        continue
+                    }
+
+                    if ($disk.BlockSize -eq 65536) {
+                        $IsBestPractice = $true
+                    } else {
+                        $IsBestPractice = $false
+                    }
+
+                    $windowsdrive = "$env:SystemDrive\"
+
+                    if ($diskname -eq $windowsdrive) {
+                        $IsBestPractice = $false
+                    }
+
+                    if ($NoSqlCheck -eq $false) {
+                        $alldisks += [PSCustomObject]@{
+                            Server         = $computer
+                            Name           = $diskname
+                            Label          = $disk.Label
+                            BlockSize      = $disk.BlockSize
+                            IsSqlDisk      = $sqldisk
+                            IsBestPractice = $IsBestPractice
+                        }
+                    } else {
+                        $alldisks += [PSCustomObject]@{
+                            Server         = $computer
+                            Name           = $diskname
+                            Label          = $disk.Label
+                            BlockSize      = $disk.BlockSize
+                            IsBestPractice = $IsBestPractice
+                        }
                     }
                 }
             }
-
-            if ($disk.BlockSize -eq 65536) {
-                $IsBestPractice = $true
-            } else {
-                $IsBestPractice = $false
-            }
-
-            $windowsdrive = "$env:SystemDrive\"
-
-            if ($diskname -eq $windowsdrive) {
-                $IsBestPractice = $false
-            }
-
-            if ($NoSqlCheck -eq $false) {
-                $alldisks += [PSCustomObject]@{
-                    Server         = $computer
-                    Name           = $diskname
-                    Label          = $disk.Label
-                    BlockSize      = $disk.BlockSize
-                    IsSqlDisk      = $sqldisk
-                    IsBestPractice = $IsBestPractice
-                }
-            } else {
-                $alldisks += [PSCustomObject]@{
-                    Server         = $computer
-                    Name           = $diskname
-                    Label          = $disk.Label
-                    BlockSize      = $disk.BlockSize
-                    IsBestPractice = $IsBestPractice
-                }
-            }
+            return $alldisks
         }
     }
-    return $alldisks
-}
-}
 
-process {
-    # uses cim commands
+    process {
+        # uses cim commands
+        
+        
+        foreach ($computer in $ComputerName) {
 
+            $computer = Resolve-DbaNetworkName -ComputerName $computer -Credential $Credential
+            $ipaddr = $computer.IpAddress
+            $Computer = $computer.FullComputerName
 
-    foreach ($computer in $ComputerName) {
+            if (!$Computer) {
+                Stop-Function -Message "Couldn't resolve hostname. Skipping." -Continue
+            }
 
-        $computer = Resolve-DbaNetworkName -ComputerName $computer -Credential $Credential
-        $ipaddr = $computer.IpAddress
-        $Computer = $computer.FullComputerName
-
-        if (!$Computer) {
-            Stop-Function -Message "Couldn't resolve hostname. Skipping." -Continue
-        }
-
-        Write-Message -Level Verbose -Message "Creating CimSession on $computer over WSMan."
-
-        if (!$Credential) {
-            $cimsession = New-CimSession -ComputerName $Computer -ErrorAction SilentlyContinue
-        } else {
-            $cimsession = New-CimSession -ComputerName $Computer -ErrorAction SilentlyContinue -Credential $Credential
-        }
-
-        if ($null -eq $cimsession.id) {
-            Write-Message -Level Verbose -Message "Creating CimSession on $computer over WSMan failed. Creating CimSession on $computer over DCOM."
+            Write-Message -Level Verbose -Message "Creating CimSession on $computer over WSMan."
 
             if (!$Credential) {
-                $cimsession = New-CimSession -ComputerName $Computer -SessionOption $sessionoptions -ErrorAction SilentlyContinue
+                $cimsession = New-CimSession -ComputerName $Computer -ErrorAction SilentlyContinue
             } else {
-                $cimsession = New-CimSession -ComputerName $Computer -SessionOption $sessionoptions -ErrorAction SilentlyContinue -Credential $Credential
+                $cimsession = New-CimSession -ComputerName $Computer -ErrorAction SilentlyContinue -Credential $Credential
             }
-        }
 
-        if ($null -eq $cimsession.id) {
-            Stop-Function -Message "Can't create CimSession on $computer" -Target $Computer
-        }
+            if ($null -eq $cimsession.id) {
+                Write-Message -Level Verbose -Message "Creating CimSession on $computer over WSMan failed. Creating CimSession on $computer over DCOM."
 
-        Write-Message -Level Verbose -Message "Getting Power Plan information from $Computer"
+                if (!$Credential) {
+                    $cimsession = New-CimSession -ComputerName $Computer -SessionOption $sessionoptions -ErrorAction SilentlyContinue
+                } else {
+                    $cimsession = New-CimSession -ComputerName $Computer -SessionOption $sessionoptions -ErrorAction SilentlyContinue -Credential $Credential
+                }
+            }
 
-        if ($PScmdlet.ShouldProcess("$computer", "Getting Disk Allocation")) {
-            $data = Get-AllDiskAllocation $computer
+            if ($null -eq $cimsession.id) {
+                Stop-Function -Message "Can't create CimSession on $computer" -Target $Computer
+            }
 
-            if ($data.Count -gt 1) {
-                $data.GetEnumerator()
-            } else {
-                $data
+            Write-Message -Level Verbose -Message "Getting Power Plan information from $Computer"
+
+            if ($PScmdlet.ShouldProcess("$computer", "Getting Disk Allocation")) {
+                $data = Get-AllDiskAllocation $computer
+
+                if ($data.Count -gt 1) {
+                    $data.GetEnumerator()
+                } else {
+                    $data
+                }
             }
         }
     }
-}
 }

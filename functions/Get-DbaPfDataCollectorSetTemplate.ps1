@@ -61,50 +61,50 @@ function Get-DbaPfDataCollectorSetTemplate {
         $Pattern = $Pattern.Replace("*", ".*").Replace("..*", ".*")
     }
     process {
-
-
+        
+        
         foreach ($directory in $Path) {
             $files = Get-ChildItem "$directory\*.xml"
 
             if ($Template) {
                 $files = $files | Where-Object BaseName -in $Template
+            }
+
+            foreach ($file in $files) {
+                try {
+                    $xml = [xml](Get-Content $file)
+                } catch {
+                    Stop-Function -Message "Failure" -ErrorRecord $_ -Target $file -Continue
+                }
+
+                foreach ($dataset in $xml.DataCollectorSet) {
+                    $meta = $metadata | Where-Object Name -eq $dataset.name
+                    if ($Pattern) {
+                        if (
+                            ($dataset.Name -match $Pattern) -or
+                            ($dataset.Description -match $Pattern)
+                        ) {
+                            [pscustomobject]@{
+                                Name        = $dataset.name
+                                Source      = $meta.Source
+                                UserAccount = $dataset.useraccount
+                                Description = $dataset.Description
+                                Path        = $file
+                                File        = $file.Name
+                            } | Select-DefaultView -ExcludeProperty File, Path
+                        }
+                    } else {
+                        [pscustomobject]@{
+                            Name        = $dataset.name
+                            Source      = $meta.Source
+                            UserAccount = $dataset.useraccount
+                            Description = $dataset.Description
+                            Path        = $file
+                            File        = $file.Name
+                        } | Select-DefaultView -ExcludeProperty File, Path
+                    }
+                }
+            }
         }
-
-        foreach ($file in $files) {
-            try {
-                $xml = [xml](Get-Content $file)
-            } catch {
-                Stop-Function -Message "Failure" -ErrorRecord $_ -Target $file -Continue
-            }
-
-            foreach ($dataset in $xml.DataCollectorSet) {
-                $meta = $metadata | Where-Object Name -eq $dataset.name
-            if ($Pattern) {
-                if (
-                    ($dataset.Name -match $Pattern) -or
-                    ($dataset.Description -match $Pattern)
-                ) {
-                    [pscustomobject]@{
-                        Name        = $dataset.name
-                        Source      = $meta.Source
-                        UserAccount = $dataset.useraccount
-                        Description = $dataset.Description
-                        Path        = $file
-                        File        = $file.Name
-                    } | Select-DefaultView -ExcludeProperty File, Path
-            }
-        } else {
-            [pscustomobject]@{
-                Name        = $dataset.name
-                Source      = $meta.Source
-                UserAccount = $dataset.useraccount
-                Description = $dataset.Description
-                Path        = $file
-                File        = $file.Name
-            } | Select-DefaultView -ExcludeProperty File, Path
     }
-}
-}
-}
-}
 }

@@ -69,19 +69,19 @@ function Get-DbaPbmObjectSet {
 
             if (-not $IncludeSystemObject) {
                 $all = $all | Where-Object IsSystemObject -eq $false
+            }
+
+            if ($ObjectSet) {
+                $all = $all | Where-Object Name -in $ObjectSet
+            }
+
+            foreach ($currentset in $all) {
+                Write-Message -Level Verbose -Message "Processing $currentset"
+                Add-Member -Force -InputObject $currentset -MemberType NoteProperty ComputerName -value $store.ComputerName
+                Add-Member -Force -InputObject $currentset -MemberType NoteProperty InstanceName -value $store.InstanceName
+                Add-Member -Force -InputObject $currentset -MemberType NoteProperty SqlInstance -value $store.SqlInstance
+                Select-DefaultView -InputObject $currentset -Property ComputerName, InstanceName, SqlInstance, Id, Name, Facet, TargetSets, IsSystemObject
+            }
         }
-
-        if ($ObjectSet) {
-            $all = $all | Where-Object Name -in $ObjectSet
     }
-
-    foreach ($currentset in $all) {
-        Write-Message -Level Verbose -Message "Processing $currentset"
-        Add-Member -Force -InputObject $currentset -MemberType NoteProperty ComputerName -value $store.ComputerName
-        Add-Member -Force -InputObject $currentset -MemberType NoteProperty InstanceName -value $store.InstanceName
-        Add-Member -Force -InputObject $currentset -MemberType NoteProperty SqlInstance -value $store.SqlInstance
-        Select-DefaultView -InputObject $currentset -Property ComputerName, InstanceName, SqlInstance, Id, Name, Facet, TargetSets, IsSystemObject
-    }
-}
-}
 }

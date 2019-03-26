@@ -88,44 +88,44 @@ function Find-DbaDatabase {
 
             if ($exact -eq $true) {
                 $dbs = $server.Databases | Where-Object IsAccessible | Where-Object { $_.$property -eq $pattern }
-    } else {
-        try {
-            $dbs = $server.Databases | Where-Object IsAccessible | Where-Object { $_.$property.ToString() -match $pattern }
-} catch {
-    # they probably put asterisks thinking it's a like
-    $Pattern = $Pattern -replace '\*', ''
-    $Pattern = $Pattern -replace '\%', ''
-    $dbs = $server.Databases | Where-Object { $_.$property.ToString() -match $pattern }
-}
-}
+            } else {
+                try {
+                    $dbs = $server.Databases | Where-Object IsAccessible | Where-Object { $_.$property.ToString() -match $pattern }
+                } catch {
+                    # they probably put asterisks thinking it's a like
+                    $Pattern = $Pattern -replace '\*', ''
+                    $Pattern = $Pattern -replace '\%', ''
+                    $dbs = $server.Databases | Where-Object { $_.$property.ToString() -match $pattern }
+                }
+            }
 
-foreach ($db in $dbs) {
+            foreach ($db in $dbs) {
 
-    $extendedproperties = @()
-    foreach ($xp in $db.ExtendedProperties) {
-        $extendedproperties += [PSCustomObject]@{
-            Name  = $db.ExtendedProperties[$xp.Name].Name
-            Value = $db.ExtendedProperties[$xp.Name].Value
+                $extendedproperties = @()
+                foreach ($xp in $db.ExtendedProperties) {
+                    $extendedproperties += [PSCustomObject]@{
+                        Name  = $db.ExtendedProperties[$xp.Name].Name
+                        Value = $db.ExtendedProperties[$xp.Name].Value
+                    }
+                }
+
+                if ($extendedproperties.count -eq 0) { $extendedproperties = 0 }
+
+                [PSCustomObject]@{
+                    ComputerName       = $server.ComputerName
+                    InstanceName       = $server.ServiceName
+                    SqlInstance        = $server.Name
+                    Name               = $db.Name
+                    Size               = [dbasize]($db.Size * 1024 * 1024)
+                    Owner              = $db.Owner
+                    CreateDate         = $db.CreateDate
+                    ServiceBrokerGuid  = $db.ServiceBrokerGuid
+                    Tables             = ($db.Tables | Where-Object { $_.IsSystemObject -eq $false }).Count
+                    StoredProcedures   = ($db.StoredProcedures | Where-Object { $_.IsSystemObject -eq $false }).Count
+                    Views              = ($db.Views | Where-Object { $_.IsSystemObject -eq $false }).Count
+                    ExtendedProperties = $extendedproperties
+                }
+            }
         }
     }
-
-    if ($extendedproperties.count -eq 0) { $extendedproperties = 0 }
-
-    [PSCustomObject]@{
-        ComputerName      = $server.ComputerName
-        InstanceName      = $server.ServiceName
-        SqlInstance       = $server.Name
-        Name              = $db.Name
-        Size              = [dbasize]($db.Size * 1024 * 1024)
-        Owner             = $db.Owner
-        CreateDate        = $db.CreateDate
-        ServiceBrokerGuid = $db.ServiceBrokerGuid
-        Tables            = ($db.Tables | Where-Object { $_.IsSystemObject -eq $false }).Count
-    StoredProcedures      = ($db.StoredProcedures | Where-Object { $_.IsSystemObject -eq $false }).Count
-Views                     = ($db.Views | Where-Object { $_.IsSystemObject -eq $false }).Count
-ExtendedProperties        = $extendedproperties
-}
-}
-}
-}
 }

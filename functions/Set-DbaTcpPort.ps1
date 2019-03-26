@@ -58,7 +58,7 @@ function Set-DbaTcpPort {
 
         Sets the port number 1337 for all IP Addresses on SqlInstance sql2017 and sql2019 using the credentials for ad\dba. Prompts for confirmation.
 
-    #>
+       #>
     [CmdletBinding(SupportsShouldProcess, ConfirmImpact = "High")]
     param (
         [parameter(Mandatory, ValueFromPipeline)]
@@ -91,62 +91,62 @@ function Set-DbaTcpPort {
             $wmiinstance = $wmi.ServerInstances | Where-Object {
                 $_.Name -eq $wmiinstancename
             }
-        $tcp = $wmiinstance.ServerProtocols | Where-Object {
-            $_.DisplayName -eq 'TCP/IP'
-        }
-    $IpAddress = $tcp.IpAddresses | Where-Object {
-        $_.IpAddress -eq $IpAddress
-    }
-$tcpport = $IpAddress.IpAddressProperties | Where-Object {
-    $_.Name -eq 'TcpPort'
-}
+            $tcp = $wmiinstance.ServerProtocols | Where-Object {
+                $_.DisplayName -eq 'TCP/IP'
+            }
+            $IpAddress = $tcp.IpAddresses | where-object {
+                $_.IpAddress -eq $IpAddress
+            }
+            $tcpport = $IpAddress.IpAddressProperties | Where-Object {
+                $_.Name -eq 'TcpPort'
+            }
 
-$oldport = $tcpport.Value
-try {
-    $tcpport.value = $port
-    $tcp.Alter()
-    [pscustomobject]@{
-        ComputerName       = $computername
-        InstanceName       = $wmiinstancename
-        SqlInstance        = $sqlinstanceName
-        PreviousPortNumber = $oldport
-        PortNumber         = $Port
-        Status             = "Success"
-    }
-} catch {
-    [pscustomobject]@{
-        ComputerName       = $computername
-        InstanceName       = $wmiinstancename
-        SqlInstance        = $sqlinstanceName
-        PreviousPortNumber = $oldport
-        PortNumber         = $Port
-        Status             = "Failed: $_"
-    }
-}
-}
-}
-process {
-    if (Test-FunctionInterrupt) {
-        return
-    }
-
-    foreach ($instance in $SqlInstance) {
-        $wmiinstancename = $instance.InstanceName
-        $computerName = $instance.ComputerName
-
-        if ($Pscmdlet.ShouldProcess($computerName, "Setting port to $Port for $wmiinstancename")) {
+            $oldport = $tcpport.Value
             try {
-                $computerName = $instance.ComputerName
-                $resolved = Resolve-DbaNetworkName -ComputerName $computerName
-                Invoke-ManagedComputerCommand -ComputerName $resolved.FullComputerName -ScriptBlock $scriptblock -ArgumentList $instance.ComputerName, $wmiinstancename, $port, $IpAddress, $instance.InputObject -Credential $Credential
+                $tcpport.value = $port
+                $tcp.Alter()
+                [pscustomobject]@{
+                    ComputerName       = $computername
+                    InstanceName       = $wmiinstancename
+                    SqlInstance        = $sqlinstanceName
+                    PreviousPortNumber = $oldport
+                    PortNumber         = $Port
+                    Status             = "Success"
+                }
             } catch {
-                try {
-                    Invoke-ManagedComputerCommand -ComputerName $instance.ComputerName -ScriptBlock $scriptblock -ArgumentList $instance.ComputerName, $wmiinstancename, $port, $IpAddress, $instance.InputObject -Credential $Credential
-                } catch {
-                    Stop-Function -Message "Failure setting port to $Port for $wmiinstancename on $computerName" -Continue
+                [pscustomobject]@{
+                    ComputerName       = $computername
+                    InstanceName       = $wmiinstancename
+                    SqlInstance        = $sqlinstanceName
+                    PreviousPortNumber = $oldport
+                    PortNumber         = $Port
+                    Status             = "Failed: $_"
                 }
             }
         }
     }
-}
+    process {
+        if (Test-FunctionInterrupt) {
+            return
+        }
+
+        foreach ($instance in $SqlInstance) {
+            $wmiinstancename = $instance.InstanceName
+            $computerName = $instance.ComputerName
+
+            if ($Pscmdlet.ShouldProcess($computerName, "Setting port to $Port for $wmiinstancename")) {
+                try {
+                    $computerName = $instance.ComputerName
+                    $resolved = Resolve-DbaNetworkName -ComputerName $computerName
+                    Invoke-ManagedComputerCommand -ComputerName $resolved.FullComputerName -ScriptBlock $scriptblock -ArgumentList $instance.ComputerName, $wmiinstancename, $port, $IpAddress, $instance.InputObject -Credential $Credential
+                } catch {
+                    try {
+                        Invoke-ManagedComputerCommand -ComputerName $instance.ComputerName -ScriptBlock $scriptblock -ArgumentList $instance.ComputerName, $wmiinstancename, $port, $IpAddress, $instance.InputObject -Credential $Credential
+                    } catch {
+                        Stop-Function -Message "Failure setting port to $Port for $wmiinstancename on $computerName" -Continue
+                    }
+                }
+            }
+        }
+    }
 }

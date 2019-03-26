@@ -36,8 +36,8 @@ function Get-DbaXESmartTarget {
     process {
         try {
             Get-Job | Where-Object Name -Match SmartTarget | Select-Object -Property ID, Name, State
-} catch {
-    Stop-Function -Message "Failure" -ErrorRecord $_
-}
-}
+        } catch {
+            Stop-Function -Message "Failure" -ErrorRecord $_
+        }
+    }
 }

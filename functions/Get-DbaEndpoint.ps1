@@ -73,44 +73,44 @@ function Get-DbaEndpoint {
 
             if ($endpoint) {
                 $endpoints = $endpoints | Where-Object Name -in $endpoint
-        }
-        if ($Type) {
-            $endpoints = $endpoints | Where-Object EndpointType -in $Type
-    }
-
-    foreach ($end in $endpoints) {
-        Write-Message -Level Verbose -Message "Getting endpoint $($end.Name) on $($server.Name)"
-        if ($end.Protocol.Tcp.ListenerPort) {
-            if ($instance.ComputerName -match '\.') {
-                $dns = $instance.ComputerName
-            } else {
-                try {
-                    $dns = [System.Net.Dns]::GetHostEntry($instance.ComputerName).HostName
-                } catch {
-                    try {
-                        $dns = [System.Net.Dns]::GetHostAddresses($instance.ComputerName)
-                    } catch {
-                        $dns = $instance.ComputerName
-                    }
-                }
+            }
+            if ($Type) {
+                $endpoints = $endpoints | Where-Object EndpointType -in $Type
             }
 
-            $fqdn = "TCP://" + $dns + ":" + $end.Protocol.Tcp.ListenerPort
-        } else {
-            $fqdn = $null
-        }
+            foreach ($end in $endpoints) {
+                Write-Message -Level Verbose -Message "Getting endpoint $($end.Name) on $($server.Name)"
+                if ($end.Protocol.Tcp.ListenerPort) {
+                    if ($instance.ComputerName -match '\.') {
+                        $dns = $instance.ComputerName
+                    } else {
+                        try {
+                            $dns = [System.Net.Dns]::GetHostEntry($instance.ComputerName).HostName
+                        } catch {
+                            try {
+                                $dns = [System.Net.Dns]::GetHostAddresses($instance.ComputerName)
+                            } catch {
+                                $dns = $instance.ComputerName
+                            }
+                        }
+                    }
 
-        Add-Member -Force -InputObject $end -MemberType NoteProperty -Name ComputerName -Value $server.ComputerName
-        Add-Member -Force -InputObject $end -MemberType NoteProperty -Name InstanceName -Value $server.ServiceName
-        Add-Member -Force -InputObject $end -MemberType NoteProperty -Name SqlInstance -Value $server.DomainInstanceName
-        Add-Member -Force -InputObject $end -MemberType NoteProperty -Name Fqdn -Value $fqdn
-        Add-Member -Force -InputObject $end -MemberType NoteProperty -Name Port -Value $end.Protocol.Tcp.ListenerPort
-        if ($end.Protocol.Tcp.ListenerPort) {
-            Select-DefaultView -InputObject $end -Property ComputerName, InstanceName, SqlInstance, ID, Name, Port, EndpointState, EndpointType, Owner, IsAdminEndpoint, Fqdn, IsSystemObject
-        } else {
-            Select-DefaultView -InputObject $end -Property ComputerName, InstanceName, SqlInstance, ID, Name, EndpointState, EndpointType, Owner, IsAdminEndpoint, Fqdn, IsSystemObject
+                    $fqdn = "TCP://" + $dns + ":" + $end.Protocol.Tcp.ListenerPort
+                } else {
+                    $fqdn = $null
+                }
+
+                Add-Member -Force -InputObject $end -MemberType NoteProperty -Name ComputerName -Value $server.ComputerName
+                Add-Member -Force -InputObject $end -MemberType NoteProperty -Name InstanceName -Value $server.ServiceName
+                Add-Member -Force -InputObject $end -MemberType NoteProperty -Name SqlInstance -Value $server.DomainInstanceName
+                Add-Member -Force -InputObject $end -MemberType NoteProperty -Name Fqdn -Value $fqdn
+                Add-Member -Force -InputObject $end -MemberType NoteProperty -Name Port -Value $end.Protocol.Tcp.ListenerPort
+                if ($end.Protocol.Tcp.ListenerPort) {
+                    Select-DefaultView -InputObject $end -Property ComputerName, InstanceName, SqlInstance, ID, Name, Port, EndpointState, EndpointType, Owner, IsAdminEndpoint, Fqdn, IsSystemObject
+                } else {
+                    Select-DefaultView -InputObject $end -Property ComputerName, InstanceName, SqlInstance, ID, Name, EndpointState, EndpointType, Owner, IsAdminEndpoint, Fqdn, IsSystemObject
+                }
+            }
         }
     }
-}
-}
 }

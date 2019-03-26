@@ -489,11 +489,11 @@ function Set-DbaAgentJob {
                     Stop-Function -Message "Something went wrong changing the job" -ErrorRecord $_ -Target $instance -Continue
                 }
                 Get-DbaAgentJob -SqlInstance $server | Where-Object Name -eq $currentjob.name
+            }
         }
     }
-}
 
-end {
-    Write-Message -Message "Finished changing job(s)" -Level Verbose
-}
+    end {
+        Write-Message -Message "Finished changing job(s)" -Level Verbose
+    }
 }

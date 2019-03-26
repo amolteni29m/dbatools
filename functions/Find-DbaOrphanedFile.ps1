@@ -118,155 +118,155 @@ function Find-DbaOrphanedFile {
             # build the query string based on how many directories they want to enumerate
             $sql = $q1
             $sql += $($PathList | Where-Object { $_ -ne '' } | ForEach-Object { "$([System.Environment]::Newline)$($q2 -Replace 'dirname', $_)" })
-    $sql += $query_files_sql
-    Write-Message -Level Debug -Message $sql
-    return $sql
-}
-function Get-SqlFileStructure {
-    param
-    (
-        [Parameter(Mandatory, Position = 1)]
-        [Microsoft.SqlServer.Management.Smo.SqlSmoObject]$smoserver
-    )
-    if ($smoserver.versionMajor -eq 8) {
-        $sql = "select filename from sysaltfiles"
-    } else {
-        $sql = "select physical_name as filename from sys.master_files"
-    }
-
-    $dbfiletable = $smoserver.ConnectionContext.ExecuteWithResults($sql)
-    $ftfiletable = $dbfiletable.Tables[0].Clone()
-    $dbfiletable.Tables[0].TableName = "data"
-
-    # Add support for Full Text Catalogs in Sql Server 2005 and below
-    if ($server.VersionMajor -lt 10) {
-        $databaselist = $smoserver.Databases | Select-Object -property  Name, IsFullTextEnabled
-    foreach ($db in $databaselist) {
-        if ($db.IsFullTextEnabled -eq $false) {
-            continue
+            $sql += $query_files_sql
+            Write-Message -Level Debug -Message $sql
+            return $sql
         }
-        $database = $db.name
-        $fttable = $null = $smoserver.Databases[$database].ExecuteWithResults('sp_help_fulltext_catalogs')
-        foreach ($ftc in $fttable.Tables[0].rows) {
-            $null = $ftfiletable.Rows.add($ftc.Path)
-        }
-    }
-}
+        function Get-SqlFileStructure {
+            param
+            (
+                [Parameter(Mandatory, Position = 1)]
+                [Microsoft.SqlServer.Management.Smo.SqlSmoObject]$smoserver
+            )
+            if ($smoserver.versionMajor -eq 8) {
+                $sql = "select filename from sysaltfiles"
+            } else {
+                $sql = "select physical_name as filename from sys.master_files"
+            }
 
-$null = $dbfiletable.Tables.Add($ftfiletable)
-return $dbfiletable.Tables.Filename
-}
+            $dbfiletable = $smoserver.ConnectionContext.ExecuteWithResults($sql)
+            $ftfiletable = $dbfiletable.Tables[0].Clone()
+            $dbfiletable.Tables[0].TableName = "data"
 
-function Format-Path {
-    param ($path)
+            # Add support for Full Text Catalogs in Sql Server 2005 and below
+            if ($server.VersionMajor -lt 10) {
+                $databaselist = $smoserver.Databases | Select-Object -property  Name, IsFullTextEnabled
+                foreach ($db in $databaselist) {
+                    if ($db.IsFullTextEnabled -eq $false) {
+                        continue
+                    }
+                    $database = $db.name
+                    $fttable = $null = $smoserver.Databases[$database].ExecuteWithResults('sp_help_fulltext_catalogs')
+                    foreach ($ftc in $fttable.Tables[0].rows) {
+                        $null = $ftfiletable.Rows.add($ftc.Path)
+                    }
+                }
+            }
 
-    $path = $path.Trim()
-    #Thank you windows 2000
-    $path = $path -replace '[^A-Za-z0-9 _\.\-\\:]', '__'
-    return $path
-}
-
-$FileType += "mdf", "ldf", "ndf"
-$systemfiles = "distmdl.ldf", "distmdl.mdf", "mssqlsystemresource.ldf", "mssqlsystemresource.mdf"
-
-$FileTypeComparison = $FileType | ForEach-Object { $_.ToLower() } | Where-Object { $_ } | Sort-Object | Get-Unique
-}
-
-process {
-    foreach ($instance in $SqlInstance) {
-        try {
-            $server = Connect-SqlInstance -SqlInstance $instance -SqlCredential $sqlcredential
-        } catch {
-            Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $instance -Continue
-        }
-        # Reset all the arrays
-        $dirtreefiles = $valid = $paths = $matching = @()
-
-        $filestructure = Get-SqlFileStructure $server
-
-        # Get any paths associated with current data and log files
-        foreach ($file in $filestructure) {
-            $paths += Split-Path -Path $file -Parent
+            $null = $dbfiletable.Tables.Add($ftfiletable)
+            return $dbfiletable.Tables.Filename
         }
 
-        # Get the default data and log directories from the instance
-        Write-Message -Level Debug -Message "Adding paths"
-        $paths += $server.RootDirectory + "\DATA"
-        $paths += Get-SqlDefaultPaths $server data
-        $paths += Get-SqlDefaultPaths $server log
-        $paths += $server.MasterDBPath
-        $paths += $server.MasterDBLogPath
-        $paths += $Path
-        $paths = $paths | ForEach-Object { "$_".TrimEnd("\") } | Sort-Object | Get-Unique
-$sql = Get-SQLDirTreeQuery $paths
-$datatable = $server.Databases['master'].ExecuteWithResults($sql).Tables[0]
+        function Format-Path {
+            param ($path)
 
-foreach ($row in $datatable) {
-    $fullpath = [IO.Path]::combine($row.parent, $row.filename)
-    $dirtreefiles += [pscustomobject]@{
-        FullPath   = $fullpath
-        Comparison = [IO.Path]::GetFullPath($(Format-Path $fullpath))
-    }
-}
-$dirtreefiles = $dirtreefiles | Where-Object { $_ } | Sort-Object Comparison -Unique
-
-foreach ($file in $filestructure) {
-    $valid += [IO.Path]::GetFullPath($(Format-Path $file))
-}
-
-$valid = $valid | Sort-Object | Get-Unique
-
-foreach ($file in $dirtreefiles.Comparison) {
-    foreach ($type in $FileTypeComparison) {
-        if ($file.ToLower().EndsWith($type)) {
-            $matching += $file
-            break
-        }
-    }
-}
-
-$dirtreematcher = @{ }
-foreach ($el in $dirtreefiles) {
-    $dirtreematcher[$el.Comparison] = $el.Fullpath
-}
-
-foreach ($file in $matching) {
-    if ($file -notin $valid) {
-        $fullpath = $dirtreematcher[$file]
-
-        $filename = Split-Path $fullpath -Leaf
-
-        if ($filename -in $systemfiles) { continue }
-
-        $result = [pscustomobject]@{
-            Server         = $server.name
-            ComputerName   = $server.ComputerName
-            InstanceName   = $server.ServiceName
-            SqlInstance    = $server.DomainInstanceName
-            Filename       = $fullpath
-            RemoteFilename = Join-AdminUnc -Servername $server.ComputerName -Filepath $fullpath
+            $path = $path.Trim()
+            #Thank you windows 2000
+            $path = $path -replace '[^A-Za-z0-9 _\.\-\\:]', '__'
+            return $path
         }
 
-        if ($LocalOnly -eq $true) {
-            ($result | Select-Object filename).filename
-        continue
+        $FileType += "mdf", "ldf", "ndf"
+        $systemfiles = "distmdl.ldf", "distmdl.mdf", "mssqlsystemresource.ldf", "mssqlsystemresource.mdf"
+
+        $FileTypeComparison = $FileType | ForEach-Object {$_.ToLower()} | Where-Object { $_ } | Sort-Object | Get-Unique
     }
 
-    if ($RemoteOnly -eq $true) {
-        ($result | Select-Object remotefilename).remotefilename
-    continue
-}
+    process {
+        foreach ($instance in $SqlInstance) {
+            try {
+                $server = Connect-SqlInstance -SqlInstance $instance -SqlCredential $sqlcredential
+            } catch {
+                Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $instance -Continue
+            }
+            # Reset all the arrays
+            $dirtreefiles = $valid = $paths = $matching = @()
 
-$result | Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, Filename, RemoteFilename
+            $filestructure = Get-SqlFileStructure $server
 
-}
-}
+            # Get any paths associated with current data and log files
+            foreach ($file in $filestructure) {
+                $paths += Split-Path -Path $file -Parent
+            }
 
-}
-}
-end {
-    if ($result.count -eq 0) {
-        Write-Message -Level Verbose -Message "No orphaned files found"
+            # Get the default data and log directories from the instance
+            Write-Message -Level Debug -Message "Adding paths"
+            $paths += $server.RootDirectory + "\DATA"
+            $paths += Get-SqlDefaultPaths $server data
+            $paths += Get-SqlDefaultPaths $server log
+            $paths += $server.MasterDBPath
+            $paths += $server.MasterDBLogPath
+            $paths += $Path
+            $paths = $paths | ForEach-Object { "$_".TrimEnd("\") } | Sort-Object | Get-Unique
+            $sql = Get-SQLDirTreeQuery $paths
+            $datatable = $server.Databases['master'].ExecuteWithResults($sql).Tables[0]
+
+            foreach ($row in $datatable) {
+                $fullpath = [IO.Path]::combine($row.parent, $row.filename)
+                $dirtreefiles += [pscustomobject]@{
+                    FullPath   = $fullpath
+                    Comparison = [IO.Path]::GetFullPath($(Format-Path $fullpath))
+                }
+            }
+            $dirtreefiles = $dirtreefiles | Where-Object { $_ } | Sort-Object Comparison -Unique
+
+            foreach ($file in $filestructure) {
+                $valid += [IO.Path]::GetFullPath($(Format-Path $file))
+            }
+
+            $valid = $valid | Sort-Object | Get-Unique
+
+            foreach ($file in $dirtreefiles.Comparison) {
+                foreach ($type in $FileTypeComparison) {
+                    if ($file.ToLower().EndsWith($type)) {
+                        $matching += $file
+                        break
+                    }
+                }
+            }
+
+            $dirtreematcher = @{}
+            foreach ($el in $dirtreefiles) {
+                $dirtreematcher[$el.Comparison] = $el.Fullpath
+            }
+
+            foreach ($file in $matching) {
+                if ($file -notin $valid) {
+                    $fullpath = $dirtreematcher[$file]
+
+                    $filename = Split-Path $fullpath -Leaf
+
+                    if ($filename -in $systemfiles) { continue }
+
+                    $result = [pscustomobject]@{
+                        Server         = $server.name
+                        ComputerName   = $server.ComputerName
+                        InstanceName   = $server.ServiceName
+                        SqlInstance    = $server.DomainInstanceName
+                        Filename       = $fullpath
+                        RemoteFilename = Join-AdminUnc -Servername $server.ComputerName -Filepath $fullpath
+                    }
+
+                    if ($LocalOnly -eq $true) {
+                        ($result | Select-Object filename).filename
+                        continue
+                    }
+
+                    if ($RemoteOnly -eq $true) {
+                        ($result | Select-Object remotefilename).remotefilename
+                        continue
+                    }
+
+                    $result | Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, Filename, RemoteFilename
+
+                }
+            }
+
+        }
     }
-}
+    end {
+        if ($result.count -eq 0) {
+            Write-Message -Level Verbose -Message "No orphaned files found"
+        }
+    }
 }

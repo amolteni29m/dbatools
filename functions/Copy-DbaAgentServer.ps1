@@ -155,27 +155,27 @@ function Copy-DbaAgentServer {
                 try {
                     Write-Message -Level Verbose -Message "Copying SQL Agent Properties"
                     $sql = $sourceAgent.Script() | Out-String
-                $sql = $sql -replace [Regex]::Escape("'$source'"), "'$destinstance'"
-                $sql = $sql -replace [Regex]::Escape("@errorlog_file="), [Regex]::Escape("--@errorlog_file=")
-                $sql = $sql -replace [Regex]::Escape("@auto_start="), [Regex]::Escape("--@auto_start=")
-                Write-Message -Level Debug -Message $sql
-                $null = $destServer.Query($sql)
+                    $sql = $sql -replace [Regex]::Escape("'$source'"), "'$destinstance'"
+                    $sql = $sql -replace [Regex]::Escape("@errorlog_file="), [Regex]::Escape("--@errorlog_file=")
+                    $sql = $sql -replace [Regex]::Escape("@auto_start="), [Regex]::Escape("--@auto_start=")
+                    Write-Message -Level Debug -Message $sql
+                    $null = $destServer.Query($sql)
 
-                $copyAgentPropStatus.Status = "Successful"
-                $copyAgentPropStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-        } catch {
-            $message = $_.Exception.InnerException.InnerException.InnerException.Message
-            if (-not $message) { $message = $_.Exception.Message }
-            $copyAgentPropStatus.Status = "Failed"
-            $copyAgentPropStatus.Notes = $message
-            $copyAgentPropStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-        Stop-Function -Message $message -Target $destinstance
+                    $copyAgentPropStatus.Status = "Successful"
+                    $copyAgentPropStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+                } catch {
+                    $message = $_.Exception.InnerException.InnerException.InnerException.Message
+                    if (-not $message) { $message = $_.Exception.Message }
+                    $copyAgentPropStatus.Status = "Failed"
+                    $copyAgentPropStatus.Notes = $message
+                    $copyAgentPropStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+                    Stop-Function -Message $message -Target $destinstance
+                }
+            }
+        }
     }
-}
-}
-}
-end {
-    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Copy-SqlServerAgent
-    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Copy-DbaSqlServerAgent
-}
+    end {
+        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Copy-SqlServerAgent
+        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Copy-DbaSqlServerAgent
+    }
 }

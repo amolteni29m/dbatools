@@ -66,7 +66,7 @@ function Test-DbaSpn {
     )
     begin {
         # spare the cmdlet to search for the same account over and over
-        $resultCache = @{ }
+        $resultCache = @{}
     }
     process {
         foreach ($computer in $ComputerName) {
@@ -145,147 +145,147 @@ function Test-DbaSpn {
                     Write-Verbose "Parsing $instanceName"
 
                     $services = $wmi.Services | Where-Object DisplayName -EQ "SQL Server ($instanceName)"
-                $spn.InstanceServiceAccount = $services.ServiceAccount
-                $spn.Cluster = ($services.advancedproperties | Where-Object Name -EQ 'Clustered').Value
+                    $spn.InstanceServiceAccount = $services.ServiceAccount
+                    $spn.Cluster = ($services.advancedproperties | Where-Object Name -EQ 'Clustered').Value
 
-            if ($spn.Cluster) {
-                $hostEntry = ($services.advancedproperties | Where-Object Name -EQ 'VSNAME').Value.ToLower()
-            <# DO NOT use Write-Message as this is inside of a script block #>
-            Write-Verbose "Found cluster $hostEntry"
-            $hostEntry = ([System.Net.Dns]::GetHostEntry($hostEntry)).HostName
-            $spn.ComputerName = $hostEntry
-        }
+                    if ($spn.Cluster) {
+                        $hostEntry = ($services.advancedproperties | Where-Object Name -EQ 'VSNAME').Value.ToLower()
+                        <# DO NOT use Write-Message as this is inside of a script block #>
+                        Write-Verbose "Found cluster $hostEntry"
+                        $hostEntry = ([System.Net.Dns]::GetHostEntry($hostEntry)).HostName
+                        $spn.ComputerName = $hostEntry
+                    }
 
-        $rawVersion = [version]($services.AdvancedProperties | Where-Object Name -EQ 'VERSION').Value
+                    $rawVersion = [version]($services.AdvancedProperties | Where-Object Name -EQ 'VERSION').Value
 
-    $version = Convert-SqlVersion $rawVersion
-    $skuName = ($services.AdvancedProperties | Where-Object Name -EQ 'SKUNAME').Value
+                    $version = Convert-SqlVersion $rawVersion
+                    $skuName = ($services.AdvancedProperties | Where-Object Name -EQ 'SKUNAME').Value
 
-$spn.SqlProduct = "$version $skuName"
+                    $spn.SqlProduct = "$version $skuName"
 
-#is tcp enabled on this instance? If not, we don't need an spn, son
-if ((($instance.ServerProtocols | Where-Object { $_.Displayname -eq "TCP/IP" }).ProtocolProperties | Where-Object { $_.Name -eq "Enabled" }).Value -eq $true) {
-    <# DO NOT use Write-Message as this is inside of a script block #>
-    Write-Verbose "TCP is enabled, gathering SPN requirements"
-    $spn.TcpEnabled = $true
-    #Each instance has a default SPN of MSSQLSvc\<fqdn> or MSSSQLSvc\<fqdn>:Instance
-    if ($instance.Name -eq "MSSQLSERVER") {
-        $spn.RequiredSPN = "MSSQLSvc/$hostEntry"
-    } else {
-        $spn.RequiredSPN = "MSSQLSvc/" + $hostEntry + ":" + $instance.Name
-    }
-}
+                    #is tcp enabled on this instance? If not, we don't need an spn, son
+                    if ((($instance.ServerProtocols | Where-Object { $_.Displayname -eq "TCP/IP" }).ProtocolProperties | Where-Object { $_.Name -eq "Enabled" }).Value -eq $true) {
+                        <# DO NOT use Write-Message as this is inside of a script block #>
+                        Write-Verbose "TCP is enabled, gathering SPN requirements"
+                        $spn.TcpEnabled = $true
+                        #Each instance has a default SPN of MSSQLSvc\<fqdn> or MSSSQLSvc\<fqdn>:Instance
+                        if ($instance.Name -eq "MSSQLSERVER") {
+                            $spn.RequiredSPN = "MSSQLSvc/$hostEntry"
+                        } else {
+                            $spn.RequiredSPN = "MSSQLSvc/" + $hostEntry + ":" + $instance.Name
+                        }
+                    }
 
-$spns += $spn
-}
-# Now, for each spn, do we need a port set? Only if TCP is enabled and NOT DYNAMIC!
-foreach ($spn in $spns) {
-    $ports = @()
+                    $spns += $spn
+                }
+                # Now, for each spn, do we need a port set? Only if TCP is enabled and NOT DYNAMIC!
+                foreach ($spn in $spns) {
+                    $ports = @()
 
-    $ips = (($wmi.ServerInstances | Where-Object { $_.Name -eq $spn.InstanceName }).ServerProtocols | Where-Object { $_.DisplayName -eq "TCP/IP" -and $_.IsEnabled -eq "True" }).IpAddresses
-$ipAllPort = $null
-foreach ($ip in $ips) {
-    if ($ip.Name -eq "IPAll") {
-        $ipAllPort = ($ip.IPAddressProperties | Where-Object { $_.Name -eq "TCPPort" }).Value
-    if (($ip.IpAddressProperties | Where-Object { $_.Name -eq "TcpDynamicPorts" }).Value -ne "") {
-    $ipAllPort = ($ip.IPAddressProperties | Where-Object { $_.Name -eq "TcpDynamicPorts" }).Value + "d"
-}
-} else {
-    $enabled = ($ip.IPAddressProperties | Where-Object { $_.Name -eq "Enabled" }).Value
-$active = ($ip.IPAddressProperties | Where-Object { $_.Name -eq "Active" }).Value
-$tcpDynamicPorts = ($ip.IPAddressProperties | Where-Object { $_.Name -eq "TcpDynamicPorts" }).Value
-if ($enabled -and $active -and $tcpDynamicPorts -eq "") {
-    $ports += ($ip.IPAddressProperties | Where-Object { $_.Name -eq "TCPPort" }).Value
-} elseif ($enabled -and $active -and $tcpDynamicPorts -ne "") {
-    $ports += $ipAllPort + "d"
-}
-}
-}
-if ($ipAllPort -ne "") {
-    #IPAll overrides any set ports. Not sure why that's the way it is?
-    $ports = $ipAllPort
-}
+                    $ips = (($wmi.ServerInstances | Where-Object { $_.Name -eq $spn.InstanceName }).ServerProtocols | Where-Object { $_.DisplayName -eq "TCP/IP" -and $_.IsEnabled -eq "True" }).IpAddresses
+                    $ipAllPort = $null
+                    foreach ($ip in $ips) {
+                        if ($ip.Name -eq "IPAll") {
+                            $ipAllPort = ($ip.IPAddressProperties | Where-Object { $_.Name -eq "TCPPort" }).Value
+                            if (($ip.IpAddressProperties | Where-Object { $_.Name -eq "TcpDynamicPorts" }).Value -ne "") {
+                                $ipAllPort = ($ip.IPAddressProperties | Where-Object { $_.Name -eq "TcpDynamicPorts" }).Value + "d"
+                            }
+                        } else {
+                            $enabled = ($ip.IPAddressProperties | Where-Object { $_.Name -eq "Enabled" }).Value
+                            $active = ($ip.IPAddressProperties | Where-Object { $_.Name -eq "Active" }).Value
+                            $tcpDynamicPorts = ($ip.IPAddressProperties | Where-Object { $_.Name -eq "TcpDynamicPorts" }).Value
+                            if ($enabled -and $active -and $tcpDynamicPorts -eq "") {
+                                $ports += ($ip.IPAddressProperties | Where-Object { $_.Name -eq "TCPPort" }).Value
+                            } elseif ($enabled -and $active -and $tcpDynamicPorts -ne "") {
+                                $ports += $ipAllPort + "d"
+                            }
+                        }
+                    }
+                    if ($ipAllPort -ne "") {
+                        #IPAll overrides any set ports. Not sure why that's the way it is?
+                        $ports = $ipAllPort
+                    }
 
-$ports = $ports | Select-Object -Unique
-foreach ($port in $ports) {
-    $newspn = $spn.PSObject.Copy()
-    if ($port -like "*d") {
-        $newspn.Port = ($port.replace("d", ""))
-        $newspn.RequiredSPN = $newspn.RequiredSPN.Replace($newSPN.InstanceName, $newspn.Port)
-        $newspn.DynamicPort = $true
-        $newspn.Warning = "Dynamic port is enabled"
-    } else {
-        #If this is a named instance, replace the instance name with a port number (for non-dynamic ported named instances)
-        $newspn.Port = $port
-        $newspn.DynamicPort = $false
+                    $ports = $ports | Select-Object -Unique
+                    foreach ($port in $ports) {
+                        $newspn = $spn.PSObject.Copy()
+                        if ($port -like "*d") {
+                            $newspn.Port = ($port.replace("d", ""))
+                            $newspn.RequiredSPN = $newspn.RequiredSPN.Replace($newSPN.InstanceName, $newspn.Port)
+                            $newspn.DynamicPort = $true
+                            $newspn.Warning = "Dynamic port is enabled"
+                        } else {
+                            #If this is a named instance, replace the instance name with a port number (for non-dynamic ported named instances)
+                            $newspn.Port = $port
+                            $newspn.DynamicPort = $false
 
-        if ($newspn.InstanceName -eq "MSSQLSERVER") {
-            $newspn.RequiredSPN = $newspn.RequiredSPN + ":" + $port
-        } else {
-            $newspn.RequiredSPN = $newspn.RequiredSPN.Replace($newSPN.InstanceName, $newspn.Port)
-        }
-    }
-    $spns += $newspn
-}
-}
-$spns
-}
+                            if ($newspn.InstanceName -eq "MSSQLSERVER") {
+                                $newspn.RequiredSPN = $newspn.RequiredSPN + ":" + $port
+                            } else {
+                                $newspn.RequiredSPN = $newspn.RequiredSPN.Replace($newSPN.InstanceName, $newspn.Port)
+                            }
+                        }
+                        $spns += $newspn
+                    }
+                }
+                $spns
+            }
 
 
-try {
-    $spns = Invoke-ManagedComputerCommand -ComputerName $hostEntry -ScriptBlock $Scriptblock -ArgumentList $resolved.FullComputerName, $hostEntry, $computer.InstanceName -Credential $Credential -ErrorAction Stop
-} catch {
-    Stop-Function -Message "Couldn't connect to $computer" -ErrorRecord $_ -Continue
-}
+            try {
+                $spns = Invoke-ManagedComputerCommand -ComputerName $hostEntry -ScriptBlock $Scriptblock -ArgumentList $resolved.FullComputerName, $hostEntry, $computer.InstanceName -Credential $Credential -ErrorAction Stop
+            } catch {
+                Stop-Function -Message "Couldn't connect to $computer" -ErrorRecord $_ -Continue
+            }
 
-#Now query AD for each required SPN
-foreach ($spn in $spns) {
-    $searchfor = 'User'
-    if ($spn.InstanceServiceAccount -eq 'LocalSystem' -or $spn.InstanceServiceAccount -like 'NT SERVICE\*') {
-        Write-Message -Level Verbose -Message "Virtual account detected, changing target registration to computername"
-        $spn.InstanceServiceAccount = "$($resolved.Domain)\$($resolved.ComputerName)$"
-        $searchfor = 'Computer'
-    } elseif ($spn.InstanceServiceAccount -like '*\*$') {
-        Write-Message -Level Verbose -Message "Managed Service Account detected"
-        $searchfor = 'Computer'
-    }
+            #Now query AD for each required SPN
+            foreach ($spn in $spns) {
+                $searchfor = 'User'
+                if ($spn.InstanceServiceAccount -eq 'LocalSystem' -or $spn.InstanceServiceAccount -like 'NT SERVICE\*') {
+                    Write-Message -Level Verbose -Message "Virtual account detected, changing target registration to computername"
+                    $spn.InstanceServiceAccount = "$($resolved.Domain)\$($resolved.ComputerName)$"
+                    $searchfor = 'Computer'
+                } elseif ($spn.InstanceServiceAccount -like '*\*$') {
+                    Write-Message -Level Verbose -Message "Managed Service Account detected"
+                    $searchfor = 'Computer'
+                }
 
-    $serviceAccount = $spn.InstanceServiceAccount
-    # spare the cmdlet to search for the same account over and over
-    if ($spn.InstanceServiceAccount -notin $resultCache.Keys) {
-        Write-Message -Message "Searching for $serviceAccount" -Level Verbose
-        try {
-            $result = Get-DbaADObject -ADObject $serviceAccount -Type $searchfor -Credential $Credential -EnableException
-            $resultCache[$spn.InstanceServiceAccount] = $result
-        } catch {
-            if (![System.String]::IsNullOrEmpty($spn.InstanceServiceAccount)) {
-                Write-Message -Message "AD lookup failure. This may be because the domain cannot be resolved for the SQL Server service account ($serviceAccount)." -Level Warning
+                $serviceAccount = $spn.InstanceServiceAccount
+                # spare the cmdlet to search for the same account over and over
+                if ($spn.InstanceServiceAccount -notin $resultCache.Keys) {
+                    Write-Message -Message "Searching for $serviceAccount" -Level Verbose
+                    try {
+                        $result = Get-DbaADObject -ADObject $serviceAccount -Type $searchfor -Credential $Credential -EnableException
+                        $resultCache[$spn.InstanceServiceAccount] = $result
+                    } catch {
+                        if (![System.String]::IsNullOrEmpty($spn.InstanceServiceAccount)) {
+                            Write-Message -Message "AD lookup failure. This may be because the domain cannot be resolved for the SQL Server service account ($serviceAccount)." -Level Warning
+                        }
+                    }
+                } else {
+                    $result = $resultCache[$spn.InstanceServiceAccount]
+                }
+                if ($result.Count -gt 0) {
+                    try {
+                        $results = $result.GetUnderlyingObject()
+                        if ($results.Properties.servicePrincipalName -contains $spn.RequiredSPN) {
+                            $spn.IsSet = $true
+                        }
+                    } catch {
+                        Write-Message -Message "The SQL Service account ($serviceAccount) has been found, but you don't have enough permission to inspect its SPNs" -Level Warning
+                        continue
+                    }
+                } else {
+                    Write-Message -Level Warning -Message "SQL Service account not found. Results may not be accurate."
+                    $spn
+                    continue
+                }
+                if (!$spn.IsSet -and $spn.TcpEnabled) {
+                    $spn.Error = "SPN missing"
+                }
+
+                $spn | Select-DefaultView -ExcludeProperty Credential, DomainName
             }
         }
-    } else {
-        $result = $resultCache[$spn.InstanceServiceAccount]
     }
-    if ($result.Count -gt 0) {
-        try {
-            $results = $result.GetUnderlyingObject()
-            if ($results.Properties.servicePrincipalName -contains $spn.RequiredSPN) {
-                $spn.IsSet = $true
-            }
-        } catch {
-            Write-Message -Message "The SQL Service account ($serviceAccount) has been found, but you don't have enough permission to inspect its SPNs" -Level Warning
-            continue
-        }
-    } else {
-        Write-Message -Level Warning -Message "SQL Service account not found. Results may not be accurate."
-        $spn
-        continue
-    }
-    if (!$spn.IsSet -and $spn.TcpEnabled) {
-        $spn.Error = "SPN missing"
-    }
-
-    $spn | Select-DefaultView -ExcludeProperty Credential, DomainName
-}
-}
-}
 }

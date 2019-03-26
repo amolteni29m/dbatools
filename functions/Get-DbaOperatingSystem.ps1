@@ -114,71 +114,71 @@ function Get-DbaOperatingSystem {
             }
 
             try {
-                $powerPlan = Get-DbaCmObject @splatDbaCmObject -ClassName Win32_PowerPlan -Namespace "root\cimv2\power" | Select-Object ElementName, InstanceId, IsActive
-        } catch {
-            Write-Message -Level Warning -Message "Power plan information not available on $computer."
-            $powerPlan = $null
+                $powerPlan = Get-DbaCmObject @splatDbaCmObject -ClassName Win32_PowerPlan -Namespace "root\cimv2\power"  | Select-Object ElementName, InstanceId, IsActive
+            } catch {
+                Write-Message -Level Warning -Message "Power plan information not available on $computer."
+                $powerPlan = $null
+            }
+
+            if ($powerPlan) {
+                $activePowerPlan = ($powerPlan | Where-Object IsActive).ElementName -join ','
+            } else {
+                $activePowerPlan = 'Not Avaliable'
+            }
+
+            $language = Get-Language $os.OSLanguage
+
+            try {
+                $ss = Get-DbaCmObject @splatDbaCmObject -Class Win32_SystemServices
+                if ($ss | Select-Object PartComponent | Where-Object {$_ -like "*ClusSvc*"}) {
+                    $IsWsfc = $true
+                } else {
+                    $IsWsfc = $false
+                }
+            } catch {
+                Write-Message -Level Warning -Message "Unable to determine Cluster State of $computer."
+                $IsWsfc = $null
+            }
+
+            [PSCustomObject]@{
+                ComputerName             = $computerResolved
+                Manufacturer             = $os.Manufacturer
+                Organization             = $os.Organization
+                Architecture             = $os.OSArchitecture
+                Version                  = $os.Version
+                Build                    = $os.BuildNumber
+                OSVersion                = $os.caption;
+                SPVersion                = $os.servicepackmajorversion;
+                InstallDate              = [DbaDateTime]$os.InstallDate
+                LastBootTime             = [DbaDateTime]$os.LastBootUpTime
+                LocalDateTime            = [DbaDateTime]$os.LocalDateTime
+                PowerShellVersion        = $PowerShellVersion
+                TimeZone                 = $tz.Caption
+                TimeZoneStandard         = $tz.StandardName
+                TimeZoneDaylight         = $tz.DaylightName
+                BootDevice               = $os.BootDevice
+                SystemDevice             = $os.SystemDevice
+                SystemDrive              = $os.SystemDrive
+                WindowsDirectory         = $os.WindowsDirectory
+                PagingFileSize           = $os.SizeStoredInPagingFiles
+                TotalVisibleMemory       = [DbaSize]($os.TotalVisibleMemorySize * 1024)
+                FreePhysicalMemory       = [DbaSize]($os.FreePhysicalMemory * 1024)
+                TotalVirtualMemory       = [DbaSize]($os.TotalVirtualMemorySize * 1024)
+                FreeVirtualMemory        = [DbaSize]($os.FreeVirtualMemory * 1024)
+                ActivePowerPlan          = $activePowerPlan
+                Status                   = $os.Status
+                Language                 = $language.Name
+                LanguageId               = $language.LCID
+                LanguageKeyboardLayoutId = $language.KeyboardLayoutId
+                LanguageTwoLetter        = $language.TwoLetterISOLanguageName
+                LanguageThreeLetter      = $language.ThreeLetterISOLanguageName
+                LanguageAlias            = $language.DisplayName
+                LanguageNative           = $language.NativeName
+                CodeSet                  = $os.CodeSet
+                CountryCode              = $os.CountryCode
+                Locale                   = $os.Locale
+                IsWsfc                   = $IsWsfc
+            } | Select-DefaultView -Property ComputerName, Manufacturer, Organization, Architecture, Version, Caption, LastBootTime, LocalDateTime, PowerShellVersion, TimeZone, TotalVisibleMemory, ActivePowerPlan, LanguageNative
         }
-
-        if ($powerPlan) {
-            $activePowerPlan = ($powerPlan | Where-Object IsActive).ElementName -join ','
-    } else {
-        $activePowerPlan = 'Not Avaliable'
     }
-
-    $language = Get-Language $os.OSLanguage
-
-    try {
-        $ss = Get-DbaCmObject @splatDbaCmObject -Class Win32_SystemServices
-        if ($ss | Select-Object PartComponent | Where-Object { $_ -like "*ClusSvc*" }) {
-    $IsWsfc = $true
-} else {
-    $IsWsfc = $false
-}
-} catch {
-    Write-Message -Level Warning -Message "Unable to determine Cluster State of $computer."
-    $IsWsfc = $null
-}
-
-[PSCustomObject]@{
-    ComputerName             = $computerResolved
-    Manufacturer             = $os.Manufacturer
-    Organization             = $os.Organization
-    Architecture             = $os.OSArchitecture
-    Version                  = $os.Version
-    Build                    = $os.BuildNumber
-    OSVersion                = $os.caption;
-    SPVersion                = $os.servicepackmajorversion;
-    InstallDate              = [DbaDateTime]$os.InstallDate
-    LastBootTime             = [DbaDateTime]$os.LastBootUpTime
-    LocalDateTime            = [DbaDateTime]$os.LocalDateTime
-    PowerShellVersion        = $PowerShellVersion
-    TimeZone                 = $tz.Caption
-    TimeZoneStandard         = $tz.StandardName
-    TimeZoneDaylight         = $tz.DaylightName
-    BootDevice               = $os.BootDevice
-    SystemDevice             = $os.SystemDevice
-    SystemDrive              = $os.SystemDrive
-    WindowsDirectory         = $os.WindowsDirectory
-    PagingFileSize           = $os.SizeStoredInPagingFiles
-    TotalVisibleMemory       = [DbaSize]($os.TotalVisibleMemorySize * 1024)
-    FreePhysicalMemory       = [DbaSize]($os.FreePhysicalMemory * 1024)
-    TotalVirtualMemory       = [DbaSize]($os.TotalVirtualMemorySize * 1024)
-    FreeVirtualMemory        = [DbaSize]($os.FreeVirtualMemory * 1024)
-    ActivePowerPlan          = $activePowerPlan
-    Status                   = $os.Status
-    Language                 = $language.Name
-    LanguageId               = $language.LCID
-    LanguageKeyboardLayoutId = $language.KeyboardLayoutId
-    LanguageTwoLetter        = $language.TwoLetterISOLanguageName
-    LanguageThreeLetter      = $language.ThreeLetterISOLanguageName
-    LanguageAlias            = $language.DisplayName
-    LanguageNative           = $language.NativeName
-    CodeSet                  = $os.CodeSet
-    CountryCode              = $os.CountryCode
-    Locale                   = $os.Locale
-    IsWsfc                   = $IsWsfc
-} | Select-DefaultView -Property ComputerName, Manufacturer, Organization, Architecture, Version, Caption, LastBootTime, LocalDateTime, PowerShellVersion, TimeZone, TotalVisibleMemory, ActivePowerPlan, LanguageNative
-}
-}
 }

@@ -138,81 +138,81 @@ function Add-DbaAgReplica {
                     }
                     $ep = New-DbaEndpoint -SqlInstance $server -Name hadr_endpoint -Type DatabaseMirroring -EndpointEncryption Supported -EncryptionAlgorithm Aes -Certificate $Certificate
                     $null = $ep | Start-DbaEndpoint
+                }
             }
-        }
 
-        if ((Test-Bound -Not -ParameterName Name)) {
-            $Name = $server.DomainInstanceName
-        }
+            if ((Test-Bound -Not -ParameterName Name)) {
+                $Name = $server.DomainInstanceName
+            }
 
-        if ($Pscmdlet.ShouldProcess($server.Name, "Creating a replica for $($InputObject.Name) named $Name")) {
-            try {
-                $replica = New-Object Microsoft.SqlServer.Management.Smo.AvailabilityReplica -ArgumentList $InputObject, $Name
-                $replica.EndpointUrl = $ep.Fqdn
-                $replica.FailoverMode = [Microsoft.SqlServer.Management.Smo.AvailabilityReplicaFailoverMode]::$FailoverMode
-                $replica.AvailabilityMode = [Microsoft.SqlServer.Management.Smo.AvailabilityReplicaAvailabilityMode]::$AvailabilityMode
-                if ($server.EngineEdition -ne "Standard") {
-                    $replica.ConnectionModeInPrimaryRole = [Microsoft.SqlServer.Management.Smo.AvailabilityReplicaConnectionModeInPrimaryRole]::$ConnectionModeInPrimaryRole
-                    $replica.ConnectionModeInSecondaryRole = [Microsoft.SqlServer.Management.Smo.AvailabilityReplicaConnectionModeInSecondaryRole]::$ConnectionModeInSecondaryRole
-                }
-                $replica.BackupPriority = $BackupPriority
-
-                if ($ReadonlyRoutingConnectionUrl) {
-                    $replica.ReadonlyRoutingConnectionUrl = $ReadonlyRoutingConnectionUrl
-                }
-
-                if ($SeedingMode -and $server.VersionMajor -ge 13) {
-                    $replica.SeedingMode = $SeedingMode
-                    if ($SeedingMode -eq "Automatic") {
-                        $serviceaccount = $server.ServiceAccount.Trim()
-                        $saname = ([DbaInstanceParameter]($server.DomainInstanceName)).ComputerName
-
-                        if ($serviceaccount) {
-                            if ($serviceaccount.StartsWith("NT ")) {
-                                $serviceaccount = "$saname`$"
-                            }
-                            if ($serviceaccount.StartsWith("$saname")) {
-                                $serviceaccount = "$saname`$"
-                            }
-                            if ($serviceaccount.StartsWith(".")) {
-                                $serviceaccount = "$saname`$"
-                            }
-                        }
-
-                        if (-not $serviceaccount) {
-                            $serviceaccount = "$saname`$"
-                        }
-                        $null = Grant-DbaAgPermission -SqlInstance $server -Type AvailabilityGroup -AvailabilityGroup $InputObject.Name -Login $serviceaccount -Permission CreateAnyDatabase
+            if ($Pscmdlet.ShouldProcess($server.Name, "Creating a replica for $($InputObject.Name) named $Name")) {
+                try {
+                    $replica = New-Object Microsoft.SqlServer.Management.Smo.AvailabilityReplica -ArgumentList $InputObject, $Name
+                    $replica.EndpointUrl = $ep.Fqdn
+                    $replica.FailoverMode = [Microsoft.SqlServer.Management.Smo.AvailabilityReplicaFailoverMode]::$FailoverMode
+                    $replica.AvailabilityMode = [Microsoft.SqlServer.Management.Smo.AvailabilityReplicaAvailabilityMode]::$AvailabilityMode
+                    if ($server.EngineEdition -ne "Standard") {
+                        $replica.ConnectionModeInPrimaryRole = [Microsoft.SqlServer.Management.Smo.AvailabilityReplicaConnectionModeInPrimaryRole]::$ConnectionModeInPrimaryRole
+                        $replica.ConnectionModeInSecondaryRole = [Microsoft.SqlServer.Management.Smo.AvailabilityReplicaConnectionModeInSecondaryRole]::$ConnectionModeInSecondaryRole
                     }
-                }
+                    $replica.BackupPriority = $BackupPriority
 
-                if ($Passthru) {
-                    return $replica
-                }
+                    if ($ReadonlyRoutingConnectionUrl) {
+                        $replica.ReadonlyRoutingConnectionUrl = $ReadonlyRoutingConnectionUrl
+                    }
 
-                $defaults = 'ComputerName', 'InstanceName', 'SqlInstance', 'AvailabilityGroup', 'Name', 'Role', 'RollupSynchronizationState', 'AvailabilityMode', 'BackupPriority', 'EndpointUrl', 'SessionTimeout', 'FailoverMode', 'ReadonlyRoutingList'
-                $InputObject.AvailabilityReplicas.Add($replica)
-                $agreplica = $InputObject.AvailabilityReplicas[$Name]
-                if ($InputObject.State -eq 'Existing') {
-                    Invoke-Create -Object $replica
-                    $null = Join-DbaAvailabilityGroup -SqlInstance $instance -SqlCredential $SqlCredential -AvailabilityGroup $InputObject.Name
-                    $agreplica.Alter()
-                }
-                Add-Member -Force -InputObject $agreplica -MemberType NoteProperty -Name ComputerName -value $agreplica.Parent.ComputerName
-                Add-Member -Force -InputObject $agreplica -MemberType NoteProperty -Name InstanceName -value $agreplica.Parent.InstanceName
-                Add-Member -Force -InputObject $agreplica -MemberType NoteProperty -Name SqlInstance -value $agreplica.Parent.SqlInstance
-                Add-Member -Force -InputObject $agreplica -MemberType NoteProperty -Name AvailabilityGroup -value $agreplica.Parent.Name
-                Add-Member -Force -InputObject $agreplica -MemberType NoteProperty -Name Replica -value $agreplica.Name # backwards compat
+                    if ($SeedingMode -and $server.VersionMajor -ge 13) {
+                        $replica.SeedingMode = $SeedingMode
+                        if ($SeedingMode -eq "Automatic") {
+                            $serviceaccount = $server.ServiceAccount.Trim()
+                            $saname = ([DbaInstanceParameter]($server.DomainInstanceName)).ComputerName
 
-                Select-DefaultView -InputObject $agreplica -Property $defaults
-            } catch {
-                $msg = $_.Exception.InnerException.InnerException.Message
-                if (-not $msg) {
-                    $msg = $_
+                            if ($serviceaccount) {
+                                if ($serviceaccount.StartsWith("NT ")) {
+                                    $serviceaccount = "$saname`$"
+                                }
+                                if ($serviceaccount.StartsWith("$saname")) {
+                                    $serviceaccount = "$saname`$"
+                                }
+                                if ($serviceaccount.StartsWith(".")) {
+                                    $serviceaccount = "$saname`$"
+                                }
+                            }
+
+                            if (-not $serviceaccount) {
+                                $serviceaccount = "$saname`$"
+                            }
+                            $null = Grant-DbaAgPermission -SqlInstance $server -Type AvailabilityGroup -AvailabilityGroup $InputObject.Name -Login $serviceaccount -Permission CreateAnyDatabase
+                        }
+                    }
+
+                    if ($Passthru) {
+                        return $replica
+                    }
+
+                    $defaults = 'ComputerName', 'InstanceName', 'SqlInstance', 'AvailabilityGroup', 'Name', 'Role', 'RollupSynchronizationState', 'AvailabilityMode', 'BackupPriority', 'EndpointUrl', 'SessionTimeout', 'FailoverMode', 'ReadonlyRoutingList'
+                    $InputObject.AvailabilityReplicas.Add($replica)
+                    $agreplica = $InputObject.AvailabilityReplicas[$Name]
+                    if ($InputObject.State -eq 'Existing') {
+                        Invoke-Create -Object $replica
+                        $null = Join-DbaAvailabilityGroup -SqlInstance $instance -SqlCredential $SqlCredential -AvailabilityGroup $InputObject.Name
+                        $agreplica.Alter()
+                    }
+                    Add-Member -Force -InputObject $agreplica -MemberType NoteProperty -Name ComputerName -value $agreplica.Parent.ComputerName
+                    Add-Member -Force -InputObject $agreplica -MemberType NoteProperty -Name InstanceName -value $agreplica.Parent.InstanceName
+                    Add-Member -Force -InputObject $agreplica -MemberType NoteProperty -Name SqlInstance -value $agreplica.Parent.SqlInstance
+                    Add-Member -Force -InputObject $agreplica -MemberType NoteProperty -Name AvailabilityGroup -value $agreplica.Parent.Name
+                    Add-Member -Force -InputObject $agreplica -MemberType NoteProperty -Name Replica -value $agreplica.Name # backwards compat
+
+                    Select-DefaultView -InputObject $agreplica -Property $defaults
+                } catch {
+                    $msg = $_.Exception.InnerException.InnerException.Message
+                    if (-not $msg) {
+                        $msg = $_
+                    }
+                    Stop-Function -Message $msg -ErrorRecord $_ -Continue
                 }
-                Stop-Function -Message $msg -ErrorRecord $_ -Continue
             }
         }
     }
-}
 }

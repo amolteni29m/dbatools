@@ -165,142 +165,142 @@ function Import-DbaPfDataCollectorSetTemplate {
 
         $instancescript = {
             $services = Get-Service -DisplayName *sql* | Select-Object -ExpandProperty DisplayName
-        [regex]::matches($services, '(?<=\().+?(?=\))').Value | Where-Object { $PSItem -ne 'MSSQLSERVER' } | Select-Object -Unique
-}
-}
-process {
-
-
-    if ((Test-Bound -ParameterName Path -Not) -and (Test-Bound -ParameterName Template -Not)) {
-        Stop-Function -Message "You must specify Path or Template"
+            [regex]::matches($services, '(?<=\().+?(?=\))').Value | Where-Object { $PSItem -ne 'MSSQLSERVER' } | Select-Object -Unique
+        }
     }
-
-    if (($Path.Count -gt 1 -or $Template.Count -gt 1) -and (Test-Bound -ParameterName Template)) {
-        Stop-Function -Message "Name cannot be specified with multiple files or templates because the Session will already exist"
-    }
-
-    foreach ($computer in $ComputerName) {
-        $null = Test-ElevationRequirement -ComputerName $computer -Continue
-
-        foreach ($file in $template) {
-            $templatepath = "$script:PSModuleRoot\bin\perfmontemplates\collectorsets\$file.xml"
-            if ((Test-Path $templatepath)) {
-                $Path += $templatepath
-            } else {
-                Stop-Function -Message "Invalid template ($templatepath does not exist)" -Continue
-            }
+    process {
+        
+        
+        if ((Test-Bound -ParameterName Path -Not) -and (Test-Bound -ParameterName Template -Not)) {
+            Stop-Function -Message "You must specify Path or Template"
         }
 
-        foreach ($file in $Path) {
-
-            if ((Test-Bound -ParameterName DisplayName -Not)) {
-                Set-Variable -Name DisplayName -Value (Get-ChildItem -Path $file).BaseName
-            }
-
-            $Name = $DisplayName
-
-            Write-Message -Level Verbose -Message "Processing $file for $computer"
-
-            if ((Test-Bound -ParameterName RootPath -Not)) {
-                Set-Variable -Name RootName -Value "%systemdrive%\PerfLogs\Admin\$Name"
-            }
-
-            # Perform replace
-            $temp = ([System.IO.Path]::GetTempPath()).TrimEnd("").TrimEnd("\")
-            $tempfile = "$temp\import-dbatools-perftemplate.xml"
-
-            try {
-                # Get content
-                $contents = Get-Content $file -ErrorAction Stop
-
-                # Replace content
-                $replacements = 'RootPath', 'DisplayName', 'SchedulesEnabled', 'Segment', 'SegmentMaxDuration', 'SegmentMaxSize', 'SubdirectoryFormat', 'SubdirectoryFormatPattern', 'Task', 'TaskRunAsSelf', 'TaskArguments', 'TaskUserTextArguments', 'StopOnCompletion', 'DisplayNameUnresolved'
-
-                foreach ($replacement in $replacements) {
-                    $phrase = "<$replacement></$replacement>"
-                    $value = (Get-Variable -Name $replacement -ErrorAction SilentlyContinue).Value
-                    if ($value -eq $false) {
-                        $value = "0"
-                    }
-                    if ($value -eq $true) {
-                        $value = "1"
-                    }
-                    $replacephrase = "<$replacement>$value</$replacement>"
-                    $contents = $contents.Replace($phrase, $replacephrase)
-                }
-
-                # Set content
-                $null = Set-Content -Path $tempfile -Value $contents -Encoding Unicode
-                $xml = [xml](Get-Content $tempfile -ErrorAction Stop)
-                $plainxml = Get-Content $tempfile -ErrorAction Stop -Raw
-                $file = $tempfile
-            } catch {
-                Stop-Function -Message "Failure" -ErrorRecord $_ -Target $file -Continue
-            }
-            if (-not $xml.DataCollectorSet) {
-                Stop-Function -Message "$file is not a valid Performance Monitor template document" -Continue
-            }
-
-            try {
-                Write-Message -Level Verbose -Message "Importing $file as $name "
-
-                if ($instance) {
-                    $instances = $instance
-                } else {
-                    $instances = Invoke-Command2 -ComputerName $computer -Credential $Credential -ScriptBlock $instancescript -ErrorAction Stop -Raw
-                }
-
-                $scriptblock = {
-                    try {
-                        $results = Invoke-Command2 -ComputerName $computer -Credential $Credential -ScriptBlock $setscript -ArgumentList $Name, $plainxml -ErrorAction Stop
-                        Write-Message -Level Verbose -Message " $results"
-                    } catch {
-                        Stop-Function -Message "Failure starting $setname on $computer" -ErrorRecord $_ -Target $computer -Continue
-                    }
-                }
-
-                if ((Get-DbaPfDataCollectorSet -ComputerName $computer -CollectorSet $Name)) {
-                    if ($Pscmdlet.ShouldProcess($computer, "CollectorSet $Name already exists. Modify?")) {
-                        Invoke-Command -Scriptblock $scriptblock
-                        $output = Get-DbaPfDataCollectorSet -ComputerName $computer -CollectorSet $Name
-                    }
-                } else {
-                    if ($Pscmdlet.ShouldProcess($computer, "Importing collector set $Name")) {
-                        Invoke-Command -Scriptblock $scriptblock
-                        $output = Get-DbaPfDataCollectorSet -ComputerName $computer -CollectorSet $Name
-                    }
-                }
-
-                $newcollection = @()
-                foreach ($instance in $instances) {
-                    $datacollector = Get-DbaPfDataCollectorSet -ComputerName $computer -CollectorSet $Name | Get-DbaPfDataCollector
-                $sqlcounters = $datacollector | Get-DbaPfDataCollectorCounter | Where-Object { $_.Name -match 'sql.*\:' -and $_.Name -notmatch 'sqlclient' } | Select-Object -ExpandProperty Name
-
-    foreach ($counter in $sqlcounters) {
-        $split = $counter.Split(":")
-        $firstpart = switch ($split[0]) {
-            'SQLServer' { 'MSSQL' }
-            '\SQLServer' { '\MSSQL' }
-            default { $split[0] }
+        if (($Path.Count -gt 1 -or $Template.Count -gt 1) -and (Test-Bound -ParameterName Template)) {
+            Stop-Function -Message "Name cannot be specified with multiple files or templates because the Session will already exist"
         }
-        $secondpart = $split[-1]
-        $finalcounter = "$firstpart`$$instance`:$secondpart"
-        $newcollection += $finalcounter
-    }
-}
 
-if ($newcollection.Count) {
-    if ($Pscmdlet.ShouldProcess($computer, "Adding $($newcollection.Count) additional counters")) {
-        $null = Add-DbaPfDataCollectorCounter -InputObject $datacollector -Counter $newcollection
-    }
-}
+        foreach ($computer in $ComputerName) {
+            $null = Test-ElevationRequirement -ComputerName $computer -Continue
 
-Remove-Item $tempfile -ErrorAction SilentlyContinue
-$output
-} catch {
-    Stop-Function -Message "Failure" -ErrorRecord $_ -Target $store -Continue
-}
-}
-}
-}
+            foreach ($file in $template) {
+                $templatepath = "$script:PSModuleRoot\bin\perfmontemplates\collectorsets\$file.xml"
+                if ((Test-Path $templatepath)) {
+                    $Path += $templatepath
+                } else {
+                    Stop-Function -Message "Invalid template ($templatepath does not exist)" -Continue
+                }
+            }
+
+            foreach ($file in $Path) {
+
+                if ((Test-Bound -ParameterName DisplayName -Not)) {
+                    Set-Variable -Name DisplayName -Value (Get-ChildItem -Path $file).BaseName
+                }
+
+                $Name = $DisplayName
+
+                Write-Message -Level Verbose -Message "Processing $file for $computer"
+
+                if ((Test-Bound -ParameterName RootPath -Not)) {
+                    Set-Variable -Name RootName -Value "%systemdrive%\PerfLogs\Admin\$Name"
+                }
+
+                # Perform replace
+                $temp = ([System.IO.Path]::GetTempPath()).TrimEnd("").TrimEnd("\")
+                $tempfile = "$temp\import-dbatools-perftemplate.xml"
+
+                try {
+                    # Get content
+                    $contents = Get-Content $file -ErrorAction Stop
+
+                    # Replace content
+                    $replacements = 'RootPath', 'DisplayName', 'SchedulesEnabled', 'Segment', 'SegmentMaxDuration', 'SegmentMaxSize', 'SubdirectoryFormat', 'SubdirectoryFormatPattern', 'Task', 'TaskRunAsSelf', 'TaskArguments', 'TaskUserTextArguments', 'StopOnCompletion', 'DisplayNameUnresolved'
+
+                    foreach ($replacement in $replacements) {
+                        $phrase = "<$replacement></$replacement>"
+                        $value = (Get-Variable -Name $replacement -ErrorAction SilentlyContinue).Value
+                        if ($value -eq $false) {
+                            $value = "0"
+                        }
+                        if ($value -eq $true) {
+                            $value = "1"
+                        }
+                        $replacephrase = "<$replacement>$value</$replacement>"
+                        $contents = $contents.Replace($phrase, $replacephrase)
+                    }
+
+                    # Set content
+                    $null = Set-Content -Path $tempfile -Value $contents -Encoding Unicode
+                    $xml = [xml](Get-Content $tempfile -ErrorAction Stop)
+                    $plainxml = Get-Content $tempfile -ErrorAction Stop -Raw
+                    $file = $tempfile
+                } catch {
+                    Stop-Function -Message "Failure" -ErrorRecord $_ -Target $file -Continue
+                }
+                if (-not $xml.DataCollectorSet) {
+                    Stop-Function -Message "$file is not a valid Performance Monitor template document" -Continue
+                }
+
+                try {
+                    Write-Message -Level Verbose -Message "Importing $file as $name "
+
+                    if ($instance) {
+                        $instances = $instance
+                    } else {
+                        $instances = Invoke-Command2 -ComputerName $computer -Credential $Credential -ScriptBlock $instancescript -ErrorAction Stop -Raw
+                    }
+
+                    $scriptblock = {
+                        try {
+                            $results = Invoke-Command2 -ComputerName $computer -Credential $Credential -ScriptBlock $setscript -ArgumentList $Name, $plainxml -ErrorAction Stop
+                            Write-Message -Level Verbose -Message " $results"
+                        } catch {
+                            Stop-Function -Message "Failure starting $setname on $computer" -ErrorRecord $_ -Target $computer -Continue
+                        }
+                    }
+
+                    if ((Get-DbaPfDataCollectorSet -ComputerName $computer -CollectorSet $Name)) {
+                        if ($Pscmdlet.ShouldProcess($computer, "CollectorSet $Name already exists. Modify?")) {
+                            Invoke-Command -Scriptblock $scriptblock
+                            $output = Get-DbaPfDataCollectorSet -ComputerName $computer -CollectorSet $Name
+                        }
+                    } else {
+                        if ($Pscmdlet.ShouldProcess($computer, "Importing collector set $Name")) {
+                            Invoke-Command -Scriptblock $scriptblock
+                            $output = Get-DbaPfDataCollectorSet -ComputerName $computer -CollectorSet $Name
+                        }
+                    }
+
+                    $newcollection = @()
+                    foreach ($instance in $instances) {
+                        $datacollector = Get-DbaPfDataCollectorSet -ComputerName $computer -CollectorSet $Name | Get-DbaPfDataCollector
+                        $sqlcounters = $datacollector | Get-DbaPfDataCollectorCounter | Where-Object { $_.Name -match 'sql.*\:' -and $_.Name -notmatch 'sqlclient' } | Select-Object -ExpandProperty Name
+
+                        foreach ($counter in $sqlcounters) {
+                            $split = $counter.Split(":")
+                            $firstpart = switch ($split[0]) {
+                                'SQLServer' { 'MSSQL' }
+                                '\SQLServer' { '\MSSQL' }
+                                default { $split[0] }
+                            }
+                            $secondpart = $split[-1]
+                            $finalcounter = "$firstpart`$$instance`:$secondpart"
+                            $newcollection += $finalcounter
+                        }
+                    }
+
+                    if ($newcollection.Count) {
+                        if ($Pscmdlet.ShouldProcess($computer, "Adding $($newcollection.Count) additional counters")) {
+                            $null = Add-DbaPfDataCollectorCounter -InputObject $datacollector -Counter $newcollection
+                        }
+                    }
+
+                    Remove-Item $tempfile -ErrorAction SilentlyContinue
+                    $output
+                } catch {
+                    Stop-Function -Message "Failure" -ErrorRecord $_ -Target $store -Continue
+                }
+            }
+        }
+    }
 }

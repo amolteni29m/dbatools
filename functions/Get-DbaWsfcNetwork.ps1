@@ -50,9 +50,9 @@ function Get-DbaWsfcNetwork {
 
             $network = Get-DbaCmObject -Computername $computer -Credential $Credential -Namespace root\MSCluster -ClassName MSCluster_Network
             $network | Add-Member -Force -NotePropertyName ClusterName -NotePropertyValue $cluster.Name
-        $network | Add-Member -Force -NotePropertyName ClusterFqdn -NotePropertyValue $cluster.Fqdn
+            $network | Add-Member -Force -NotePropertyName ClusterFqdn -NotePropertyValue $cluster.Fqdn
 
-    $network | Select-DefaultView -Property ClusterName, ClusterFqdn, Name, Address, AddressMask, IPv4Addresses, IPv4PrefixLengths, IPv6Addresses, IPv6PrefixLengths, QuorumType, QuorumTypeValue, RequestReplyTimeout, Role
-}
-}
+            $network | Select-DefaultView -Property ClusterName, ClusterFqdn, Name, Address, AddressMask, IPv4Addresses, IPv4PrefixLengths, IPv6Addresses, IPv6PrefixLengths, QuorumType, QuorumTypeValue, RequestReplyTimeout, Role
+        }
+    }
 }

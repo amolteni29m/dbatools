@@ -3,7 +3,7 @@ This is designed for all paths you need configurations for.
 #>
 
 # The default path where dbatools stores persistent data
-Set-DbatoolsConfig -FullName 'Path.DbatoolsData' -Value (Join-DbaPath $script:AppData "PowerShell" "dbatools") -Initialize -Validation string -Handler { } -Description "The path where dbatools stores persistent data on a per user basis."
+Set-DbatoolsConfig -FullName 'Path.DbatoolsData' -Value (Join-DbaPath $script:AppData "PowerShell" "dbatools") -Initialize -Validation string -Handler {  } -Description "The path where dbatools stores persistent data on a per user basis."
 
 # The default path where dbatools stores temporary data
 Set-DbatoolsConfig -FullName 'Path.DbatoolsTemp' -Value ([System.IO.Path]::GetTempPath()).TrimEnd("\") -Initialize -Validation string -Handler { } -Description "The path where dbatools stores temporary data."

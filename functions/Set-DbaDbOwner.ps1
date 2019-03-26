@@ -88,72 +88,72 @@ function Set-DbaDbOwner {
             # dynamic sa name for orgs who have changed their sa name
             if (!$TargetLogin) {
                 $TargetLogin = ($server.logins | Where-Object { $_.id -eq 1 }).Name
-        }
-
-        #Validate login
-        if (($server.Logins.Name) -notcontains $TargetLogin) {
-            Stop-Function -Message "$TargetLogin is not a valid login on $instance. Moving on." -Continue -EnableException $EnableException
-        }
-
-        #Owner cannot be a group
-        $TargetLoginObject = $server.Logins | Where-Object { $PSItem.Name -eq $TargetLogin } | Select-Object -property  Name, LoginType
-if ($TargetLoginObject.LoginType -eq 'WindowsGroup') {
-    Stop-Function -Message "$TargetLogin is a group, therefore can't be set as owner. Moving on." -Continue -EnableException $EnableException
-}
-
-#Get database list. If value for -Database is passed, massage to make it a string array.
-#Otherwise, use all databases on the instance where owner not equal to -TargetLogin
-#use where owner and target login do not match
-#exclude system dbs
-$dbs = $server.Databases | Where-Object { $_.IsAccessible -and $_.Owner -ne $TargetLogin -and @('master', 'model', 'msdb', 'tempdb', 'distribution') -notcontains $_.Name }
-
-#filter collection based on -Databases/-Exclude parameters
-if ($Database) {
-    $dbs = $dbs | Where-Object { $Database -contains $_.Name }
-}
-
-if ($ExcludeDatabase) {
-    $dbs = $dbs | Where-Object { $ExcludeDatabase -notcontains $_.Name }
-}
-
-Write-Message -Level Verbose -Message "Updating $($dbs.Count) database(s)."
-foreach ($db in $dbs) {
-    $dbname = $db.name
-    if ($PSCmdlet.ShouldProcess($instance, "Setting database owner for $dbname to $TargetLogin")) {
-        try {
-            Write-Message -Level Verbose -Message "Setting database owner for $dbname to $TargetLogin on $instance."
-            # Set database owner to $TargetLogin (default 'sa')
-            # Ownership validations checks
-
-            #Database is online and accessible
-            if ($db.Status -notmatch 'Normal') {
-                Write-Message -Level Warning -Message "$dbname on $instance is in a  $($db.Status) state and can not be altered. It will be skipped."
             }
-            #Database is updatable, not read-only
-            elseif ($db.IsUpdateable -eq $false) {
-                Write-Message -Level Warning -Message "$dbname on $instance is not in an updateable state and can not be altered. It will be skipped."
+
+            #Validate login
+            if (($server.Logins.Name) -notcontains $TargetLogin) {
+                Stop-Function -Message "$TargetLogin is not a valid login on $instance. Moving on." -Continue -EnableException $EnableException
             }
-            #Is the login mapped as a user? Logins already mapped in the database can not be the owner
-            elseif ($db.Users.name -contains $TargetLogin) {
-                Write-Message -Level Warning -Message "$dbname on $instance has $TargetLogin as a mapped user. Mapped users can not be database owners."
-            } else {
-                $db.SetOwner($TargetLogin)
-                [PSCustomObject]@{
-                    ComputerName = $server.ComputerName
-                    InstanceName = $server.ServiceName
-                    SqlInstance  = $server.DomainInstanceName
-                    Database     = $db
-                    Owner        = $TargetLogin
+
+            #Owner cannot be a group
+            $TargetLoginObject = $server.Logins | where-object {$PSItem.Name -eq $TargetLogin }| Select-Object -property  Name, LoginType
+            if ($TargetLoginObject.LoginType -eq 'WindowsGroup') {
+                Stop-Function -Message "$TargetLogin is a group, therefore can't be set as owner. Moving on." -Continue -EnableException $EnableException
+            }
+
+            #Get database list. If value for -Database is passed, massage to make it a string array.
+            #Otherwise, use all databases on the instance where owner not equal to -TargetLogin
+            #use where owner and target login do not match
+            #exclude system dbs
+            $dbs = $server.Databases | Where-Object { $_.IsAccessible -and $_.Owner -ne $TargetLogin -and @('master', 'model', 'msdb', 'tempdb', 'distribution') -notcontains $_.Name}
+
+            #filter collection based on -Databases/-Exclude parameters
+            if ($Database) {
+                $dbs = $dbs | Where-Object { $Database -contains $_.Name }
+            }
+
+            if ($ExcludeDatabase) {
+                $dbs = $dbs | Where-Object { $ExcludeDatabase -notcontains $_.Name }
+            }
+
+            Write-Message -Level Verbose -Message "Updating $($dbs.Count) database(s)."
+            foreach ($db in $dbs) {
+                $dbname = $db.name
+                if ($PSCmdlet.ShouldProcess($instance, "Setting database owner for $dbname to $TargetLogin")) {
+                    try {
+                        Write-Message -Level Verbose -Message "Setting database owner for $dbname to $TargetLogin on $instance."
+                        # Set database owner to $TargetLogin (default 'sa')
+                        # Ownership validations checks
+
+                        #Database is online and accessible
+                        if ($db.Status -notmatch 'Normal') {
+                            Write-Message -Level Warning -Message "$dbname on $instance is in a  $($db.Status) state and can not be altered. It will be skipped."
+                        }
+                        #Database is updatable, not read-only
+                        elseif ($db.IsUpdateable -eq $false) {
+                            Write-Message -Level Warning -Message "$dbname on $instance is not in an updateable state and can not be altered. It will be skipped."
+                        }
+                        #Is the login mapped as a user? Logins already mapped in the database can not be the owner
+                        elseif ($db.Users.name -contains $TargetLogin) {
+                            Write-Message -Level Warning -Message "$dbname on $instance has $TargetLogin as a mapped user. Mapped users can not be database owners."
+                        } else {
+                            $db.SetOwner($TargetLogin)
+                            [PSCustomObject]@{
+                                ComputerName = $server.ComputerName
+                                InstanceName = $server.ServiceName
+                                SqlInstance  = $server.DomainInstanceName
+                                Database     = $db
+                                Owner        = $TargetLogin
+                            }
+                        }
+                    } catch {
+                        Stop-Function -Message "Failure updating owner." -ErrorRecord $_ -Target $instance -Continue
+                    }
                 }
             }
-        } catch {
-            Stop-Function -Message "Failure updating owner." -ErrorRecord $_ -Target $instance -Continue
         }
     }
-}
-}
-}
-end {
-    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Set-DbaDatabaseOwner
-}
+    end {
+        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Set-DbaDatabaseOwner
+    }
 }

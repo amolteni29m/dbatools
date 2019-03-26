@@ -81,53 +81,53 @@ function Get-DbaDbDbccOpenTran {
             $dbs = $server.Databases
 
             if (Test-Bound -ParameterName Database) {
-                $dbs = $dbs | Where-Object { ($_.Name -In $Database) -or ($_.ID -In $Database) }
-        }
-
-        foreach ($db in $dbs) {
-            Write-Message -Level Verbose -Message "Processing $db on $instance"
-
-            if ($db.IsAccessible -eq $false) {
-                Stop-Function -Message "The database $db is not accessible. Skipping." -Continue
+                $dbs = $dbs | Where-Object {($_.Name -In $Database) -or ($_.ID -In $Database) }
             }
 
-            try {
-                $query = $StringBuilder.ToString()
-                $query = $query.Replace('#options#', "'$($db.Name)'")
+            foreach ($db in $dbs) {
+                Write-Message -Level Verbose -Message "Processing $db on $instance"
 
-                Write-Message -Message "Query to run: $query" -Level Verbose
-                $results = $server.Query($query)
-                Write-Message -Message "Finshed" -Level Verbose
-            } catch {
-                Stop-Function -Message "Error capturing data on $db" -Target $instance -ErrorRecord $_ -Exception $_.Exception -Continue
-            }
-
-            if ($null -eq $results) {
-                [PSCustomObject]@{
-                    ComputerName = $server.ComputerName
-                    InstanceName = $server.ServiceName
-                    SqlInstance  = $server.DomainInstanceName
-                    Database     = $db.Name
-                    Cmd          = $query.ToString()
-                    Output       = 'No active open transactions.'
-                    Field        = $null
-                    Data         = $null
+                if ($db.IsAccessible -eq $false) {
+                    Stop-Function -Message "The database $db is not accessible. Skipping." -Continue
                 }
-            } else {
-                foreach ($row in $results) {
+
+                try {
+                    $query = $StringBuilder.ToString()
+                    $query = $query.Replace('#options#', "'$($db.Name)'")
+
+                    Write-Message -Message "Query to run: $query" -Level Verbose
+                    $results = $server.Query($query)
+                    Write-Message -Message "Finshed" -Level Verbose
+                } catch {
+                    Stop-Function -Message "Error capturing data on $db" -Target $instance -ErrorRecord $_ -Exception $_.Exception -Continue
+                }
+
+                if ($null -eq $results) {
                     [PSCustomObject]@{
                         ComputerName = $server.ComputerName
                         InstanceName = $server.ServiceName
                         SqlInstance  = $server.DomainInstanceName
                         Database     = $db.Name
                         Cmd          = $query.ToString()
-                        Output       = 'Oldest active transaction'
-                        Field        = $row[0]
-                        Data         = $row[1]
+                        Output       = 'No active open transactions.'
+                        Field        = $null
+                        Data         = $null
+                    }
+                } else {
+                    foreach ($row in $results) {
+                        [PSCustomObject]@{
+                            ComputerName = $server.ComputerName
+                            InstanceName = $server.ServiceName
+                            SqlInstance  = $server.DomainInstanceName
+                            Database     = $db.Name
+                            Cmd          = $query.ToString()
+                            Output       = 'Oldest active transaction'
+                            Field        = $row[0]
+                            Data         = $row[1]
+                        }
                     }
                 }
             }
         }
     }
-}
 }

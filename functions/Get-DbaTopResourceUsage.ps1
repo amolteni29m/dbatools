@@ -266,37 +266,37 @@ function Get-DbaTopResourceUsage {
                 try {
                     Write-Message -Level Debug -Message "Executing SQL: $duration"
                     $server.Query($duration) | Select-DefaultView -ExcludeProperty QueryPlan
-            } catch {
-                Stop-Function -Message "Failure executing query for duration." -ErrorRecord $_ -Target $server -Continue
+                } catch {
+                    Stop-Function -Message "Failure executing query for duration." -ErrorRecord $_ -Target $server -Continue
+                }
+            }
+
+            if ($Type -in "All", "Frequency") {
+                try {
+                    Write-Message -Level Debug -Message "Executing SQL: $frequency"
+                    $server.Query($frequency) | Select-DefaultView -ExcludeProperty QueryPlan
+                } catch {
+                    Stop-Function -Message "Failure executing query for frequency." -ErrorRecord $_ -Target $server -Continue
+                }
+            }
+
+            if ($Type -in "All", "IO") {
+                try {
+                    Write-Message -Level Debug -Message "Executing SQL: $io"
+                    $server.Query($io) | Select-DefaultView -ExcludeProperty QueryPlan
+                } catch {
+                    Stop-Function -Message "Failure executing query for IO." -ErrorRecord $_ -Target $server -Continue
+                }
+            }
+
+            if ($Type -in "All", "CPU") {
+                try {
+                    Write-Message -Level Debug -Message "Executing SQL: $cpu"
+                    $server.Query($cpu) | Select-DefaultView -ExcludeProperty QueryPlan
+                } catch {
+                    Stop-Function -Message "Failure executing query for CPU." -ErrorRecord $_ -Target $server -Continue
+                }
             }
         }
-
-        if ($Type -in "All", "Frequency") {
-            try {
-                Write-Message -Level Debug -Message "Executing SQL: $frequency"
-                $server.Query($frequency) | Select-DefaultView -ExcludeProperty QueryPlan
-        } catch {
-            Stop-Function -Message "Failure executing query for frequency." -ErrorRecord $_ -Target $server -Continue
-        }
     }
-
-    if ($Type -in "All", "IO") {
-        try {
-            Write-Message -Level Debug -Message "Executing SQL: $io"
-            $server.Query($io) | Select-DefaultView -ExcludeProperty QueryPlan
-    } catch {
-        Stop-Function -Message "Failure executing query for IO." -ErrorRecord $_ -Target $server -Continue
-    }
-}
-
-if ($Type -in "All", "CPU") {
-    try {
-        Write-Message -Level Debug -Message "Executing SQL: $cpu"
-        $server.Query($cpu) | Select-DefaultView -ExcludeProperty QueryPlan
-} catch {
-    Stop-Function -Message "Failure executing query for CPU." -ErrorRecord $_ -Target $server -Continue
-}
-}
-}
-}
 }

@@ -97,99 +97,99 @@ function Test-DbaBackupInformation {
         $RegisteredFileCheck = Get-DbaDbPhysicalFile -SqlInstance $RestoreInstance
 
         $Databases = $InternalHistory.Database | Select-Object -Unique
-    foreach ($Database in $Databases) {
-        $VerificationErrors = 0
-        Write-Message -Message "Testing restore for $Database" -Level Verbose
-        #Test we're only restoring backups from one database, or hilarity will ensure
-        $DbHistory = $InternalHistory | Where-Object { $_.Database -eq $Database }
-    if (( $DbHistory | Select-Object -Property OriginalDatabase -Unique ).Count -gt 1) {
-    Write-Message -Message "Trying to restore $Database from multiple sources databases" -Level Warning
-    $VerificationErrors++
-}
-#Test Db Existance on destination
-$DbCheck = Get-DbaDatabase -SqlInstance $RestoreInstance -Database $Database
-# Only do file and db tests if we're not verifing
-Write-Message -Level Verbose -Message "VerifyOnly = $VerifyOnly"
-If ($VerifyOnly -ne $true) {
-    if ($null -ne $DbCheck -and ($WithReplace -ne $true -and $Continue -ne $true)) {
-        Write-Message  -Level Warning -Message "Database $Database exists, so WithReplace must be specified" -Target $database
-        $VerificationErrors++
-    }
+        foreach ($Database in $Databases) {
+            $VerificationErrors = 0
+            Write-Message -Message "Testing restore for $Database" -Level Verbose
+            #Test we're only restoring backups from one database, or hilarity will ensure
+            $DbHistory = $InternalHistory | Where-Object {$_.Database -eq $Database}
+            if (( $DbHistory | Select-Object -Property OriginalDatabase -Unique ).Count -gt 1) {
+                Write-Message -Message "Trying to restore $Database from multiple sources databases" -Level Warning
+                $VerificationErrors++
+            }
+            #Test Db Existance on destination
+            $DbCheck = Get-DbaDatabase -SqlInstance $RestoreInstance -Database $Database
+            # Only do file and db tests if we're not verifing
+            Write-Message -Level Verbose -Message "VerifyOnly = $VerifyOnly"
+            If ($VerifyOnly -ne $true) {
+                if ($null -ne $DbCheck -and ($WithReplace -ne $true -and $Continue -ne $true)) {
+                    Write-Message  -Level Warning -Message "Database $Database exists, so WithReplace must be specified" -Target $database
+                    $VerificationErrors++
+                }
 
-    $DBFileCheck = ($RegisteredFileCheck | Where-Object Name -eq $Database).PhysicalName
-$OtherFileCheck = ($RegisteredFileCheck | Where-Object Name -ne $Database).PhysicalName
-$DBHistoryPhysicalPaths = ($DbHistory | Select-Object -ExpandProperty filelist | Select-Object PhysicalName -Unique).PhysicalName
-$DBHistoryPhysicalPathsTest = Test-DbaPath -SqlInstance $RestoreInstance -Path $DBHistoryPhysicalPaths
-$DBHistoryPhysicalPathsExists = ($DBHistoryPhysicalPathsTest | Where-Object FileExists -eq $True).FilePath
-$pathSep = Get-DbaPathSep -Server $RestoreInstance
-foreach ($path in $DBHistoryPhysicalPaths) {
-    if (($DBHistoryPhysicalPathsTest | Where-Object FilePath -eq $path).FileExists) {
-    if ($path -in $DBFileCheck) {
-        #If the Files are owned by the db we're restoring check for Continue or WithReplace. If not, then report error otherwise just carry on
-        if ($WithReplace -ne $True -and $Continue -ne $True) {
-            Write-Message -Message "File $path already exists on $SqlInstance and WithReplace not specified, cannot restore" -Level Warning
-            $VerificationErrors++
-        }
-    } elseif ($path -in $OtherFileCheck) {
-        Write-Message -Message "File $path already exists on $SqlInstance and owned by another database, cannot restore" -Level Warning
-        $VerificationErrors++
-    } elseif ($path -in $DBHistoryPhysicalPathsExists -and $RestoreInstance.VersionMajor -gt 8) {
-        Write-Message -Message "File $path already exists on $($SqlInstance.ComputerName), not owned by any database in $SqlInstance, will not overwrite." -Level Warning
-        $VerificationErrors++
-    }
-} else {
-    <#
+                $DBFileCheck = ($RegisteredFileCheck | Where-Object Name -eq $Database).PhysicalName
+                $OtherFileCheck = ($RegisteredFileCheck | Where-Object Name -ne $Database).PhysicalName
+                $DBHistoryPhysicalPaths = ($DbHistory | Select-Object -ExpandProperty filelist | Select-Object PhysicalName -Unique).PhysicalName
+                $DBHistoryPhysicalPathsTest = Test-DbaPath -SqlInstance $RestoreInstance -Path $DBHistoryPhysicalPaths
+                $DBHistoryPhysicalPathsExists = ($DBHistoryPhysicalPathsTest | Where-Object FileExists -eq $True).FilePath
+                $pathSep = Get-DbaPathSep -Server $RestoreInstance
+                foreach ($path in $DBHistoryPhysicalPaths) {
+                    if (($DBHistoryPhysicalPathsTest | Where-Object FilePath -eq $path).FileExists) {
+                        if ($path -in $DBFileCheck) {
+                            #If the Files are owned by the db we're restoring check for Continue or WithReplace. If not, then report error otherwise just carry on
+                            if ($WithReplace -ne $True -and $Continue -ne $True) {
+                                Write-Message -Message "File $path already exists on $SqlInstance and WithReplace not specified, cannot restore" -Level Warning
+                                $VerificationErrors++
+                            }
+                        } elseif ($path -in $OtherFileCheck) {
+                            Write-Message -Message "File $path already exists on $SqlInstance and owned by another database, cannot restore" -Level Warning
+                            $VerificationErrors++
+                        } elseif ($path -in $DBHistoryPhysicalPathsExists -and $RestoreInstance.VersionMajor -gt 8) {
+                            Write-Message -Message "File $path already exists on $($SqlInstance.ComputerName), not owned by any database in $SqlInstance, will not overwrite." -Level Warning
+                            $VerificationErrors++
+                        }
+                    } else {
+                        <#
                         dang, Split-Path converts path separators always using the "current system" settings
                         PS C:> Split-Path -Path '/var/opt/mssql/data/foo.bak' -Parent
                         \var\opt\mssql\data
                         I'm not aware of a safe way to change this so...we do a little hack.
                         #>
-    $pathSep = Get-DbaPathSep -Server $RestoreInstance
-    $ParentPath = Split-Path $path -Parent
-    $ParentPath = $ParentPath.Replace('\', $pathSep)
-    if (!(Test-DbaPath -SqlInstance $RestoreInstance -Path $ParentPath) ) {
-        if (-not $OutputScriptOnly) {
-            $ConfirmMessage = "`n Creating Folder $ParentPath on $SqlInstance `n"
-            if ($Pscmdlet.ShouldProcess("$Path on $SqlInstance `n `n", $ConfirmMessage)) {
-                if (New-DbaDirectory -SqlInstance $RestoreInstance -Path $ParentPath) {
-                    Write-Message -Message "Created Folder $ParentPath on $SqlInstance" -Level Verbose
-                } else {
-                    Write-Message -Message "Failed to create $ParentPath on $SqlInstance" -Level Warning
+                        $pathSep = Get-DbaPathSep -Server $RestoreInstance
+                        $ParentPath = Split-Path $path -Parent
+                        $ParentPath = $ParentPath.Replace('\', $pathSep)
+                        if (!(Test-DbaPath -SqlInstance $RestoreInstance -Path $ParentPath) ) {
+                            if (-not $OutputScriptOnly) {
+                                $ConfirmMessage = "`n Creating Folder $ParentPath on $SqlInstance `n"
+                                if ($Pscmdlet.ShouldProcess("$Path on $SqlInstance `n `n", $ConfirmMessage)) {
+                                    if (New-DbaDirectory -SqlInstance $RestoreInstance -Path $ParentPath) {
+                                        Write-Message -Message "Created Folder $ParentPath on $SqlInstance" -Level Verbose
+                                    } else {
+                                        Write-Message -Message "Failed to create $ParentPath on $SqlInstance" -Level Warning
+                                        $VerificationErrors++
+                                    }
+                                }
+                            } else {
+                                Write-Message -Message "Parth $ParentPath on $SqlInstance does not exist" -Level Verbose
+                            }
+                        }
+                    }
+                }
+                #Test for LSN chain
+                if ($true -ne $Continue) {
+                    if (!($DbHistory | Test-DbaLsnChain)) {
+                        Write-Message -Message "LSN Check failed" -Level Verbose
+                        $VerificationErrors++
+                    }
+                }
+            }
+
+            #Test all backups readable
+            $allpaths = $DbHistory | Select-Object -ExpandProperty FullName
+            $allpaths_validity = Test-DbaPath -SqlInstance $RestoreInstance -Path $allpaths
+            foreach ($path in $allpaths_validity) {
+                if ($path.FileExists -eq $false -and ($path.FilePath -notlike 'http*')) {
+                    Write-Message -Message "Backup File $($path.FilePath) cannot be read by $($RestoreInstance.Name). Does the service account ($($RestoreInstance.ServiceAccount)) have permission?" -Level Warning
                     $VerificationErrors++
                 }
             }
-        } else {
-            Write-Message -Message "Parth $ParentPath on $SqlInstance does not exist" -Level Verbose
+
+            if ($VerificationErrors -eq 0) {
+                Write-Message -Message "Marking $Database as verified" -Level Verbose
+                $InternalHistory | Where-Object {$_.Database -eq $Database} | Foreach-Object {$_.IsVerified = $True}
+            } else {
+                Write-Message -Message "Verification errors  = $VerificationErrors - Has not Passed" -Level Verbose
+            }
         }
+        $InternalHistory
     }
-}
-}
-#Test for LSN chain
-if ($true -ne $Continue) {
-    if (!($DbHistory | Test-DbaLsnChain)) {
-    Write-Message -Message "LSN Check failed" -Level Verbose
-    $VerificationErrors++
-}
-}
-}
-
-#Test all backups readable
-$allpaths = $DbHistory | Select-Object -ExpandProperty FullName
-$allpaths_validity = Test-DbaPath -SqlInstance $RestoreInstance -Path $allpaths
-foreach ($path in $allpaths_validity) {
-    if ($path.FileExists -eq $false -and ($path.FilePath -notlike 'http*')) {
-        Write-Message -Message "Backup File $($path.FilePath) cannot be read by $($RestoreInstance.Name). Does the service account ($($RestoreInstance.ServiceAccount)) have permission?" -Level Warning
-        $VerificationErrors++
-    }
-}
-
-if ($VerificationErrors -eq 0) {
-    Write-Message -Message "Marking $Database as verified" -Level Verbose
-    $InternalHistory | Where-Object { $_.Database -eq $Database } | ForEach-Object { $_.IsVerified = $True }
-} else {
-    Write-Message -Message "Verification errors  = $VerificationErrors - Has not Passed" -Level Verbose
-}
-}
-$InternalHistory
-}
 }

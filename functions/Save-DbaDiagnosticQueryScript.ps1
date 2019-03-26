@@ -87,21 +87,21 @@ function Save-DbaDiagnosticQueryScript {
                         FileMonth  = "{0:00}" -f [int]([CultureInfo]::InvariantCulture.DateTimeFormat.MonthNames.IndexOf(($post.title -split " ")[-2]))
                     }
                 })
-    break
-}
-}
-Write-Message -Level Verbose -Message "Found $($glenberrysql.Count) documents to download"
-foreach ($doc in $glenberrysql) {
-    try {
-        $link = $doc.URL.ToString().Replace('dl=0', 'dl=1')
-        Write-Message -Level Verbose -Message "Downloading $link)"
-        Write-ProgressHelper -Activity "Downloading Glenn Berry's most recent DMVs" -ExcludePercent -Message "Downloading $link" -StepNumber 1
-        $filename = "{0}\SQLServerDiagnosticQueries_{1}_{2}.sql" -f $Path, $doc.SQLVersion, "$($doc.FileYear)$($doc.FileMonth)"
-        Invoke-TlsWebRequest -Uri $link -OutFile $filename -ErrorAction Stop
-        Get-ChildItem -Path $filename
-    } catch {
-        Stop-Function -Message "Requesting and writing file failed: $_" -Target $filename -ErrorRecord $_
-        return
+            break
+        }
     }
-}
+    Write-Message -Level Verbose -Message "Found $($glenberrysql.Count) documents to download"
+    foreach ($doc in $glenberrysql) {
+        try {
+            $link = $doc.URL.ToString().Replace('dl=0', 'dl=1')
+            Write-Message -Level Verbose -Message "Downloading $link)"
+            Write-ProgressHelper -Activity "Downloading Glenn Berry's most recent DMVs" -ExcludePercent -Message "Downloading $link" -StepNumber 1
+            $filename = "{0}\SQLServerDiagnosticQueries_{1}_{2}.sql" -f $Path, $doc.SQLVersion, "$($doc.FileYear)$($doc.FileMonth)"
+            Invoke-TlsWebRequest -Uri $link -OutFile $filename -ErrorAction Stop
+            Get-ChildItem -Path $filename
+        } catch {
+            Stop-Function -Message "Requesting and writing file failed: $_" -Target $filename -ErrorRecord $_
+            return
+        }
+    }
 }

@@ -60,8 +60,8 @@ function Get-DbaRunningJob {
     process {
         if ($SqlInstance) {
             Get-DbaAgentJob -SqlInstance $SqlInstance -SqlCredential $SqlCredential | Where-Object CurrentRunStatus -ne 'Idle'
-    }
+        }
 
-    $InputObject | Where-Object CurrentRunStatus -ne 'Idle'
-}
+        $InputObject | Where-Object CurrentRunStatus -ne 'Idle'
+    }
 }

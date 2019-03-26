@@ -68,41 +68,41 @@ function Test-DbaPath {
             $RawPath = $Path
             $Path = [string[]]$Path
             $groups = $Path | Group-Object -Property { [math]::Floor($counter.Value++ / $groupSize) }
-        foreach ($g in $groups) {
-            $PathsBatch = $g.Group
-            $query = @()
-            foreach ($p in $PathsBatch) {
-                $query += "EXEC master.dbo.xp_fileexist '$p'"
-            }
-            $sql = $query -join ';'
-            $batchresult = $server.ConnectionContext.ExecuteWithResults($sql)
-            if ($Path.Count -eq 1 -and $SqlInstance.Count -eq 1 -and (-not($RawPath -is [array]))) {
-                if ($batchresult.Tables.rows[0] -eq $true -or $batchresult.Tables.rows[1] -eq $true) {
-                    return $true
-                } else {
-                    return $false
+            foreach ($g in $groups) {
+                $PathsBatch = $g.Group
+                $query = @()
+                foreach ($p in $PathsBatch) {
+                    $query += "EXEC master.dbo.xp_fileexist '$p'"
                 }
-            } else {
-                $i = 0
-                foreach ($r in $batchresult.tables.rows) {
-                    $DoesPass = $r[0] -eq $true -or $r[1] -eq $true
-                    [pscustomobject]@{
-                        SqlInstance  = $server.Name
-                        InstanceName = $server.ServiceName
-                        ComputerName = $server.ComputerName
-                        FilePath     = $PathsBatch[$i]
-                        FileExists   = $DoesPass
-                        IsContainer  = $r[1] -eq $true
+                $sql = $query -join ';'
+                $batchresult = $server.ConnectionContext.ExecuteWithResults($sql)
+                if ($Path.Count -eq 1 -and $SqlInstance.Count -eq 1 -and (-not($RawPath -is [array]))) {
+                    if ($batchresult.Tables.rows[0] -eq $true -or $batchresult.Tables.rows[1] -eq $true) {
+                        return $true
+                    } else {
+                        return $false
                     }
-                    $i += 1
+                } else {
+                    $i = 0
+                    foreach ($r in $batchresult.tables.rows) {
+                        $DoesPass = $r[0] -eq $true -or $r[1] -eq $true
+                        [pscustomobject]@{
+                            SqlInstance  = $server.Name
+                            InstanceName = $server.ServiceName
+                            ComputerName = $server.ComputerName
+                            FilePath     = $PathsBatch[$i]
+                            FileExists   = $DoesPass
+                            IsContainer  = $r[1] -eq $true
+                        }
+                        $i += 1
+                    }
                 }
             }
         }
-    }
 
-}
-end {
-    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Test-SqlPath
-    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Test-DbaSqlPath
-}
+    }
+    end {
+        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Test-SqlPath
+        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Test-DbaSqlPath
+    }
 }

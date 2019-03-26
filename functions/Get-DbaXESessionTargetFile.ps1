@@ -69,23 +69,23 @@ function Get-DbaXESessionTargetFile {
 
         foreach ($instance in $SqlInstance) {
             $InputObject += Get-DbaXESessionTarget -SqlInstance $instance -SqlCredential $SqlCredential -Session $Session -Target $Target | Where-Object File -ne $null
-    }
+        }
 
-    foreach ($object in $InputObject) {
-        $computer = [dbainstance]$object.ComputerName
-        try {
-            if ($computer.IsLocal) {
-                $file = $object.TargetFile
-                Write-Message -Level Verbose -Message "Getting $file"
-                Get-ChildItem "$file*" -ErrorAction Stop
-            } else {
-                $file = $object.RemoteTargetFile
-                Write-Message -Level Verbose -Message "Getting $file"
-                Get-ChildItem -Recurse "$file*" -ErrorAction Stop
+        foreach ($object in $InputObject) {
+            $computer = [dbainstance]$object.ComputerName
+            try {
+                if ($computer.IsLocal) {
+                    $file = $object.TargetFile
+                    Write-Message -Level Verbose -Message "Getting $file"
+                    Get-ChildItem "$file*" -ErrorAction Stop
+                } else {
+                    $file = $object.RemoteTargetFile
+                    Write-Message -Level Verbose -Message "Getting $file"
+                    Get-ChildItem -Recurse "$file*" -ErrorAction Stop
+                }
+            } catch {
+                Stop-Function -Message "Failure" -ErrorRecord $_
             }
-        } catch {
-            Stop-Function -Message "Failure" -ErrorRecord $_
         }
     }
-}
 }

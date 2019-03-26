@@ -158,78 +158,78 @@ function Find-DbaAgentJob {
             if ($IsFailed) {
                 Write-Message -Level Verbose -Message "Checking for failed jobs."
                 $output += $jobs | Where-Object LastRunOutcome -eq "Failed"
-        }
+            }
 
-        if ($JobName) {
-            Write-Message -Level Verbose -Message "Retrieving jobs by their name."
-            $output += Get-JobList -SqlInstance $server -JobFilter $JobName
-        }
+            if ($JobName) {
+                Write-Message -Level Verbose -Message "Retrieving jobs by their name."
+                $output += Get-JobList -SqlInstance $server -JobFilter $JobName
+            }
 
-        if ($StepName) {
-            Write-Message -Level Verbose -Message "Retrieving jobs by their step names."
-            $output += Get-JobList -SqlInstance $server -StepFilter $StepName
-        }
+            if ($StepName) {
+                Write-Message -Level Verbose -Message "Retrieving jobs by their step names."
+                $output += Get-JobList -SqlInstance $server -StepFilter $StepName
+            }
 
-        if ($LastUsed) {
-            $DaysBack = $LastUsed * -1
-            $SinceDate = (Get-Date).AddDays($DaysBack)
-            Write-Message -Level Verbose -Message "Finding job/s not ran in last $LastUsed days"
-            $output += $jobs | Where-Object { $_.LastRunDate -le $SinceDate }
+            if ($LastUsed) {
+                $DaysBack = $LastUsed * -1
+                $SinceDate = (Get-date).AddDays($DaysBack)
+                Write-Message -Level Verbose -Message "Finding job/s not ran in last $LastUsed days"
+                $output += $jobs | Where-Object { $_.LastRunDate -le $SinceDate }
+            }
+
+            if ($IsDisabled) {
+                Write-Message -Level Verbose -Message "Finding job/s that are disabled"
+                $output += $jobs | Where-Object IsEnabled -eq $false
+            }
+
+            if ($IsNotScheduled) {
+                Write-Message -Level Verbose -Message "Finding job/s that have no schedule defined"
+                $output += $jobs | Where-Object HasSchedule -eq $false
+            }
+            if ($IsNoEmailNotification) {
+                Write-Message -Level Verbose -Message "Finding job/s that have no email operator defined"
+                $output += $jobs | Where-Object { [string]::IsNullOrEmpty($_.OperatorToEmail) -eq $true }
+            }
+
+            if ($Category) {
+                Write-Message -Level Verbose -Message "Finding job/s that have the specified category defined"
+                $output += $jobs | Where-Object { $Category -contains $_.Category }
+            }
+
+            if ($Owner) {
+                Write-Message -Level Verbose -Message "Finding job/s with owner critera"
+                if ($Owner -match "-") {
+                    $OwnerMatch = $Owner -replace "-", ""
+                    Write-Message -Level Verbose -Message "Checking for jobs that NOT owned by: $OwnerMatch"
+                    $output += $server.JobServer.jobs | Where-Object { $OwnerMatch -notcontains $_.OwnerLoginName }
+                } else {
+                    Write-Message -Level Verbose -Message "Checking for jobs that are owned by: $owner"
+                    $output += $server.JobServer.jobs | Where-Object { $Owner -contains $_.OwnerLoginName }
+                }
+            }
+
+            if ($Exclude) {
+                Write-Message -Level Verbose -Message "Excluding job/s based on Exclude"
+                $output = $output | Where-Object { $Exclude -notcontains $_.Name }
+            }
+
+            if ($Since) {
+                #$Since = $Since.ToString("yyyy-MM-dd HH:mm:ss")
+                Write-Message -Level Verbose -Message "Getting only jobs whose LastRunDate is greater than or equal to $since"
+                $output = $output | Where-Object { $_.LastRunDate -ge $since }
+            }
+
+            $jobs = $output | Select-Object -Unique
+
+            foreach ($job in $jobs) {
+                Add-Member -Force -InputObject $job -MemberType NoteProperty -Name ComputerName -value $server.ComputerName
+                Add-Member -Force -InputObject $job -MemberType NoteProperty -Name InstanceName -value $server.ServiceName
+                Add-Member -Force -InputObject $job -MemberType NoteProperty -Name SqlInstance -value $server.DomainInstanceName
+                Add-Member -Force -InputObject $job -MemberType NoteProperty -Name JobName -value $job.Name
+
+
+                Select-DefaultView -InputObject $job -Property ComputerName, InstanceName, SqlInstance, Name, Category, OwnerLoginName, CurrentRunStatus, CurrentRunRetryAttempt, 'IsEnabled as Enabled', LastRunDate, LastRunOutcome, DateCreated, HasSchedule, OperatorToEmail, 'DateCreated as CreateDate'
+            }
+        }
     }
-
-    if ($IsDisabled) {
-        Write-Message -Level Verbose -Message "Finding job/s that are disabled"
-        $output += $jobs | Where-Object IsEnabled -eq $false
-}
-
-if ($IsNotScheduled) {
-    Write-Message -Level Verbose -Message "Finding job/s that have no schedule defined"
-    $output += $jobs | Where-Object HasSchedule -eq $false
-}
-if ($IsNoEmailNotification) {
-    Write-Message -Level Verbose -Message "Finding job/s that have no email operator defined"
-    $output += $jobs | Where-Object { [string]::IsNullOrEmpty($_.OperatorToEmail) -eq $true }
-}
-
-if ($Category) {
-    Write-Message -Level Verbose -Message "Finding job/s that have the specified category defined"
-    $output += $jobs | Where-Object { $Category -contains $_.Category }
-}
-
-if ($Owner) {
-    Write-Message -Level Verbose -Message "Finding job/s with owner critera"
-    if ($Owner -match "-") {
-        $OwnerMatch = $Owner -replace "-", ""
-        Write-Message -Level Verbose -Message "Checking for jobs that NOT owned by: $OwnerMatch"
-        $output += $server.JobServer.jobs | Where-Object { $OwnerMatch -notcontains $_.OwnerLoginName }
-} else {
-    Write-Message -Level Verbose -Message "Checking for jobs that are owned by: $owner"
-    $output += $server.JobServer.jobs | Where-Object { $Owner -contains $_.OwnerLoginName }
-}
-}
-
-if ($Exclude) {
-    Write-Message -Level Verbose -Message "Excluding job/s based on Exclude"
-    $output = $output | Where-Object { $Exclude -notcontains $_.Name }
-}
-
-if ($Since) {
-    #$Since = $Since.ToString("yyyy-MM-dd HH:mm:ss")
-    Write-Message -Level Verbose -Message "Getting only jobs whose LastRunDate is greater than or equal to $since"
-    $output = $output | Where-Object { $_.LastRunDate -ge $since }
-}
-
-$jobs = $output | Select-Object -Unique
-
-foreach ($job in $jobs) {
-    Add-Member -Force -InputObject $job -MemberType NoteProperty -Name ComputerName -value $server.ComputerName
-    Add-Member -Force -InputObject $job -MemberType NoteProperty -Name InstanceName -value $server.ServiceName
-    Add-Member -Force -InputObject $job -MemberType NoteProperty -Name SqlInstance -value $server.DomainInstanceName
-    Add-Member -Force -InputObject $job -MemberType NoteProperty -Name JobName -value $job.Name
-
-
-    Select-DefaultView -InputObject $job -Property ComputerName, InstanceName, SqlInstance, Name, Category, OwnerLoginName, CurrentRunStatus, CurrentRunRetryAttempt, 'IsEnabled as Enabled', LastRunDate, LastRunOutcome, DateCreated, HasSchedule, OperatorToEmail, 'DateCreated as CreateDate'
-}
-}
-}
 }

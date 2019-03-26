@@ -217,36 +217,36 @@ function Set-DbaTempdbConfig {
                 return $sql
             } elseif ($OutFile) {
                 $sql | Set-Content -Path $OutFile
-        } else {
-            if ($Pscmdlet.ShouldProcess($instance, "Executing query and informing that a restart is required.")) {
-                try {
-                    $server.Databases['master'].ExecuteNonQuery($sql)
-                    Write-Message -Level Verbose -Message "tempdb successfully reconfigured."
+            } else {
+                if ($Pscmdlet.ShouldProcess($instance, "Executing query and informing that a restart is required.")) {
+                    try {
+                        $server.Databases['master'].ExecuteNonQuery($sql)
+                        Write-Message -Level Verbose -Message "tempdb successfully reconfigured."
 
-                    [PSCustomObject]@{
-                        ComputerName       = $server.ComputerName
-                        InstanceName       = $server.ServiceName
-                        SqlInstance        = $server.DomainInstanceName
-                        DataFileCount      = $DataFileCount
-                        DataFileSize       = [dbasize]($DataFileSize * 1024 * 1024)
-                        SingleDataFileSize = [dbasize]($DataFilesizeSingle * 1024 * 1024)
-                        LogSize            = [dbasize]($LogFileSize * 1024 * 1024)
-                        DataPath           = $DataPath
-                        LogPath            = $LogPath
-                        DataFileGrowth     = [dbasize]($DataFileGrowth * 1024 * 1024)
-                        LogFileGrowth      = [dbasize]($LogFileGrowth * 1024 * 1024)
+                        [PSCustomObject]@{
+                            ComputerName       = $server.ComputerName
+                            InstanceName       = $server.ServiceName
+                            SqlInstance        = $server.DomainInstanceName
+                            DataFileCount      = $DataFileCount
+                            DataFileSize       = [dbasize]($DataFileSize * 1024 * 1024)
+                            SingleDataFileSize = [dbasize]($DataFilesizeSingle * 1024 * 1024)
+                            LogSize            = [dbasize]($LogFileSize * 1024 * 1024)
+                            DataPath           = $DataPath
+                            LogPath            = $LogPath
+                            DataFileGrowth     = [dbasize]($DataFileGrowth * 1024 * 1024)
+                            LogFileGrowth      = [dbasize]($LogFileGrowth * 1024 * 1024)
+                        }
+
+                        Write-Message -Level Output -Message "tempdb reconfigured. You must restart the SQL Service for settings to take effect."
+                    } catch {
+                        Stop-Function -Message "Unable to reconfigure tempdb. Exception: $_" -Target $sql -ErrorRecord $_ -Continue
                     }
-
-                    Write-Message -Level Output -Message "tempdb reconfigured. You must restart the SQL Service for settings to take effect."
-                } catch {
-                    Stop-Function -Message "Unable to reconfigure tempdb. Exception: $_" -Target $sql -ErrorRecord $_ -Continue
                 }
             }
         }
     }
-}
-end {
-    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Set-SqlTempDbConfiguration
-    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Set-DbaTempDbConfiguration
-}
+    end {
+        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Set-SqlTempDbConfiguration
+        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Set-DbaTempDbConfiguration
+    }
 }

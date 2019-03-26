@@ -66,24 +66,24 @@ function Write-HostColor {
                 if ($row -notlike '*<c=["'']*["'']>*</c>*') { Write-Host -Object $row -ForegroundColor $DefaultColor }
                 else {
                     $match = ($row | Select-String '<c=["''](.*?)["'']>(.*?)</c>' -AllMatches).Matches
-                $index = 0
-                $count = 0
+                    $index = 0
+                    $count = 0
 
-                while ($count -le $match.Count) {
-                    if ($count -lt $Match.Count) {
-                        Write-Host -Object $row.SubString($index, ($match[$count].Index - $Index)) -ForegroundColor $DefaultColor -NoNewline
-                        try { Write-Host -Object $match[$count].Groups[2].Value -ForegroundColor $match[$count].Groups[1].Value -NoNewline -ErrorAction Stop }
-                        catch { Write-Host -Object $match[$count].Groups[2].Value -ForegroundColor $DefaultColor -NoNewline -ErrorAction Stop }
+                    while ($count -le $match.Count) {
+                        if ($count -lt $Match.Count) {
+                            Write-Host -Object $row.SubString($index, ($match[$count].Index - $Index)) -ForegroundColor $DefaultColor -NoNewline
+                            try { Write-Host -Object $match[$count].Groups[2].Value -ForegroundColor $match[$count].Groups[1].Value -NoNewline -ErrorAction Stop }
+                            catch { Write-Host -Object $match[$count].Groups[2].Value -ForegroundColor $DefaultColor -NoNewline -ErrorAction Stop }
 
-                        $index = $match[$count].Index + $match[$count].Length
-                        $count++
-                    } else {
-                        Write-Host -Object $row.SubString($index) -ForegroundColor $DefaultColor
-                        $count++
+                            $index = $match[$count].Index + $match[$count].Length
+                            $count++
+                        } else {
+                            Write-Host -Object $row.SubString($index) -ForegroundColor $DefaultColor
+                            $count++
+                        }
                     }
                 }
             }
         }
     }
-}
 }

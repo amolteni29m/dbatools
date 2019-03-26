@@ -82,7 +82,7 @@ function Copy-DbaSsisCatalog {
 
         Deploy entire SSIS catalog to an instance without a destination catalog. User prompts for creating the catalog on Destination will be bypassed.
 
-    #>
+       #>
     [CmdletBinding(DefaultParameterSetName = "Default", SupportsShouldProcess)]
     param (
         [parameter(Mandatory)]
@@ -139,402 +139,402 @@ function Copy-DbaSsisCatalog {
                 $cmd.CommandType = "StoredProcedure"
                 $cmd.connection = $sqlConn
                 $cmd.CommandText = "SSISDB.Catalog.get_project"
-                $cmd.Parameters.Add("@folder_name", $Folder) | Out-Null;
-            $cmd.Parameters.Add("@project_name", $Project) | Out-Null;
-        [byte[]]$results = $cmd.ExecuteScalar();
-        if ($null -ne $results) {
-            $destFolder = $destinationFolders | Where-Object {
-                $_.Name -eq $Folder
+                $cmd.Parameters.Add("@folder_name", $Folder) | out-null;
+                $cmd.Parameters.Add("@project_name", $Project) | out-null;
+                [byte[]]$results = $cmd.ExecuteScalar();
+                if ($null -ne $results) {
+                    $destFolder = $destinationFolders | Where-Object {
+                        $_.Name -eq $Folder
+                    }
+                    $deployedProject = $destFolder.DeployProject($Project, $results)
+                    if ($deployedProject.Status -ne "Success") {
+                        Stop-Function -Message "An error occurred deploying project $Project." -Target $Project -Continue
+                    }
+                } else {
+                    Stop-Function -Message "Failed deploying $Project from folder $Folder." -Target $Project -Continue
+                }
+            } catch {
+                Stop-Function -Message "Failed to deploy project." -Target $Project -ErrorRecord $_
+            } finally {
+                if ($sqlConn.State -eq "Open") {
+                    $sqlConn.Close()
+                }
             }
-        $deployedProject = $destFolder.DeployProject($Project, $results)
-        if ($deployedProject.Status -ne "Success") {
-            Stop-Function -Message "An error occurred deploying project $Project." -Target $Project -Continue
         }
-    } else {
-        Stop-Function -Message "Failed deploying $Project from folder $Folder." -Target $Project -Continue
-    }
-} catch {
-    Stop-Function -Message "Failed to deploy project." -Target $Project -ErrorRecord $_
-} finally {
-    if ($sqlConn.State -eq "Open") {
-        $sqlConn.Close()
-    }
-}
-}
-function New-CatalogFolder {
-    [CmdletBinding(SupportsShouldProcess)]
-    param (
-        [String]$Folder,
-        [String]$Description,
-        [Switch]$Force
-    )
-    if ($Pscmdlet.ShouldProcess($folder, "Creating new Catalog Folder")) {
-        if ($Force) {
-            $remove = $destinationFolders | Where-Object {
-                $_.Name -eq $Folder
+        function New-CatalogFolder {
+            [CmdletBinding(SupportsShouldProcess)]
+            param (
+                [String]$Folder,
+                [String]$Description,
+                [Switch]$Force
+            )
+            if ($Pscmdlet.ShouldProcess($folder, "Creating new Catalog Folder")) {
+                if ($Force) {
+                    $remove = $destinationFolders | Where-Object {
+                        $_.Name -eq $Folder
+                    }
+                    $envs = $remove.Environments.Name
+                    foreach ($e in $envs) {
+                        $remove.Environments[$e].Drop()
+                    }
+                    $projs = $remove.Projects.Name
+                    foreach ($p in $projs) {
+                        $remove.Projects[$p].Drop()
+                    }
+                    $remove.Drop()
+                    $destinationCatalog.Alter()
+                    $destinationCatalog.Refresh()
+                }
+                Write-Message -Level Verbose -Message "Creating folder $Folder."
+                $destFolder = New-Object "$ISNamespace.CatalogFolder" ($destinationCatalog, $Folder, $Description)
+                $destFolder.Create()
+                $destFolder.Alter()
+                $destFolder.Refresh()
             }
-        $envs = $remove.Environments.Name
-        foreach ($e in $envs) {
-            $remove.Environments[$e].Drop()
         }
-        $projs = $remove.Projects.Name
-        foreach ($p in $projs) {
-            $remove.Projects[$p].Drop()
-        }
-        $remove.Drop()
-        $destinationCatalog.Alter()
-        $destinationCatalog.Refresh()
-    }
-    Write-Message -Level Verbose -Message "Creating folder $Folder."
-    $destFolder = New-Object "$ISNamespace.CatalogFolder" ($destinationCatalog, $Folder, $Description)
-    $destFolder.Create()
-    $destFolder.Alter()
-    $destFolder.Refresh()
-}
-}
-function New-FolderEnvironment {
-    [CmdletBinding(SupportsShouldProcess)]
-    param (
-        [String]$Folder,
-        [String]$Environment,
-        [Switch]$Force
-    )
-    if ($Pscmdlet.ShouldProcess($folder, "Creating new Environment Folder")) {
-        $envDestFolder = $destinationFolders | Where-Object {
-            $_.Name -eq $Folder
-        }
-    if ($force) {
-        $envDestFolder.Environments[$Environment].Drop()
-        $envDestFolder.Alter()
-        $envDestFolder.Refresh()
-    }
-    $srcEnv = ($sourceFolders | Where-Object {
-            $_.Name -eq $Folder
-        }).Environments[$Environment]
-$targetEnv = New-Object "$ISNamespace.EnvironmentInfo" ($envDestFolder, $srcEnv.Name, $srcEnv.Description)
-foreach ($var in $srcEnv.Variables) {
-    if ($var.Value.ToString() -eq "") {
-        $finalValue = ""
-    } else {
-        $finalValue = $var.Value
-    }
-    $targetEnv.Variables.Add($var.Name, $var.Type, $finalValue, $var.Sensitive, $var.Description)
-}
-Write-Message -Level Verbose -Message "Creating environment $Environment."
-$targetEnv.Create()
-$targetEnv.Alter()
-$targetEnv.Refresh()
-}
-}
-function New-SSISDBCatalog {
-    [CmdletBinding(SupportsShouldProcess)]
-    param (
-        [System.Security.SecureString]$SecurePassword
-    )
-    if ($Pscmdlet.ShouldProcess("Creating New SSISDB Catalog")) {
-        if (!$Password) {
-            Write-Message -Level Verbose -Message "SSISDB Catalog requires a password."
-            $pass1 = Read-Host "Enter a password" -AsSecureString
-            $plainTextPass1 = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($pass1))
-            $pass2 = Read-Host "Re-enter password" -AsSecureString
-            $plainTextPass2 = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($pass2))
-            if ($plainTextPass1 -ne $plainTextPass2) {
-                throw "Validation error, passwords entered do not match."
+        function New-FolderEnvironment {
+            [CmdletBinding(SupportsShouldProcess)]
+            param (
+                [String]$Folder,
+                [String]$Environment,
+                [Switch]$Force
+            )
+            if ($Pscmdlet.ShouldProcess($folder, "Creating new Environment Folder")) {
+                $envDestFolder = $destinationFolders | Where-Object {
+                    $_.Name -eq $Folder
+                }
+                if ($force) {
+                    $envDestFolder.Environments[$Environment].Drop()
+                    $envDestFolder.Alter()
+                    $envDestFolder.Refresh()
+                }
+                $srcEnv = ($sourceFolders | Where-Object {
+                        $_.Name -eq $Folder
+                    }).Environments[$Environment]
+                $targetEnv = New-Object "$ISNamespace.EnvironmentInfo" ($envDestFolder, $srcEnv.Name, $srcEnv.Description)
+                foreach ($var in $srcEnv.Variables) {
+                    if ($var.Value.ToString() -eq "") {
+                        $finalValue = ""
+                    } else {
+                        $finalValue = $var.Value
+                    }
+                    $targetEnv.Variables.Add($var.Name, $var.Type, $finalValue, $var.Sensitive, $var.Description)
+                }
+                Write-Message -Level Verbose -Message "Creating environment $Environment."
+                $targetEnv.Create()
+                $targetEnv.Alter()
+                $targetEnv.Refresh()
             }
-            $plainTextPass = $plainTextPass1
-        } else {
-            $plainTextPass = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($Password))
         }
+        function New-SSISDBCatalog {
+            [CmdletBinding(SupportsShouldProcess)]
+            param (
+                [System.Security.SecureString]$SecurePassword
+            )
+            if ($Pscmdlet.ShouldProcess("Creating New SSISDB Catalog")) {
+                if (!$Password) {
+                    Write-Message -Level Verbose -Message "SSISDB Catalog requires a password."
+                    $pass1 = Read-Host "Enter a password" -AsSecureString
+                    $plainTextPass1 = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($pass1))
+                    $pass2 = Read-Host "Re-enter password" -AsSecureString
+                    $plainTextPass2 = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($pass2))
+                    if ($plainTextPass1 -ne $plainTextPass2) {
+                        throw "Validation error, passwords entered do not match."
+                    }
+                    $plainTextPass = $plainTextPass1
+                } else {
+                    $plainTextPass = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($Password))
+                }
 
-        $catalog = New-Object "$ISNamespace.Catalog" ($destinationSSIS, "SSISDB", $plainTextPass)
-        $catalog.Create()
-        $catalog.Refresh()
-    }
-}
-
-try {
-    $sourceServer = Connect-SqlInstance -SqlInstance $Source -SqlCredential $SourceSqlCredential -MinimumVersion 11
-} catch {
-    Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $Source
-    return
-}
-
-try {
-    $sourceSSIS = New-Object Microsoft.SqlServer.Management.IntegrationServices.IntegrationServices $sourceServer
-} catch {
-    Stop-Function -Message "There was an error connecting to the source integration services." -Target $sourceServer -ErrorRecord $_
-    return
-}
-
-$sourceCatalog = $sourceSSIS.Catalogs | Where-Object {
-    $_.Name -eq "SSISDB"
-}
-if (!$sourceCatalog) {
-    Stop-Function -Message "The source SSISDB catalog on $Source does not exist."
-    return
-}
-$sourceFolders = $sourceCatalog.Folders
-}
-process {
-    if (Test-FunctionInterrupt) {
-        return
-    }
-    foreach ($destinstance in $Destination) {
-        try {
-            $destinationConnection = Connect-SqlInstance -SqlInstance $destinstance -SqlCredential $DestinationSqlCredential -MinimumVersion 1
-        } catch {
-            Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $destinstance -Continue
+                $catalog = New-Object "$ISNamespace.Catalog" ($destinationSSIS, "SSISDB", $plainTextPass)
+                $catalog.Create()
+                $catalog.Refresh()
+            }
         }
 
         try {
-            Get-RemoteIntegrationService -Computer $destinstance.ComputerName
+            $sourceServer = Connect-SqlInstance -SqlInstance $Source -SqlCredential $SourceSqlCredential -MinimumVersion 11
         } catch {
-            Stop-Function -Message "An error occurred when checking the destination for Integration Services. Is Integration Services installed?" -Target $destinstance -ErrorRecord $_
+            Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $Source
+            return
         }
 
         try {
-            $destinationSSIS = New-Object Microsoft.SqlServer.Management.IntegrationServices.IntegrationServices $destinationConnection
+            $sourceSSIS = New-Object Microsoft.SqlServer.Management.IntegrationServices.IntegrationServices $sourceServer
         } catch {
-            Stop-Function -Message "There was an error connecting to the destination integration services." -Target $destinationCon -ErrorRecord $_
+            Stop-Function -Message "There was an error connecting to the source integration services." -Target $sourceServer -ErrorRecord $_
+            return
         }
 
-        $destinationCatalog = $destinationSSIS.Catalogs | Where-Object {
+        $sourceCatalog = $sourceSSIS.Catalogs | Where-Object {
             $_.Name -eq "SSISDB"
         }
-    $destinationFolders = $destinationCatalog.Folders
-
-    if (!$destinationCatalog) {
-        if (!$destinationConnection.Configuration.IsSqlClrEnabled.ConfigValue) {
-            if ($Pscmdlet.ShouldProcess($destinstance, "Enabling SQL CLR configuration option.")) {
-                if (!$EnableSqlClr) {
-                    $message = "The destination does not have SQL CLR configuration option enabled (required by SSISDB), would you like to enable it?"
-                    $yes = New-Object System.Management.Automation.Host.ChoiceDescription "&Yes", "Enable SQL CLR on $destinstance."
-                    $no = New-Object System.Management.Automation.Host.ChoiceDescription "&No", "Exit."
-                    $options = [System.Management.Automation.Host.ChoiceDescription[]]($yes, $no)
-                    $result = $host.ui.PromptForChoice($null, $message, $options, 0)
-                    switch ($result) {
-                        0 {
-                            continue
-                        }
-                        1 {
-                            return
-                        }
-                    }
-                }
-                Write-Message -Level Verbose -Message "Enabling SQL CLR configuration option at the destination."
-                if ($destinationConnection.Configuration.ShowAdvancedOptions.ConfigValue -eq $false) {
-                    $destinationConnection.Configuration.ShowAdvancedOptions.ConfigValue = $true
-                    $changeback = $true
-                }
-
-                $destinationConnection.Configuration.IsSqlClrEnabled.ConfigValue = $true
-
-                if ($changeback -eq $true) {
-                    $destinationConnection.Configuration.ShowAdvancedOptions.ConfigValue = $false
-                }
-                $destinationConnection.Configuration.Alter()
-            }
-        } else {
-            Write-Message -Level Verbose -Message "SQL CLR configuration option is already enabled at the destination."
+        if (!$sourceCatalog) {
+            Stop-Function -Message "The source SSISDB catalog on $Source does not exist."
+            return
         }
-        if ($Pscmdlet.ShouldProcess($destinstance, "Create destination SSISDB Catalog")) {
-            if (!$CreateCatalogPassword) {
-                $message = "The destination SSISDB catalog does not exist, would you like to create one?"
-                $yes = New-Object System.Management.Automation.Host.ChoiceDescription "&Yes", "Create an SSISDB catalog on $destinstance."
-                $no = New-Object System.Management.Automation.Host.ChoiceDescription "&No", "Exit."
-                $options = [System.Management.Automation.Host.ChoiceDescription[]]($yes, $no)
-                $result = $host.ui.PromptForChoice($null, $message, $options, 0)
-                switch ($result) {
-                    0 {
-                        New-SSISDBCatalog
-                    }
-                    1 {
-                        return
-                    }
-                }
-            } else {
-                New-SSISDBCatalog -SecurePassword $CreateCatalogPassword
+        $sourceFolders = $sourceCatalog.Folders
+    }
+    process {
+        if (Test-FunctionInterrupt) {
+            return
+        }
+        foreach ($destinstance in $Destination) {
+            try {
+                $destinationConnection = Connect-SqlInstance -SqlInstance $destinstance -SqlCredential $DestinationSqlCredential -MinimumVersion 1
+            } catch {
+                Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $destinstance -Continue
             }
 
-            $destinationSSIS.Refresh()
+            try {
+                Get-RemoteIntegrationService -Computer $destinstance.ComputerName
+            } catch {
+                Stop-Function -Message "An error occurred when checking the destination for Integration Services. Is Integration Services installed?" -Target $destinstance -ErrorRecord $_
+            }
+
+            try {
+                $destinationSSIS = New-Object Microsoft.SqlServer.Management.IntegrationServices.IntegrationServices $destinationConnection
+            } catch {
+                Stop-Function -Message "There was an error connecting to the destination integration services." -Target $destinationCon -ErrorRecord $_
+            }
+
             $destinationCatalog = $destinationSSIS.Catalogs | Where-Object {
                 $_.Name -eq "SSISDB"
             }
-        $destinationFolders = $destinationCatalog.Folders
-    } else {
-        throw "The destination SSISDB catalog does not exist."
-    }
-}
-if ($folder) {
-    if ($sourceFolders.Name -contains $folder) {
-        $srcFolder = $sourceFolders | Where-Object {
-            $_.Name -eq $folder
-        }
-    if ($destinationFolders.Name -contains $folder) {
-        if (!$force) {
-            Write-Message -Level Warning -Message "Integration services catalog folder $folder exists at destination. Use -Force to drop and recreate."
-        } else {
-            if ($Pscmdlet.ShouldProcess($destinstance, "Dropping folder $folder and recreating")) {
-                try {
-                    New-CatalogFolder -Folder $srcFolder.Name -Description $srcFolder.Description -Force
-                } catch {
-                    Stop-Function -Message "Issue dropping folder" -Target $folder -ErrorRecord $_
-                }
+            $destinationFolders = $destinationCatalog.Folders
 
-            }
-        }
-    } else {
-        if ($Pscmdlet.ShouldProcess($destinstance, "Creating folder $folder")) {
-            try {
-                New-CatalogFolder -Folder $srcFolder.Name -Description $srcFolder.Description
-            } catch {
-                Stop-Function -Message "Issue creating folder" -Target $folder -ErrorRecord $_
-            }
-        }
-    }
-} else {
-    throw "The source folder provided does not exist in the source Integration Services catalog."
-}
-} else {
-    foreach ($srcFolder in $sourceFolders) {
-        if ($destinationFolders.Name -notcontains $srcFolder.Name) {
-            if ($Pscmdlet.ShouldProcess($destinstance, "Creating folder $($srcFolder.Name)")) {
-                try {
-                    New-CatalogFolder -Folder $srcFolder.Name -Description $srcFolder.Description
-                } catch {
-                    Stop-Function -Message "Issue creating folder" -Target $srcFolder -ErrorRecord $_ -Continue
-                }
-            }
-        } else {
-            if (!$force) {
-                Write-Message -Level Warning -Message "Integration services catalog folder $($srcFolder.Name) exists at destination. Use -Force to drop and recreate."
-                continue
-            } else {
-                if ($Pscmdlet.ShouldProcess($destinstance, "Dropping folder $($srcFolder.Name) and recreating")) {
-                    try {
-                        New-CatalogFolder -Folder $srcFolder.Name -Description $srcFolder.Description -Force
-                    } catch {
-                        Stop-Function -Message "Issue dropping folder" -Target $srcFolder -ErrorRecord $_
+            if (!$destinationCatalog) {
+                if (!$destinationConnection.Configuration.IsSqlClrEnabled.ConfigValue) {
+                    if ($Pscmdlet.ShouldProcess($destinstance, "Enabling SQL CLR configuration option.")) {
+                        if (!$EnableSqlClr) {
+                            $message = "The destination does not have SQL CLR configuration option enabled (required by SSISDB), would you like to enable it?"
+                            $yes = New-Object System.Management.Automation.Host.ChoiceDescription "&Yes", "Enable SQL CLR on $destinstance."
+                            $no = New-Object System.Management.Automation.Host.ChoiceDescription "&No", "Exit."
+                            $options = [System.Management.Automation.Host.ChoiceDescription[]]($yes, $no)
+                            $result = $host.ui.PromptForChoice($null, $message, $options, 0)
+                            switch ($result) {
+                                0 {
+                                    continue
+                                }
+                                1 {
+                                    return
+                                }
+                            }
+                        }
+                        Write-Message -Level Verbose -Message "Enabling SQL CLR configuration option at the destination."
+                        if ($destinationConnection.Configuration.ShowAdvancedOptions.ConfigValue -eq $false) {
+                            $destinationConnection.Configuration.ShowAdvancedOptions.ConfigValue = $true
+                            $changeback = $true
+                        }
+
+                        $destinationConnection.Configuration.IsSqlClrEnabled.ConfigValue = $true
+
+                        if ($changeback -eq $true) {
+                            $destinationConnection.Configuration.ShowAdvancedOptions.ConfigValue = $false
+                        }
+                        $destinationConnection.Configuration.Alter()
                     }
-                }
-            }
-        }
-    }
-}
-
-# Refresh folders for project and environment deployment
-if ($Pscmdlet.ShouldProcess($destinstance, "Refresh folders for project deployment")) {
-    try {
-        $destinationFolders.Alter()
-    } catch {
-        # Sometimes it says Alter() doesn't exist
-        # here to avoid an empty catch
-        $null = 1
-    }
-    $destinationFolders.Refresh()
-}
-
-if ($folder) {
-    $sourceFolders = $sourceFolders | Where-Object {
-        $_.Name -eq $folder
-    }
-if (!$sourceFolders) {
-    throw "The source folder $folder does not exist in the source Integration Services catalog."
-}
-}
-if ($project) {
-    $folderDeploy = $sourceFolders | Where-Object {
-        $_.Projects.Name -eq $project
-    }
-if (!$folderDeploy) {
-    throw "The project $project cannot be found in the source Integration Services catalog."
-} else {
-    foreach ($f in $folderDeploy) {
-        if ($Pscmdlet.ShouldProcess($destinstance, "Deploying project $project from folder $($f.Name)")) {
-            try {
-                Invoke-ProjectDeployment -Folder $f.Name -Project $project
-            } catch {
-                Stop-Function -Message "Issue deploying project" -Target $project -ErrorRecord $_
-            }
-        }
-    }
-}
-} else {
-    foreach ($curFolder in $sourceFolders) {
-        foreach ($proj in $curFolder.Projects) {
-            if ($Pscmdlet.ShouldProcess($destinstance, "Deploying project $($proj.Name) from folder $($curFolder.Name)")) {
-                try {
-                    Invoke-ProjectDeployment -Project $proj.Name -Folder $curFolder.Name
-                } catch {
-                    Stop-Function -Message "Issue deploying project" -Target $proj -ErrorRecord $_
-                }
-            }
-        }
-    }
-}
-
-if ($environment) {
-    $folderDeploy = $sourceFolders | Where-Object {
-        $_.Environments.Name -eq $environment
-    }
-if (!$folderDeploy) {
-    throw "The environment $environment cannot be found in the source Integration Services catalog."
-} else {
-    foreach ($f in $folderDeploy) {
-        if ($destinationFolders[$f.Name].Environments.Name -notcontains $environment) {
-            if ($Pscmdlet.ShouldProcess($destinstance, "Deploying environment $environment from folder $($f.Name)")) {
-                try {
-                    New-FolderEnvironment -Folder $f.Name -Environment $environment
-                } catch {
-                    Stop-Function -Message "Issue deploying environment" -Target $environment -ErrorRecord $_
-                }
-            }
-        } else {
-            if (!$force) {
-                Write-Message -Level Warning -Message "Integration services catalog environment $environment exists in folder $($f.Name) at destination. Use -Force to drop and recreate."
-            } else {
-                If ($Pscmdlet.ShouldProcess($destinstance, "Dropping existing environment $environment and deploying environment $environment from folder $($f.Name)")) {
-                    try {
-                        New-FolderEnvironment -Folder $f.Name -Environment $environment -Force
-                    } catch {
-                        Stop-Function -Message "Issue dropping existing environment" -Target $environment -ErrorRecord $_
-                    }
-                }
-            }
-        }
-    }
-}
-} else {
-    foreach ($curFolder in $sourceFolders) {
-        foreach ($env in $curFolder.Environments) {
-            if ($destinationFolders[$curFolder.Name].Environments.Name -notcontains $env.Name) {
-                if ($Pscmdlet.ShouldProcess($destinstance, "Deploying environment $($env.Name) from folder $($curFolder.Name)")) {
-                    try {
-                        New-FolderEnvironment -Environment $env.Name -Folder $curFolder.Name
-                    } catch {
-                        Stop-Function -Message "Issue deploying environment" -Target $env -ErrorRecord $_
-                    }
-                }
-            } else {
-                if (!$force) {
-                    Write-Message -Level Warning -Message "Integration services catalog environment $($env.Name) exists in folder $($curFolder.Name) at destination. Use -Force to drop and recreate."
-                    continue
                 } else {
-                    if ($Pscmdlet.ShouldProcess($destinstance, "Deploying environment $($env.Name) from folder $($curFolder.Name)")) {
-                        try {
-                            New-FolderEnvironment -Environment $env.Name -Folder $curFolder.Name -Force
-                        } catch {
-                            Stop-Function -Message "Issue deploying environment" -Target $env -ErrorRecord $_
+                    Write-Message -Level Verbose -Message "SQL CLR configuration option is already enabled at the destination."
+                }
+                if ($Pscmdlet.ShouldProcess($destinstance, "Create destination SSISDB Catalog")) {
+                    if (!$CreateCatalogPassword) {
+                        $message = "The destination SSISDB catalog does not exist, would you like to create one?"
+                        $yes = New-Object System.Management.Automation.Host.ChoiceDescription "&Yes", "Create an SSISDB catalog on $destinstance."
+                        $no = New-Object System.Management.Automation.Host.ChoiceDescription "&No", "Exit."
+                        $options = [System.Management.Automation.Host.ChoiceDescription[]]($yes, $no)
+                        $result = $host.ui.PromptForChoice($null, $message, $options, 0)
+                        switch ($result) {
+                            0 {
+                                New-SSISDBCatalog
+                            }
+                            1 {
+                                return
+                            }
+                        }
+                    } else {
+                        New-SSISDBCatalog -SecurePassword $CreateCatalogPassword
+                    }
+
+                    $destinationSSIS.Refresh()
+                    $destinationCatalog = $destinationSSIS.Catalogs | Where-Object {
+                        $_.Name -eq "SSISDB"
+                    }
+                    $destinationFolders = $destinationCatalog.Folders
+                } else {
+                    throw "The destination SSISDB catalog does not exist."
+                }
+            }
+            if ($folder) {
+                if ($sourceFolders.Name -contains $folder) {
+                    $srcFolder = $sourceFolders | Where-Object {
+                        $_.Name -eq $folder
+                    }
+                    if ($destinationFolders.Name -contains $folder) {
+                        if (!$force) {
+                            Write-Message -Level Warning -Message "Integration services catalog folder $folder exists at destination. Use -Force to drop and recreate."
+                        } else {
+                            if ($Pscmdlet.ShouldProcess($destinstance, "Dropping folder $folder and recreating")) {
+                                try {
+                                    New-CatalogFolder -Folder $srcFolder.Name -Description $srcFolder.Description -Force
+                                } catch {
+                                    Stop-Function -Message "Issue dropping folder" -Target $folder -ErrorRecord $_
+                                }
+
+                            }
+                        }
+                    } else {
+                        if ($Pscmdlet.ShouldProcess($destinstance, "Creating folder $folder")) {
+                            try {
+                                New-CatalogFolder -Folder $srcFolder.Name -Description $srcFolder.Description
+                            } catch {
+                                Stop-Function -Message "Issue creating folder" -Target $folder -ErrorRecord $_
+                            }
+                        }
+                    }
+                } else {
+                    throw "The source folder provided does not exist in the source Integration Services catalog."
+                }
+            } else {
+                foreach ($srcFolder in $sourceFolders) {
+                    if ($destinationFolders.Name -notcontains $srcFolder.Name) {
+                        if ($Pscmdlet.ShouldProcess($destinstance, "Creating folder $($srcFolder.Name)")) {
+                            try {
+                                New-CatalogFolder -Folder $srcFolder.Name -Description $srcFolder.Description
+                            } catch {
+                                Stop-Function -Message "Issue creating folder" -Target $srcFolder -ErrorRecord $_ -Continue
+                            }
+                        }
+                    } else {
+                        if (!$force) {
+                            Write-Message -Level Warning -Message "Integration services catalog folder $($srcFolder.Name) exists at destination. Use -Force to drop and recreate."
+                            continue
+                        } else {
+                            if ($Pscmdlet.ShouldProcess($destinstance, "Dropping folder $($srcFolder.Name) and recreating")) {
+                                try {
+                                    New-CatalogFolder -Folder $srcFolder.Name -Description $srcFolder.Description -Force
+                                } catch {
+                                    Stop-Function -Message "Issue dropping folder" -Target $srcFolder -ErrorRecord $_
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            # Refresh folders for project and environment deployment
+            if ($Pscmdlet.ShouldProcess($destinstance, "Refresh folders for project deployment")) {
+                try {
+                    $destinationFolders.Alter()
+                } catch {
+                    # Sometimes it says Alter() doesn't exist
+                    # here to avoid an empty catch
+                    $null = 1
+                }
+                $destinationFolders.Refresh()
+            }
+
+            if ($folder) {
+                $sourceFolders = $sourceFolders | Where-Object {
+                    $_.Name -eq $folder
+                }
+                if (!$sourceFolders) {
+                    throw "The source folder $folder does not exist in the source Integration Services catalog."
+                }
+            }
+            if ($project) {
+                $folderDeploy = $sourceFolders | Where-Object {
+                    $_.Projects.Name -eq $project
+                }
+                if (!$folderDeploy) {
+                    throw "The project $project cannot be found in the source Integration Services catalog."
+                } else {
+                    foreach ($f in $folderDeploy) {
+                        if ($Pscmdlet.ShouldProcess($destinstance, "Deploying project $project from folder $($f.Name)")) {
+                            try {
+                                Invoke-ProjectDeployment -Folder $f.Name -Project $project
+                            } catch {
+                                Stop-Function -Message "Issue deploying project" -Target $project -ErrorRecord $_
+                            }
+                        }
+                    }
+                }
+            } else {
+                foreach ($curFolder in $sourceFolders) {
+                    foreach ($proj in $curFolder.Projects) {
+                        if ($Pscmdlet.ShouldProcess($destinstance, "Deploying project $($proj.Name) from folder $($curFolder.Name)")) {
+                            try {
+                                Invoke-ProjectDeployment -Project $proj.Name -Folder $curFolder.Name
+                            } catch {
+                                Stop-Function -Message "Issue deploying project" -Target $proj -ErrorRecord $_
+                            }
+                        }
+                    }
+                }
+            }
+
+            if ($environment) {
+                $folderDeploy = $sourceFolders | Where-Object {
+                    $_.Environments.Name -eq $environment
+                }
+                if (!$folderDeploy) {
+                    throw "The environment $environment cannot be found in the source Integration Services catalog."
+                } else {
+                    foreach ($f in $folderDeploy) {
+                        if ($destinationFolders[$f.Name].Environments.Name -notcontains $environment) {
+                            if ($Pscmdlet.ShouldProcess($destinstance, "Deploying environment $environment from folder $($f.Name)")) {
+                                try {
+                                    New-FolderEnvironment -Folder $f.Name -Environment $environment
+                                } catch {
+                                    Stop-Function -Message "Issue deploying environment" -Target $environment -ErrorRecord $_
+                                }
+                            }
+                        } else {
+                            if (!$force) {
+                                Write-Message -Level Warning -Message "Integration services catalog environment $environment exists in folder $($f.Name) at destination. Use -Force to drop and recreate."
+                            } else {
+                                If ($Pscmdlet.ShouldProcess($destinstance, "Dropping existing environment $environment and deploying environment $environment from folder $($f.Name)")) {
+                                    try {
+                                        New-FolderEnvironment -Folder $f.Name -Environment $environment -Force
+                                    } catch {
+                                        Stop-Function -Message "Issue dropping existing environment" -Target $environment -ErrorRecord $_
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                foreach ($curFolder in $sourceFolders) {
+                    foreach ($env in $curFolder.Environments) {
+                        if ($destinationFolders[$curFolder.Name].Environments.Name -notcontains $env.Name) {
+                            if ($Pscmdlet.ShouldProcess($destinstance, "Deploying environment $($env.Name) from folder $($curFolder.Name)")) {
+                                try {
+                                    New-FolderEnvironment -Environment $env.Name -Folder $curFolder.Name
+                                } catch {
+                                    Stop-Function -Message "Issue deploying environment" -Target $env -ErrorRecord $_
+                                }
+                            }
+                        } else {
+                            if (!$force) {
+                                Write-Message -Level Warning -Message "Integration services catalog environment $($env.Name) exists in folder $($curFolder.Name) at destination. Use -Force to drop and recreate."
+                                continue
+                            } else {
+                                if ($Pscmdlet.ShouldProcess($destinstance, "Deploying environment $($env.Name) from folder $($curFolder.Name)")) {
+                                    try {
+                                        New-FolderEnvironment -Environment $env.Name -Folder $curFolder.Name -Force
+                                    } catch {
+                                        Stop-Function -Message "Issue deploying environment" -Target $env -ErrorRecord $_
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
         }
     }
-}
-}
-}
-end {
-    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Copy-SqlSsisCatalog
-}
+    end {
+        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Copy-SqlSsisCatalog
+    }
 }

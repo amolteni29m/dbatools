@@ -100,48 +100,48 @@ function Set-DbaAgentJobOutputFile {
             if ($Step) {
                 $steps = $currentJob.JobSteps | Where-Object Name -in $Step
 
-            if (!$steps) {
-                Write-Message -Level Warning -Message "$Step didn't return any steps"
-                return
-            }
-        } else {
-            if (($currentJob.JobSteps).Count -gt 1) {
-                Write-Message -Level Output -Message "Which Job Step do you wish to add output file to?"
-                $steps = $currentJob.JobSteps | Out-GridView -Title "Choose the Job Steps to add an output file to" -PassThru -Verbose
-        } else {
-            $steps = $currentJob.JobSteps
-        }
-    }
-
-    if (!$steps) {
-        $steps = $currentJob.JobSteps
-    }
-
-    foreach ($jobstep in $steps) {
-        $currentoutputfile = $jobstep.OutputFileName
-
-        Write-Message -Level Verbose -Message "Current Output File for $currentJob is $currentoutputfile"
-        Write-Message -Level Verbose -Message "Adding $OutputFile to $jobstep for $currentJob"
-
-        try {
-            if ($Pscmdlet.ShouldProcess($jobstep, "Changing Output File from $currentoutputfile to $OutputFile")) {
-                $jobstep.OutputFileName = $OutputFile
-                $jobstep.Alter()
-                $jobstep.Refresh()
-
-                [pscustomobject]@{
-                    ComputerName   = $server.ComputerName
-                    InstanceName   = $server.ServiceName
-                    SqlInstance    = $server.DomainInstanceName
-                    Job            = $currentJob.Name
-                    JobStep        = $jobstep.Name
-                    OutputFileName = $currentoutputfile
+                if (!$steps) {
+                    Write-Message -Level Warning -Message "$Step didn't return any steps"
+                    return
+                }
+            } else {
+                if (($currentJob.JobSteps).Count -gt 1) {
+                    Write-Message -Level Output -Message "Which Job Step do you wish to add output file to?"
+                    $steps = $currentJob.JobSteps | Out-GridView -Title "Choose the Job Steps to add an output file to" -PassThru -Verbose
+                } else {
+                    $steps = $currentJob.JobSteps
                 }
             }
-        } catch {
-            Stop-Function -Message "Failed to add $OutputFile to $jobstep for $currentJob" -InnerErrorRecord $_ -Target $currentJob
+
+            if (!$steps) {
+                $steps = $currentJob.JobSteps
+            }
+
+            foreach ($jobstep in $steps) {
+                $currentoutputfile = $jobstep.OutputFileName
+
+                Write-Message -Level Verbose -Message "Current Output File for $currentJob is $currentoutputfile"
+                Write-Message -Level Verbose -Message "Adding $OutputFile to $jobstep for $currentJob"
+
+                try {
+                    if ($Pscmdlet.ShouldProcess($jobstep, "Changing Output File from $currentoutputfile to $OutputFile")) {
+                        $jobstep.OutputFileName = $OutputFile
+                        $jobstep.Alter()
+                        $jobstep.Refresh()
+
+                        [pscustomobject]@{
+                            ComputerName   = $server.ComputerName
+                            InstanceName   = $server.ServiceName
+                            SqlInstance    = $server.DomainInstanceName
+                            Job            = $currentJob.Name
+                            JobStep        = $jobstep.Name
+                            OutputFileName = $currentoutputfile
+                        }
+                    }
+                } catch {
+                    Stop-Function -Message "Failed to add $OutputFile to $jobstep for $currentJob" -InnerErrorRecord $_ -Target $currentJob
+                }
+            }
         }
     }
-}
-}
 }

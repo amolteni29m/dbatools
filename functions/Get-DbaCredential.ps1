@@ -88,27 +88,27 @@ function Get-DbaCredential {
 
             if ($Name) {
                 $credential = $credential | Where-Object { $Name -contains $_.Name }
+            }
+
+            if ($ExcludeName) {
+                $credential = $credential | Where-Object { $ExcludeName -notcontains $_.Name }
+            }
+
+            if ($Identity) {
+                $credential = $credential | Where-Object { $Identity -contains $_.Identity }
+            }
+
+            if ($ExcludeIdentity) {
+                $credential = $credential | Where-Object { $ExcludeIdentity -notcontains $_.Identity }
+            }
+
+            foreach ($currentcredential in $credential) {
+                Add-Member -Force -InputObject $currentcredential -MemberType NoteProperty -Name ComputerName -value $currentcredential.Parent.ComputerName
+                Add-Member -Force -InputObject $currentcredential -MemberType NoteProperty -Name InstanceName -value $currentcredential.Parent.ServiceName
+                Add-Member -Force -InputObject $currentcredential -MemberType NoteProperty -Name SqlInstance -value $currentcredential.Parent.DomainInstanceName
+
+                Select-DefaultView -InputObject $currentcredential -Property ComputerName, InstanceName, SqlInstance, ID, Name, Identity, MappedClassType, ProviderName
+            }
         }
-
-        if ($ExcludeName) {
-            $credential = $credential | Where-Object { $ExcludeName -notcontains $_.Name }
     }
-
-    if ($Identity) {
-        $credential = $credential | Where-Object { $Identity -contains $_.Identity }
-}
-
-if ($ExcludeIdentity) {
-    $credential = $credential | Where-Object { $ExcludeIdentity -notcontains $_.Identity }
-}
-
-foreach ($currentcredential in $credential) {
-    Add-Member -Force -InputObject $currentcredential -MemberType NoteProperty -Name ComputerName -value $currentcredential.Parent.ComputerName
-    Add-Member -Force -InputObject $currentcredential -MemberType NoteProperty -Name InstanceName -value $currentcredential.Parent.ServiceName
-    Add-Member -Force -InputObject $currentcredential -MemberType NoteProperty -Name SqlInstance -value $currentcredential.Parent.DomainInstanceName
-
-    Select-DefaultView -InputObject $currentcredential -Property ComputerName, InstanceName, SqlInstance, ID, Name, Identity, MappedClassType, ProviderName
-}
-}
-}
 }

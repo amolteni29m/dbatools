@@ -142,54 +142,54 @@ function Copy-DbaServerAuditSpecification {
                         $copyAuditSpecStatus.Notes = "Audit $($auditSpec.AuditName) does not exist on $destinstance. Skipping $auditSpecName."
                         Write-Message -Level Warning -Message "Audit $($auditSpec.AuditName) does not exist on $destinstance. Skipping $auditSpecName."
                         $copyAuditSpecStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+                    }
+                    continue
                 }
-                continue
-            }
 
-            if ($destAudits.name -contains $auditSpecName) {
-                if ($force -eq $false) {
-                    Write-Message -Level Verbose -Message "Server audit $auditSpecName exists at destination. Use -Force to drop and migrate."
+                if ($destAudits.name -contains $auditSpecName) {
+                    if ($force -eq $false) {
+                        Write-Message -Level Verbose -Message "Server audit $auditSpecName exists at destination. Use -Force to drop and migrate."
 
-                    $copyAuditSpecStatus.Status = "Skipped"
-                    $copyAuditSpecStatus.Notes = "Already exists on destination"
-                    $copyAuditSpecStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-                continue
-            } else {
-                if ($Pscmdlet.ShouldProcess($destinstance, "Dropping server audit $auditSpecName and recreating")) {
+                        $copyAuditSpecStatus.Status = "Skipped"
+                        $copyAuditSpecStatus.Notes = "Already exists on destination"
+                        $copyAuditSpecStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+                        continue
+                    } else {
+                        if ($Pscmdlet.ShouldProcess($destinstance, "Dropping server audit $auditSpecName and recreating")) {
+                            try {
+                                Write-Message -Level Verbose -Message "Dropping server audit $auditSpecName"
+                                $destServer.ServerAuditSpecifications[$auditSpecName].Drop()
+                            } catch {
+                                $copyAuditSpecStatus.Status = "Failed"
+                                $copyAuditSpecStatus.Notes = (Get-ErrorMessage -Record $_)
+                                $copyAuditSpecStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+
+                                Stop-Function -Message "Issue dropping audit spec" -Target $auditSpecName -ErrorRecord $_ -Continue
+                            }
+                        }
+                    }
+                }
+                if ($Pscmdlet.ShouldProcess($destinstance, "Creating server audit $auditSpecName")) {
                     try {
-                        Write-Message -Level Verbose -Message "Dropping server audit $auditSpecName"
-                        $destServer.ServerAuditSpecifications[$auditSpecName].Drop()
+                        Write-Message -Level Verbose -Message "Copying server audit $auditSpecName"
+                        $sql = $auditSpec.Script() | Out-String
+                        Write-Message -Level Debug -Message $sql
+                        $destServer.Query($sql)
+
+                        $copyAuditSpecStatus.Status = "Successful"
+                        $copyAuditSpecStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
                     } catch {
                         $copyAuditSpecStatus.Status = "Failed"
                         $copyAuditSpecStatus.Notes = (Get-ErrorMessage -Record $_)
                         $copyAuditSpecStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
 
-                    Stop-Function -Message "Issue dropping audit spec" -Target $auditSpecName -ErrorRecord $_ -Continue
+                        Stop-Function -Message "Issue creating audit spec on destination" -Target $auditSpecName -ErrorRecord $_
+                    }
                 }
             }
         }
     }
-    if ($Pscmdlet.ShouldProcess($destinstance, "Creating server audit $auditSpecName")) {
-        try {
-            Write-Message -Level Verbose -Message "Copying server audit $auditSpecName"
-            $sql = $auditSpec.Script() | Out-String
-        Write-Message -Level Debug -Message $sql
-        $destServer.Query($sql)
-
-        $copyAuditSpecStatus.Status = "Successful"
-        $copyAuditSpecStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-} catch {
-    $copyAuditSpecStatus.Status = "Failed"
-    $copyAuditSpecStatus.Notes = (Get-ErrorMessage -Record $_)
-    $copyAuditSpecStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-
-Stop-Function -Message "Issue creating audit spec on destination" -Target $auditSpecName -ErrorRecord $_
-}
-}
-}
-}
-}
-end {
-    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Copy-SqlAuditSpecification
-}
+    end {
+        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Copy-SqlAuditSpecification
+    }
 }

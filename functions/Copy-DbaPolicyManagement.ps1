@@ -114,223 +114,223 @@ function Copy-DbaPolicyManagement {
         $sourceSqlStoreConnection = New-Object Microsoft.SqlServer.Management.Sdk.Sfc.SqlStoreConnection $sourceSqlConn
         $sourceStore = New-Object  Microsoft.SqlServer.Management.DMF.PolicyStore $sourceSqlStoreConnection
         $storePolicies = $sourceStore.Policies | Where-Object { $_.IsSystemObject -eq $false }
-    $storeConditions = $sourceStore.Conditions | Where-Object { $_.IsSystemObject -eq $false }
-}
-process {
-    if (Test-FunctionInterrupt) { return }
-    foreach ($destinstance in $Destination) {
-        try {
-            $destServer = Connect-SqlInstance -SqlInstance $destinstance -SqlCredential $DestinationSqlCredential -MinimumVersion 10
-        } catch {
-            Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $destinstance -Continue
-        }
-        $destSqlConn = $destServer.ConnectionContext.SqlConnectionObject
-        $destSqlStoreConnection = New-Object Microsoft.SqlServer.Management.Sdk.Sfc.SqlStoreConnection $destSqlConn
-        $destStore = New-Object  Microsoft.SqlServer.Management.DMF.PolicyStore $destSqlStoreConnection
-
-        if ($Policy) {
-            $storePolicies = $storePolicies | Where-Object Name -In $Policy
+        $storeConditions = $sourceStore.Conditions | Where-Object { $_.IsSystemObject -eq $false }
     }
-    if ($ExcludePolicy) {
-        $storePolicies = $storePolicies | Where-Object Name -NotIn $ExcludePolicy
-}
-if ($Condition) {
-    $storeConditions = $storeConditions | Where-Object Name -In $Condition
-}
-if ($ExcludeCondition) {
-    $storeConditions = $storeConditions | Where-Object Name -NotIn $ExcludeCondition
-}
+    process {
+        if (Test-FunctionInterrupt) { return }
+        foreach ($destinstance in $Destination) {
+            try {
+                $destServer = Connect-SqlInstance -SqlInstance $destinstance -SqlCredential $DestinationSqlCredential -MinimumVersion 10
+            } catch {
+                Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $destinstance -Continue
+            }
+            $destSqlConn = $destServer.ConnectionContext.SqlConnectionObject
+            $destSqlStoreConnection = New-Object Microsoft.SqlServer.Management.Sdk.Sfc.SqlStoreConnection $destSqlConn
+            $destStore = New-Object  Microsoft.SqlServer.Management.DMF.PolicyStore $destSqlStoreConnection
 
-if ($Policy -and $Condition) {
-    $storeConditions = $null
-    $storePolicies = $null
-}
+            if ($Policy) {
+                $storePolicies = $storePolicies | Where-Object Name -In $Policy
+            }
+            if ($ExcludePolicy) {
+                $storePolicies = $storePolicies | Where-Object Name -NotIn $ExcludePolicy
+            }
+            if ($Condition) {
+                $storeConditions = $storeConditions | Where-Object Name -In $Condition
+            }
+            if ($ExcludeCondition) {
+                $storeConditions = $storeConditions | Where-Object Name -NotIn $ExcludeCondition
+            }
 
-<#
+            if ($Policy -and $Condition) {
+                $storeConditions = $null
+                $storePolicies = $null
+            }
+
+            <#
                             Categories
             #>
 
-Write-Message -Level Verbose -Message "Migrating categories"
-$uniquePolicyCategories = $storePolicies | Select-Object -ExpandProperty PolicyCategory -Unique
-$storeCategories = $sourceStore.PolicyCategories | Where-Object { $_.Name -in $uniquePolicyCategories }
-foreach ($category in $storeCategories) {
-    $categoryName = $category.Name
+            Write-Message -Level Verbose -Message "Migrating categories"
+            $uniquePolicyCategories = $storePolicies | Select-Object -ExpandProperty PolicyCategory -Unique
+            $storeCategories = $sourceStore.PolicyCategories | Where-Object { $_.Name -in $uniquePolicyCategories }
+            foreach ($category in $storeCategories) {
+                $categoryName = $category.Name
 
-    $copyCategoryStatus = [pscustomobject]@{
-        SourceServer      = $sourceServer.Name
-        DestinationServer = $destServer.Name
-        Name              = $categoryName
-        Type              = "Policy Category"
-        Status            = $null
-        Notes             = $null
-        DateTime          = [DbaDateTime](Get-Date)
-    }
+                $copyCategoryStatus = [pscustomobject]@{
+                    SourceServer      = $sourceServer.Name
+                    DestinationServer = $destServer.Name
+                    Name              = $categoryName
+                    Type              = "Policy Category"
+                    Status            = $null
+                    Notes             = $null
+                    DateTime          = [DbaDateTime](Get-Date)
+                }
 
-    if ($null -ne $destStore.PolicyCategories['Database']) {
-        Write-Message -Level Verbose -Message "Policy category '$categoryName' was skipped because it already exists on $destination."
+                if ($null -ne $destStore.PolicyCategories['Database']) {
+                    Write-Message -Level Verbose -Message "Policy category '$categoryName' was skipped because it already exists on $destination."
 
-        $copyCategoryStatus.Status = "Skipped"
-        $copyCategoryStatus.Notes = "Already exists on destination"
-        $copyCategoryStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-    continue
-}
+                    $copyCategoryStatus.Status = "Skipped"
+                    $copyCategoryStatus.Notes = "Already exists on destination"
+                    $copyCategoryStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+                    continue
+                }
 
-if ($Pscmdlet.ShouldProcess($destination, "Migrating policy category $categoryName") -and $copyCategoryStatus.Status -ne 'Skipped') {
-    try {
-        $sql = $category.ScriptCreate().GetScript() | Out-String
-    Write-Message -Level Debug -Message $sql
-    Write-Message -Level Verbose -Message "Copying policy category $categoryName"
-    $null = $destServer.Query($sql)
-    $destStore.PolicyCategories.Refresh()
+                if ($Pscmdlet.ShouldProcess($destination, "Migrating policy category $categoryName") -and $copyCategoryStatus.Status -ne 'Skipped') {
+                    try {
+                        $sql = $category.ScriptCreate().GetScript() | Out-String
+                        Write-Message -Level Debug -Message $sql
+                        Write-Message -Level Verbose -Message "Copying policy category $categoryName"
+                        $null = $destServer.Query($sql)
+                        $destStore.PolicyCategories.Refresh()
 
-    $copyCategoryStatus.Status = "Successful"
-    $copyCategoryStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-} catch {
-    $copyCategoryStatus.Status = "Failed"
-    $copyCategoryStatus.Notes = $_.Exception.Message
-    $copyCategoryStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+                        $copyCategoryStatus.Status = "Successful"
+                        $copyCategoryStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+                    } catch {
+                        $copyCategoryStatus.Status = "Failed"
+                        $copyCategoryStatus.Notes = $_.Exception.Message
+                        $copyCategoryStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
 
-Stop-Function -Message "Issue creating policy category on $destination" -Target $categoryName -ErrorRecord $_
-}
-}
-}
+                        Stop-Function -Message "Issue creating policy category on $destination" -Target $categoryName -ErrorRecord $_
+                    }
+                }
+            }
 
-<#
+            <#
                         Conditions
             #>
 
-Write-Message -Level Verbose -Message "Migrating conditions"
-foreach ($condition in $storeConditions) {
-    $conditionName = $condition.Name
+            Write-Message -Level Verbose -Message "Migrating conditions"
+            foreach ($condition in $storeConditions) {
+                $conditionName = $condition.Name
 
-    $copyConditionStatus = [pscustomobject]@{
-        SourceServer      = $sourceServer.Name
-        DestinationServer = $destServer.Name
-        Name              = $conditionName
-        Type              = "Policy Condition"
-        Status            = $null
-        Notes             = $null
-        DateTime          = [DbaDateTime](Get-Date)
-    }
-
-    if ($null -ne $destStore.Conditions[$conditionName]) {
-        if ($force -eq $false) {
-            Write-Message -Level Verbose -Message "condition '$conditionName' was skipped because it already exists on $destinstance. Use -Force to drop and recreate"
-
-            $copyConditionStatus.Status = "Skipped"
-            $copyConditionStatus.Notes = "Already exists on destination"
-            $copyConditionStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-        continue
-    } else {
-        if ($Pscmdlet.ShouldProcess($destinstance, "Attempting to drop $conditionName")) {
-            Write-Message -Level Verbose -Message "Condition '$conditionName' exists on $destinstance. Force specified. Dropping $conditionName."
-
-            try {
-                $dependentPolicies = $destStore.Conditions[$conditionName].EnumDependentPolicies()
-                foreach ($dependent in $dependentPolicies) {
-                    $dependent.Drop()
-                    $destStore.Conditions.Refresh()
+                $copyConditionStatus = [pscustomobject]@{
+                    SourceServer      = $sourceServer.Name
+                    DestinationServer = $destServer.Name
+                    Name              = $conditionName
+                    Type              = "Policy Condition"
+                    Status            = $null
+                    Notes             = $null
+                    DateTime          = [DbaDateTime](Get-Date)
                 }
-                $destStore.Conditions[$conditionName].Drop()
-            } catch {
-                $copyConditionStatus.Status = "Failed"
-                $copyConditionStatus.Notes = (Get-ErrorMessage -Record $_).Message
-                $copyConditionStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-            Stop-Function -Message "Issue dropping condition on $destinstance" -Target $conditionName -ErrorRecord $_ -Continue
-        }
-    }
-}
-}
 
-if ($Pscmdlet.ShouldProcess($destinstance, "Migrating condition $conditionName")) {
-    try {
-        $sql = $condition.ScriptCreate().GetScript() | Out-String
-    Write-Message -Level Debug -Message $sql
-    Write-Message -Level Verbose -Message "Copying condition $conditionName"
-    $null = $destServer.Query($sql)
-    $destStore.Conditions.Refresh()
+                if ($null -ne $destStore.Conditions[$conditionName]) {
+                    if ($force -eq $false) {
+                        Write-Message -Level Verbose -Message "condition '$conditionName' was skipped because it already exists on $destinstance. Use -Force to drop and recreate"
 
-    $copyConditionStatus.Status = "Successful"
-    $copyConditionStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-} catch {
-    $copyConditionStatus.Status = "Failed"
-    $copyConditionStatus.Notes = (Get-ErrorMessage -Record $_).Message
-    $copyConditionStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+                        $copyConditionStatus.Status = "Skipped"
+                        $copyConditionStatus.Notes = "Already exists on destination"
+                        $copyConditionStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+                        continue
+                    } else {
+                        if ($Pscmdlet.ShouldProcess($destinstance, "Attempting to drop $conditionName")) {
+                            Write-Message -Level Verbose -Message "Condition '$conditionName' exists on $destinstance. Force specified. Dropping $conditionName."
 
-Stop-Function -Message "Issue creating condition on $destinstance" -Target $conditionName -ErrorRecord $_
-}
-}
-}
+                            try {
+                                $dependentPolicies = $destStore.Conditions[$conditionName].EnumDependentPolicies()
+                                foreach ($dependent in $dependentPolicies) {
+                                    $dependent.Drop()
+                                    $destStore.Conditions.Refresh()
+                                }
+                                $destStore.Conditions[$conditionName].Drop()
+                            } catch {
+                                $copyConditionStatus.Status = "Failed"
+                                $copyConditionStatus.Notes = (Get-ErrorMessage -Record $_).Message
+                                $copyConditionStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+                                Stop-Function -Message "Issue dropping condition on $destinstance" -Target $conditionName -ErrorRecord $_ -Continue
+                            }
+                        }
+                    }
+                }
 
-<#
+                if ($Pscmdlet.ShouldProcess($destinstance, "Migrating condition $conditionName")) {
+                    try {
+                        $sql = $condition.ScriptCreate().GetScript() | Out-String
+                        Write-Message -Level Debug -Message $sql
+                        Write-Message -Level Verbose -Message "Copying condition $conditionName"
+                        $null = $destServer.Query($sql)
+                        $destStore.Conditions.Refresh()
+
+                        $copyConditionStatus.Status = "Successful"
+                        $copyConditionStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+                    } catch {
+                        $copyConditionStatus.Status = "Failed"
+                        $copyConditionStatus.Notes = (Get-ErrorMessage -Record $_).Message
+                        $copyConditionStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+
+                        Stop-Function -Message "Issue creating condition on $destinstance" -Target $conditionName -ErrorRecord $_
+                    }
+                }
+            }
+
+            <#
                         Policies
             #>
 
-Write-Message -Level Verbose -Message "Migrating policies"
-foreach ($policy in $storePolicies) {
-    $policyName = $policy.Name
+            Write-Message -Level Verbose -Message "Migrating policies"
+            foreach ($policy in $storePolicies) {
+                $policyName = $policy.Name
 
-    $copyPolicyStatus = [pscustomobject]@{
-        SourceServer      = $sourceServer.Name
-        DestinationServer = $destServer.Name
-        Name              = $policyName
-        Type              = "Policy"
-        Status            = $null
-        Notes             = $null
-        DateTime          = [DbaDateTime](Get-Date)
-    }
+                $copyPolicyStatus = [pscustomobject]@{
+                    SourceServer      = $sourceServer.Name
+                    DestinationServer = $destServer.Name
+                    Name              = $policyName
+                    Type              = "Policy"
+                    Status            = $null
+                    Notes             = $null
+                    DateTime          = [DbaDateTime](Get-Date)
+                }
 
-    if ($null -ne $destStore.Policies[$policyName]) {
-        if ($force -eq $false) {
-            Write-Message -Level Verbose -Message "Policy '$policyName' was skipped because it already exists on $destinstance. Use -Force to drop and recreate"
+                if ($null -ne $destStore.Policies[$policyName]) {
+                    if ($force -eq $false) {
+                        Write-Message -Level Verbose -Message "Policy '$policyName' was skipped because it already exists on $destinstance. Use -Force to drop and recreate"
 
-            $copyPolicyStatus.Status = "Skipped"
-            $copyPolicyStatus.Notes = "Already exists on destination"
-            $copyPolicyStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-        continue
-    } else {
-        if ($Pscmdlet.ShouldProcess($destinstance, "Attempting to drop $policyName")) {
-            Write-Message -Level Verbose -Message "Policy '$policyName' exists on $destinstance. Force specified. Dropping $policyName."
+                        $copyPolicyStatus.Status = "Skipped"
+                        $copyPolicyStatus.Notes = "Already exists on destination"
+                        $copyPolicyStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+                        continue
+                    } else {
+                        if ($Pscmdlet.ShouldProcess($destinstance, "Attempting to drop $policyName")) {
+                            Write-Message -Level Verbose -Message "Policy '$policyName' exists on $destinstance. Force specified. Dropping $policyName."
 
-            try {
-                $destStore.Policies[$policyName].Drop()
-                $destStore.Policies.refresh()
-            } catch {
-                $copyPolicyStatus.Status = "Failed"
-                $copyPolicyStatus.Notes = (Get-ErrorMessage -Record $_).Message
-                $copyPolicyStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+                            try {
+                                $destStore.Policies[$policyName].Drop()
+                                $destStore.Policies.refresh()
+                            } catch {
+                                $copyPolicyStatus.Status = "Failed"
+                                $copyPolicyStatus.Notes = (Get-ErrorMessage -Record $_).Message
+                                $copyPolicyStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
 
-            Stop-Function -Message "Issue dropping policy on $destinstance" -Target $policyName -ErrorRecord $_ -Continue
+                                Stop-Function -Message "Issue dropping policy on $destinstance" -Target $policyName -ErrorRecord $_ -Continue
+                            }
+                        }
+                    }
+                }
+
+                if ($Pscmdlet.ShouldProcess($destinstance, "Migrating policy $policyName")) {
+                    try {
+                        $destStore.Conditions.Refresh()
+                        $destStore.Policies.Refresh()
+                        $sql = $policy.ScriptCreate().GetScript() | Out-String
+                        Write-Message -Level Debug -Message $sql
+                        Write-Message -Level Verbose -Message "Copying policy $policyName"
+                        $null = $destServer.Query($sql)
+
+                        $copyPolicyStatus.Status = "Successful"
+                        $copyPolicyStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+                    } catch {
+                        $copyPolicyStatus.Status = "Failed"
+                        $copyPolicyStatus.Notes = (Get-ErrorMessage -Record $_).Message
+                        $copyPolicyStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
+
+                        # This is usually because of a duplicate dependent from above. Just skip for now.
+                        Stop-Function -Message "Issue creating policy on $destinstance" -Target $policyName -ErrorRecord $_ -Continue
+                    }
+                }
+            }
         }
     }
-}
-}
-
-if ($Pscmdlet.ShouldProcess($destinstance, "Migrating policy $policyName")) {
-    try {
-        $destStore.Conditions.Refresh()
-        $destStore.Policies.Refresh()
-        $sql = $policy.ScriptCreate().GetScript() | Out-String
-    Write-Message -Level Debug -Message $sql
-    Write-Message -Level Verbose -Message "Copying policy $policyName"
-    $null = $destServer.Query($sql)
-
-    $copyPolicyStatus.Status = "Successful"
-    $copyPolicyStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-} catch {
-    $copyPolicyStatus.Status = "Failed"
-    $copyPolicyStatus.Notes = (Get-ErrorMessage -Record $_).Message
-    $copyPolicyStatus | Select-DefaultView -Property DateTime, SourceServer, DestinationServer, Name, Type, Status, Notes -TypeName MigrationObject
-
-# This is usually because of a duplicate dependent from above. Just skip for now.
-Stop-Function -Message "Issue creating policy on $destinstance" -Target $policyName -ErrorRecord $_ -Continue
-}
-}
-}
-}
-}
-end {
-    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Copy-SqlPolicyManagement
-    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Copy-DbaSqlPolicyManagement
-}
+    end {
+        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Copy-SqlPolicyManagement
+        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Copy-DbaSqlPolicyManagement
+    }
 }

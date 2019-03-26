@@ -116,12 +116,12 @@ function Test-DbaNetworkLatency {
                     ExecuteOnlyAvg   = [prettytimespan]::FromMilliseconds($averageWarm)
                     NetworkOnlyTotal = [prettytimespan]::FromMilliseconds($totalTime - $totalWarm)
                 } | Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, 'Count as ExecutionCount', Total, 'Avg as Average', ExecuteOnlyTotal, 'ExecuteOnlyAvg as ExecuteOnlyAverage', NetworkOnlyTotal #backwards compat
-        } catch {
-            Stop-Function -Message "Error occurred testing dba network latency: $_" -ErrorRecord $_ -Continue -Target $instance
+            } catch {
+                Stop-Function -Message "Error occurred testing dba network latency: $_" -ErrorRecord $_ -Continue -Target $instance
+            }
         }
     }
-}
-end {
-    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Test-SqlNetworkLatency
-}
+    end {
+        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Test-SqlNetworkLatency
+    }
 }

@@ -50,33 +50,33 @@ function Get-PasswordHash {
     #Generate salt
     if (!$byteSalt) {
         0 .. 3 | ForEach-Object { $byteSalt += Get-Random -Minimum 0 -Maximum 255 }
-}
+    }
 
-#Convert salt to a hex string
-[string]$stringSalt = ""
-$byteSalt | ForEach-Object { $stringSalt += ("{0:X}" -f $_).PadLeft(2, "0") }
+    #Convert salt to a hex string
+    [string]$stringSalt = ""
+    $byteSalt | ForEach-Object { $stringSalt += ("{0:X}" -f $_).PadLeft(2, "0") }
 
-#Extract password
-if ($Password.GetType().Name -eq 'SecureString') {
-    $cred = New-Object System.Management.Automation.PSCredential -ArgumentList 'foo', $Password
-    $plainPassword = $cred.GetNetworkCredential().Password
-} else {
-    $plainPassword = $Password
-}
-#Get byte representation of the password string
-$enc = [system.Text.Encoding]::Unicode
-$data = $enc.GetBytes($plainPassword)
-#Run hash algorithm
-$hash = [Security.Cryptography.HashAlgorithm]::Create($algorithm)
-$bytes = $hash.ComputeHash($data + $byteSalt)
-#Construct hex string
-$hashString = "0x$hashVersion$stringSalt"
-$bytes | ForEach-Object { $hashString += ("{0:X2}" -f $_).PadLeft(2, "0") }
-#Add UPPERCASE hash for SQL 2000 and lower
-if ($SqlMajorVersion -lt 9) {
-    $data = $enc.GetBytes($plainPassword.ToUpper())
+    #Extract password
+    if ($Password.GetType().Name -eq 'SecureString') {
+        $cred = New-Object System.Management.Automation.PSCredential -ArgumentList 'foo', $Password
+        $plainPassword = $cred.GetNetworkCredential().Password
+    } else {
+        $plainPassword = $Password
+    }
+    #Get byte representation of the password string
+    $enc = [system.Text.Encoding]::Unicode
+    $data = $enc.GetBytes($plainPassword)
+    #Run hash algorithm
+    $hash = [Security.Cryptography.HashAlgorithm]::Create($algorithm)
     $bytes = $hash.ComputeHash($data + $byteSalt)
+    #Construct hex string
+    $hashString = "0x$hashVersion$stringSalt"
     $bytes | ForEach-Object { $hashString += ("{0:X2}" -f $_).PadLeft(2, "0") }
-}
-return $hashString
+    #Add UPPERCASE hash for SQL 2000 and lower
+    if ($SqlMajorVersion -lt 9) {
+        $data = $enc.GetBytes($plainPassword.ToUpper())
+        $bytes = $hash.ComputeHash($data + $byteSalt)
+        $bytes | ForEach-Object { $hashString += ("{0:X2}" -f $_).PadLeft(2, "0") }
+    }
+    return $hashString
 }

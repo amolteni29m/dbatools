@@ -82,7 +82,7 @@ function Get-DbaSsisExecutionHistory {
         [switch]$EnableException
     )
     begin {
-        $params = @{ }
+        $params = @{}
 
         #build status parameter
         $statuses = @{
@@ -204,18 +204,18 @@ function Get-DbaSsisExecutionHistory {
         #debug verbose output
         Write-Message -Level Debug -Message "`nSQL statement: $sql"
         $paramout = ($params | Out-String)
-    Write-Message -Level Debug -Message "`nParameters:$paramout"
-}
+        Write-Message -Level Debug -Message "`nParameters:$paramout"
+    }
 
 
-process {
-    foreach ($instance in $SqlInstance) {
-        $results = Invoke-DbaQuery -SqlInstance $instance -Database SSISDB -Query $sql -as PSObject -SqlParameters $params -SqlCredential $SqlCredential
-        foreach ($row in $results) {
-            $row.StartTime = [dbadatetime]$row.StartTime.DateTime
-            $row.EndTime = [dbadatetime]$row.EndTime.DateTime
-            $row
+    process {
+        foreach ($instance in $SqlInstance) {
+            $results = Invoke-DbaQuery -SqlInstance $instance -Database SSISDB -Query $sql -as PSObject -SqlParameters $params -SqlCredential $SqlCredential
+            foreach ($row in $results) {
+                $row.StartTime = [dbadatetime]$row.StartTime.DateTime
+                $row.EndTime = [dbadatetime]$row.EndTime.DateTime
+                $row
+            }
         }
     }
-}
 }

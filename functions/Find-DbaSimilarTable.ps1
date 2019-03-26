@@ -224,59 +224,59 @@ function Find-DbaSimilarTable {
             #Use IsAccessible instead of Status -eq 'normal' because databases that are on readable secondaries for AG or mirroring replicas will cause errors to be thrown
             if ($IncludeSystemDatabases) {
                 $dbs = $server.Databases | Where-Object { $_.IsAccessible -eq $true }
-        } else {
-            $dbs = $server.Databases | Where-Object { $_.IsAccessible -eq $true -and $_.IsSystemObject -eq $false }
-    }
+            } else {
+                $dbs = $server.Databases | Where-Object { $_.IsAccessible -eq $true -and $_.IsSystemObject -eq $false }
+            }
 
-    if ($Database) {
-        $dbs = $server.Databases | Where-Object Name -In $Database
-}
+            if ($Database) {
+                $dbs = $server.Databases | Where-Object Name -In $Database
+            }
 
-if ($ExcludeDatabase) {
-    $dbs = $dbs | Where-Object Name -NotIn $ExcludeDatabase
-}
+            if ($ExcludeDatabase) {
+                $dbs = $dbs | Where-Object Name -NotIn $ExcludeDatabase
+            }
 
 
-$totalCount = 0
-$dbCount = $dbs.count
-foreach ($db in $dbs) {
+            $totalCount = 0
+            $dbCount = $dbs.count
+            foreach ($db in $dbs) {
 
-    Write-Message -Level Verbose -Message "Searching on database $db"
-    $rows = $db.Query($sql)
+                Write-Message -Level Verbose -Message "Searching on database $db"
+                $rows = $db.Query($sql)
 
-    foreach ($row in $rows) {
-        [PSCustomObject]@{
-            ComputerName              = $server.ComputerName
-            InstanceName              = $server.ServiceName
-            SqlInstance               = $server.DomainInstanceName
-            Table                     = "$($row.DatabaseName).$($row.SchemaName).$($row.TableName)"
-            MatchingTable             = "$($row.MatchingDatabaseName).$($row.MatchingSchemaName).$($row.MatchingTableName)"
-            MatchPercent              = $row.MatchPercent
-            OriginalDatabaseName      = $row.DatabaseName
-            OriginalSchemaName        = $row.SchemaName
-            OriginalTableName         = $row.TableName
-            OriginalTableNameRankInDB = $row.TableNameRankInDB
-            OriginalTableType         = $row.TableType
-            OriginalColumnCount       = $row.ColumnCount
-            MatchingDatabaseName      = $row.MatchingDatabaseName
-            MatchingSchemaName        = $row.MatchingSchemaName
-            MatchingTableName         = $row.MatchingTableName
-            MatchingTableType         = $row.MatchingTableType
-            MatchingColumnCount       = $row.MatchingColumnCount
+                foreach ($row in $rows) {
+                    [PSCustomObject]@{
+                        ComputerName              = $server.ComputerName
+                        InstanceName              = $server.ServiceName
+                        SqlInstance               = $server.DomainInstanceName
+                        Table                     = "$($row.DatabaseName).$($row.SchemaName).$($row.TableName)"
+                        MatchingTable             = "$($row.MatchingDatabaseName).$($row.MatchingSchemaName).$($row.MatchingTableName)"
+                        MatchPercent              = $row.MatchPercent
+                        OriginalDatabaseName      = $row.DatabaseName
+                        OriginalSchemaName        = $row.SchemaName
+                        OriginalTableName         = $row.TableName
+                        OriginalTableNameRankInDB = $row.TableNameRankInDB
+                        OriginalTableType         = $row.TableType
+                        OriginalColumnCount       = $row.ColumnCount
+                        MatchingDatabaseName      = $row.MatchingDatabaseName
+                        MatchingSchemaName        = $row.MatchingSchemaName
+                        MatchingTableName         = $row.MatchingTableName
+                        MatchingTableType         = $row.MatchingTableType
+                        MatchingColumnCount       = $row.MatchingColumnCount
+                    }
+                }
+
+                $vwCount = $vwCount + $rows.Count
+                $totalCount = $totalCount + $rows.Count
+                $everyServerVwCount = $everyServerVwCount + $rows.Count
+
+                Write-Message -Level Verbose -Message "Found $vwCount tables/views in $db"
+            }
+
+            Write-Message -Level Verbose -Message "Found $totalCount total tables/views in $dbCount databases"
         }
     }
-
-    $vwCount = $vwCount + $rows.Count
-    $totalCount = $totalCount + $rows.Count
-    $everyServerVwCount = $everyServerVwCount + $rows.Count
-
-    Write-Message -Level Verbose -Message "Found $vwCount tables/views in $db"
-}
-
-Write-Message -Level Verbose -Message "Found $totalCount total tables/views in $dbCount databases"
-}
-}
-end {
-    Write-Message -Level Verbose -Message "Found $everyServerVwCount total tables/views"
-}
+    end {
+        Write-Message -Level Verbose -Message "Found $everyServerVwCount total tables/views"
+    }
 }

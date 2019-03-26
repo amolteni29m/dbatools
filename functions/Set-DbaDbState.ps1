@@ -190,316 +190,316 @@ function Set-DbaDbState {
 
         function Get-DbState($databaseName, $dbStatuses) {
             $base = $dbStatuses | Where-Object DatabaseName -ceq $databaseName
-        foreach ($status in $StatusHash.Keys) {
-            if ($base.Status -match $status) {
-                $base.Status = $StatusHash[$status]
-                break
-            }
-        }
-        return $base
-    }
-
-    $RWExclusive = @('ReadOnly', 'ReadWrite')
-    $StatusExclusive = @('Online', 'Offline', 'Emergency', 'Detached')
-    $AccessExclusive = @('SingleUser', 'RestrictedUser', 'MultiUser')
-    $allparams = $PSBoundParameters
-    try {
-        Get-WrongCombo -optset $RWExclusive -allparams $allparams
-    } catch {
-        Stop-Function -Message $_
-        return
-    }
-    try {
-        Get-WrongCombo -optset $StatusExclusive -allparams $allparams
-    } catch {
-        Stop-Function -Message $_
-        return
-    }
-    try {
-        Get-WrongCombo -optset $AccessExclusive -allparams $allparams
-    } catch {
-        Stop-Function -Message $_
-        return
-    }
-}
-process {
-    if (Test-FunctionInterrupt) { return }
-    $dbs = @()
-    if (!$Database -and !$AllDatabases -and !$InputObject -and !$ExcludeDatabase) {
-        Stop-Function -Message "You must specify a -AllDatabases or -Database to continue"
-        return
-    }
-
-    if ($InputObject) {
-        if ($InputObject.Database) {
-            # comes from Get-DbaDbState
-            $dbs += $InputObject.Database
-        } elseif ($InputObject.Name) {
-            # comes from Get-DbaDatabase
-            $dbs += $InputObject
-        }
-    } else {
-        foreach ($instance in $SqlInstance) {
-            try {
-                $server = Connect-SqlInstance -SqlInstance $instance -SqlCredential $SqlCredential
-            } catch {
-                Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $instance -Continue
-            }
-            $all_dbs = $server.Databases
-            $dbs += $all_dbs | Where-Object { @('master', 'model', 'msdb', 'tempdb', 'distribution') -notcontains $_.Name }
-
-        if ($database) {
-            $dbs = $dbs | Where-Object { $database -contains $_.Name }
-    }
-    if ($ExcludeDatabase) {
-        $dbs = $dbs | Where-Object { $ExcludeDatabase -notcontains $_.Name }
-}
-}
-}
-
-# need to pick up here
-foreach ($db in $dbs) {
-    if ($db.Name -in @('master', 'model', 'msdb', 'tempdb', 'distribution')) {
-        Write-Message -Level Warning -Message "Database $db is a system one, skipping"
-        Continue
-    }
-    $dbStatuses = @{ }
-    $server = $db.Parent
-    if ($server -notin $dbStatuses.Keys) {
-        $dbStatuses[$server] = Get-DbaDbState -SqlInstance $server
-    }
-
-    # normalizing properties returned by SMO to something more "fixed"
-    $db_status = Get-DbState -DatabaseName $db.Name -dbStatuses $dbStatuses[$server]
-
-
-    $warn = @()
-
-    if ($db.DatabaseSnapshotBaseName.Length -gt 0) {
-        Write-Message -Level Warning -Message "Database $db is a snapshot, skipping"
-        Continue
-    }
-
-    if ($ReadOnly -eq $true) {
-        if ($db_status.RW -eq 'READ_ONLY') {
-            Write-Message -Level VeryVerbose -Message "Database $db is already READ_ONLY"
-        } else {
-            if ($Pscmdlet.ShouldProcess($server, "Set $db to READ_ONLY")) {
-                Write-Message -Level VeryVerbose -Message "Setting database $db to READ_ONLY"
-                $partial = Edit-DatabaseState -sqlinstance $server -dbname $db.Name -opt "READ_ONLY" -immediate $Force
-                $warn += $partial
-                if (!$partial) {
-                    $db_status.RW = 'READ_ONLY'
+            foreach ($status in $StatusHash.Keys) {
+                if ($base.Status -match $status) {
+                    $base.Status = $StatusHash[$status]
+                    break
                 }
             }
+            return $base
         }
-    }
 
-    if ($ReadWrite -eq $true) {
-        if ($db_status.RW -eq 'READ_WRITE') {
-            Write-Message -Level VeryVerbose -Message "Database $db is already READ_WRITE"
-        } else {
-            if ($Pscmdlet.ShouldProcess($server, "Set $db to READ_WRITE")) {
-                Write-Message -Level VeryVerbose -Message "Setting database $db to READ_WRITE"
-                $partial = Edit-DatabaseState -sqlinstance $server -dbname $db.Name -opt "READ_WRITE" -immediate $Force
-                $warn += $partial
-                if (!$partial) {
-                    $db_status.RW = 'READ_WRITE'
-                }
-            }
-        }
-    }
-
-    if ($Online -eq $true) {
-        if ($db_status.Status -eq 'ONLINE') {
-            Write-Message -Level VeryVerbose -Message "Database $db is already ONLINE"
-        } else {
-            if ($Pscmdlet.ShouldProcess($server, "Set $db to ONLINE")) {
-                Write-Message -Level VeryVerbose -Message "Setting database $db to ONLINE"
-                $partial = Edit-DatabaseState -sqlinstance $server -dbname $db.Name -opt "ONLINE" -immediate $Force
-                $warn += $partial
-                if (!$partial) {
-                    $db_status.Status = 'ONLINE'
-                }
-            }
-        }
-    }
-
-    if ($Offline -eq $true) {
-        if ($db_status.Status -eq 'OFFLINE') {
-            Write-Message -Level VeryVerbose -Message "Database $db is already OFFLINE"
-        } else {
-            if ($Pscmdlet.ShouldProcess($server, "Set $db to OFFLINE")) {
-                Write-Message -Level VeryVerbose -Message "Setting database $db to OFFLINE"
-                $partial = Edit-DatabaseState -sqlinstance $server -dbname $db.Name -opt "OFFLINE" -immediate $Force
-                $warn += $partial
-                if (!$partial) {
-                    $db_status.Status = 'OFFLINE'
-                }
-            }
-        }
-    }
-
-    if ($Emergency -eq $true) {
-        if ($db_status.Status -eq 'EMERGENCY') {
-            Write-Message -Level VeryVerbose -Message "Database $db is already EMERGENCY"
-        } else {
-            if ($Pscmdlet.ShouldProcess($server, "Set $db to EMERGENCY")) {
-                Write-Message -Level VeryVerbose -Message "Setting database $db to EMERGENCY"
-                $partial = Edit-DatabaseState -sqlinstance $server -dbname $db.Name -opt "EMERGENCY" -immediate $Force
-                if (!$partial) {
-                    $db_status.Status = 'EMERGENCY'
-                }
-            }
-        }
-    }
-
-    if ($SingleUser -eq $true) {
-        if ($db_status.Access -eq 'SINGLE_USER') {
-            Write-Message -Level VeryVerbose -Message "Database $db is already SINGLE_USER"
-        } else {
-            if ($Pscmdlet.ShouldProcess($server, "Set $db to SINGLE_USER")) {
-                Write-Message -Level VeryVerbose -Message "Setting $db to SINGLE_USER"
-                $partial = Edit-DatabaseState -sqlinstance $server -dbname $db.Name -opt "SINGLE_USER" -immediate $Force
-                if (!$partial) {
-                    $db_status.Access = 'SINGLE_USER'
-                }
-            }
-        }
-    }
-
-    if ($RestrictedUser -eq $true) {
-        if ($db_status.Access -eq 'RESTRICTED_USER') {
-            Write-Message -Level VeryVerbose -Message "Database $db is already RESTRICTED_USER"
-        } else {
-            if ($Pscmdlet.ShouldProcess($server, "Set $db to RESTRICTED_USER")) {
-                Write-Message -Level VeryVerbose -Message "Setting $db to RESTRICTED_USER"
-                $partial = Edit-DatabaseState -sqlinstance $server -dbname $db.Name -opt "RESTRICTED_USER" -immediate $Force
-                if (!$partial) {
-                    $db_status.Access = 'RESTRICTED_USER'
-                }
-            }
-        }
-    }
-
-    if ($MultiUser -eq $true) {
-        if ($db_status.Access -eq 'MULTI_USER') {
-            Write-Message -Level VeryVerbose -Message "Database $db is already MULTI_USER"
-        } else {
-            if ($Pscmdlet.ShouldProcess($server, "Set $db to MULTI_USER")) {
-                Write-Message -Level VeryVerbose -Message "Setting $db to MULTI_USER"
-                $partial = Edit-DatabaseState -sqlinstance $server -dbname $db.Name -opt "MULTI_USER" -immediate $Force
-                if (!$partial) {
-                    $db_status.Access = 'MULTI_USER'
-                }
-            }
-        }
-    }
-
-    if ($Detached -eq $true) {
-        # Refresh info about database state here (before detaching)
-        $db.Refresh()
-        # we need to see what snaps are on the server, as base databases cannot be dropped
-        $snaps = $server.Databases | Where-Object { $_.DatabaseSnapshotBaseName.Length -gt 0 }
-    $snaps = $snaps.DatabaseSnapshotBaseName | Get-Unique
-if ($db.Name -in $snaps) {
-    Write-Message -Level Warning -Message "Database $db has snapshots, you need to drop them before detaching, skipping..."
-    Continue
-}
-if ($db.IsMirroringEnabled -eq $true -or $db.AvailabilityGroupName.Length -gt 0) {
-    if ($Force -eq $false) {
-        Write-Message -Level Warning -Message "Needs -Force to detach $db, skipping"
-        Continue
-    }
-}
-
-if ($db.IsMirroringEnabled) {
-    if ($Pscmdlet.ShouldProcess($server, "Break mirroring for $db")) {
+        $RWExclusive = @('ReadOnly', 'ReadWrite')
+        $StatusExclusive = @('Online', 'Offline', 'Emergency', 'Detached')
+        $AccessExclusive = @('SingleUser', 'RestrictedUser', 'MultiUser')
+        $allparams = $PSBoundParameters
         try {
-            $db.ChangeMirroringState([Microsoft.SqlServer.Management.Smo.MirroringOption]::Off)
-            $db.Alter()
-            $db.Refresh()
-            Write-Message -Level VeryVerbose -Message "Broke mirroring for $db"
+            Get-WrongCombo -optset $RWExclusive -allparams $allparams
         } catch {
-            Stop-Function -Message "Could not break mirror for $db. Skipping." -ErrorRecord $_ -Target $server -Continue
+            Stop-Function -Message $_
+            return
         }
-    }
-}
-
-if ($db.AvailabilityGroupName) {
-    $agname = $db.AvailabilityGroupName
-    if ($Pscmdlet.ShouldProcess($server, "Removing $db from AG [$agname]")) {
         try {
-            $server.AvailabilityGroups[$db.AvailabilityGroupName].AvailabilityDatabases[$db.Name].Drop()
-            Write-Message -Level VeryVerbose -Message "Successfully removed $db from AG [$agname] on $server"
+            Get-WrongCombo -optset $StatusExclusive -allparams $allparams
         } catch {
-            Stop-Function -Message "Could not remove $db from AG [$agname] on $server" -ErrorRecord $_ -Target $server -Continue
+            Stop-Function -Message $_
+            return
+        }
+        try {
+            Get-WrongCombo -optset $AccessExclusive -allparams $allparams
+        } catch {
+            Stop-Function -Message $_
+            return
         }
     }
-}
+    process {
+        if (Test-FunctionInterrupt) { return }
+        $dbs = @()
+        if (!$Database -and !$AllDatabases -and !$InputObject -and !$ExcludeDatabase) {
+            Stop-Function -Message "You must specify a -AllDatabases or -Database to continue"
+            return
+        }
 
-# DBA 101 should encourage detaching just OFFLINE databases
-# we can do that here
-if ($Pscmdlet.ShouldProcess($server, "Detaching $db")) {
-    if ($db_status.Status -ne 'OFFLINE') {
-        $null = Edit-DatabaseState -sqlinstance $server -dbname $db.Name -opt "OFFLINE" -immediate $true
+        if ($InputObject) {
+            if ($InputObject.Database) {
+                # comes from Get-DbaDbState
+                $dbs += $InputObject.Database
+            } elseif ($InputObject.Name) {
+                # comes from Get-DbaDatabase
+                $dbs += $InputObject
+            }
+        } else {
+            foreach ($instance in $SqlInstance) {
+                try {
+                    $server = Connect-SqlInstance -SqlInstance $instance -SqlCredential $SqlCredential
+                } catch {
+                    Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $instance -Continue
+                }
+                $all_dbs = $server.Databases
+                $dbs += $all_dbs | Where-Object { @('master', 'model', 'msdb', 'tempdb', 'distribution') -notcontains $_.Name }
+
+                if ($database) {
+                    $dbs = $dbs | Where-Object { $database -contains $_.Name }
+                }
+                if ($ExcludeDatabase) {
+                    $dbs = $dbs | Where-Object { $ExcludeDatabase -notcontains $_.Name }
+                }
+            }
+        }
+
+        # need to pick up here
+        foreach ($db in $dbs) {
+            if ($db.Name -in @('master', 'model', 'msdb', 'tempdb', 'distribution')) {
+                Write-Message -Level Warning -Message "Database $db is a system one, skipping"
+                Continue
+            }
+            $dbStatuses = @{}
+            $server = $db.Parent
+            if ($server -notin $dbStatuses.Keys) {
+                $dbStatuses[$server] = Get-DbaDbState -SqlInstance $server
+            }
+
+            # normalizing properties returned by SMO to something more "fixed"
+            $db_status = Get-DbState -DatabaseName $db.Name -dbStatuses $dbStatuses[$server]
+
+
+            $warn = @()
+
+            if ($db.DatabaseSnapshotBaseName.Length -gt 0) {
+                Write-Message -Level Warning -Message "Database $db is a snapshot, skipping"
+                Continue
+            }
+
+            if ($ReadOnly -eq $true) {
+                if ($db_status.RW -eq 'READ_ONLY') {
+                    Write-Message -Level VeryVerbose -Message "Database $db is already READ_ONLY"
+                } else {
+                    if ($Pscmdlet.ShouldProcess($server, "Set $db to READ_ONLY")) {
+                        Write-Message -Level VeryVerbose -Message "Setting database $db to READ_ONLY"
+                        $partial = Edit-DatabaseState -sqlinstance $server -dbname $db.Name -opt "READ_ONLY" -immediate $Force
+                        $warn += $partial
+                        if (!$partial) {
+                            $db_status.RW = 'READ_ONLY'
+                        }
+                    }
+                }
+            }
+
+            if ($ReadWrite -eq $true) {
+                if ($db_status.RW -eq 'READ_WRITE') {
+                    Write-Message -Level VeryVerbose -Message "Database $db is already READ_WRITE"
+                } else {
+                    if ($Pscmdlet.ShouldProcess($server, "Set $db to READ_WRITE")) {
+                        Write-Message -Level VeryVerbose -Message "Setting database $db to READ_WRITE"
+                        $partial = Edit-DatabaseState -sqlinstance $server -dbname $db.Name -opt "READ_WRITE" -immediate $Force
+                        $warn += $partial
+                        if (!$partial) {
+                            $db_status.RW = 'READ_WRITE'
+                        }
+                    }
+                }
+            }
+
+            if ($Online -eq $true) {
+                if ($db_status.Status -eq 'ONLINE') {
+                    Write-Message -Level VeryVerbose -Message "Database $db is already ONLINE"
+                } else {
+                    if ($Pscmdlet.ShouldProcess($server, "Set $db to ONLINE")) {
+                        Write-Message -Level VeryVerbose -Message "Setting database $db to ONLINE"
+                        $partial = Edit-DatabaseState -sqlinstance $server -dbname $db.Name -opt "ONLINE" -immediate $Force
+                        $warn += $partial
+                        if (!$partial) {
+                            $db_status.Status = 'ONLINE'
+                        }
+                    }
+                }
+            }
+
+            if ($Offline -eq $true) {
+                if ($db_status.Status -eq 'OFFLINE') {
+                    Write-Message -Level VeryVerbose -Message "Database $db is already OFFLINE"
+                } else {
+                    if ($Pscmdlet.ShouldProcess($server, "Set $db to OFFLINE")) {
+                        Write-Message -Level VeryVerbose -Message "Setting database $db to OFFLINE"
+                        $partial = Edit-DatabaseState -sqlinstance $server -dbname $db.Name -opt "OFFLINE" -immediate $Force
+                        $warn += $partial
+                        if (!$partial) {
+                            $db_status.Status = 'OFFLINE'
+                        }
+                    }
+                }
+            }
+
+            if ($Emergency -eq $true) {
+                if ($db_status.Status -eq 'EMERGENCY') {
+                    Write-Message -Level VeryVerbose -Message "Database $db is already EMERGENCY"
+                } else {
+                    if ($Pscmdlet.ShouldProcess($server, "Set $db to EMERGENCY")) {
+                        Write-Message -Level VeryVerbose -Message "Setting database $db to EMERGENCY"
+                        $partial = Edit-DatabaseState -sqlinstance $server -dbname $db.Name -opt "EMERGENCY" -immediate $Force
+                        if (!$partial) {
+                            $db_status.Status = 'EMERGENCY'
+                        }
+                    }
+                }
+            }
+
+            if ($SingleUser -eq $true) {
+                if ($db_status.Access -eq 'SINGLE_USER') {
+                    Write-Message -Level VeryVerbose -Message "Database $db is already SINGLE_USER"
+                } else {
+                    if ($Pscmdlet.ShouldProcess($server, "Set $db to SINGLE_USER")) {
+                        Write-Message -Level VeryVerbose -Message "Setting $db to SINGLE_USER"
+                        $partial = Edit-DatabaseState -sqlinstance $server -dbname $db.Name -opt "SINGLE_USER" -immediate $Force
+                        if (!$partial) {
+                            $db_status.Access = 'SINGLE_USER'
+                        }
+                    }
+                }
+            }
+
+            if ($RestrictedUser -eq $true) {
+                if ($db_status.Access -eq 'RESTRICTED_USER') {
+                    Write-Message -Level VeryVerbose -Message "Database $db is already RESTRICTED_USER"
+                } else {
+                    if ($Pscmdlet.ShouldProcess($server, "Set $db to RESTRICTED_USER")) {
+                        Write-Message -Level VeryVerbose -Message "Setting $db to RESTRICTED_USER"
+                        $partial = Edit-DatabaseState -sqlinstance $server -dbname $db.Name -opt "RESTRICTED_USER" -immediate $Force
+                        if (!$partial) {
+                            $db_status.Access = 'RESTRICTED_USER'
+                        }
+                    }
+                }
+            }
+
+            if ($MultiUser -eq $true) {
+                if ($db_status.Access -eq 'MULTI_USER') {
+                    Write-Message -Level VeryVerbose -Message "Database $db is already MULTI_USER"
+                } else {
+                    if ($Pscmdlet.ShouldProcess($server, "Set $db to MULTI_USER")) {
+                        Write-Message -Level VeryVerbose -Message "Setting $db to MULTI_USER"
+                        $partial = Edit-DatabaseState -sqlinstance $server -dbname $db.Name -opt "MULTI_USER" -immediate $Force
+                        if (!$partial) {
+                            $db_status.Access = 'MULTI_USER'
+                        }
+                    }
+                }
+            }
+
+            if ($Detached -eq $true) {
+                # Refresh info about database state here (before detaching)
+                $db.Refresh()
+                # we need to see what snaps are on the server, as base databases cannot be dropped
+                $snaps = $server.Databases | Where-Object { $_.DatabaseSnapshotBaseName.Length -gt 0 }
+                $snaps = $snaps.DatabaseSnapshotBaseName | Get-Unique
+                if ($db.Name -in $snaps) {
+                    Write-Message -Level Warning -Message "Database $db has snapshots, you need to drop them before detaching, skipping..."
+                    Continue
+                }
+                if ($db.IsMirroringEnabled -eq $true -or $db.AvailabilityGroupName.Length -gt 0) {
+                    if ($Force -eq $false) {
+                        Write-Message -Level Warning -Message "Needs -Force to detach $db, skipping"
+                        Continue
+                    }
+                }
+
+                if ($db.IsMirroringEnabled) {
+                    if ($Pscmdlet.ShouldProcess($server, "Break mirroring for $db")) {
+                        try {
+                            $db.ChangeMirroringState([Microsoft.SqlServer.Management.Smo.MirroringOption]::Off)
+                            $db.Alter()
+                            $db.Refresh()
+                            Write-Message -Level VeryVerbose -Message "Broke mirroring for $db"
+                        } catch {
+                            Stop-Function -Message "Could not break mirror for $db. Skipping." -ErrorRecord $_ -Target $server -Continue
+                        }
+                    }
+                }
+
+                if ($db.AvailabilityGroupName) {
+                    $agname = $db.AvailabilityGroupName
+                    if ($Pscmdlet.ShouldProcess($server, "Removing $db from AG [$agname]")) {
+                        try {
+                            $server.AvailabilityGroups[$db.AvailabilityGroupName].AvailabilityDatabases[$db.Name].Drop()
+                            Write-Message -Level VeryVerbose -Message "Successfully removed $db from AG [$agname] on $server"
+                        } catch {
+                            Stop-Function -Message "Could not remove $db from AG [$agname] on $server" -ErrorRecord $_ -Target $server -Continue
+                        }
+                    }
+                }
+
+                # DBA 101 should encourage detaching just OFFLINE databases
+                # we can do that here
+                if ($Pscmdlet.ShouldProcess($server, "Detaching $db")) {
+                    if ($db_status.Status -ne 'OFFLINE') {
+                        $null = Edit-DatabaseState -sqlinstance $server -dbname $db.Name -opt "OFFLINE" -immediate $true
+                    }
+                    try {
+                        $sql = "EXEC master.dbo.sp_detach_db N'$($db.Name)'"
+                        Write-Message -Level System -Message $sql
+                        $null = $server.Query($sql)
+                        $db_status.Status = 'DETACHED'
+                    } catch {
+                        Stop-Function -Message "Failed to detach $db" -ErrorRecord $_ -Target $server -Continue
+                        $warn += "Failed to detach"
+                    }
+
+                }
+
+            }
+            if ($warn) {
+                $warn = $warn | Get-Unique
+                $warn = $warn -Join ';'
+            } else {
+                $warn = $null
+            }
+            if ($Detached -eq $true) {
+                [PSCustomObject]@{
+                    ComputerName = $server.ComputerName
+                    InstanceName = $server.ServiceName
+                    SqlInstance  = $server.DomainInstanceName
+                    DatabaseName = $db.Name
+                    RW           = $db_status.RW
+                    Status       = $db_status.Status
+                    Access       = $db_status.Access
+                    Notes        = $warn
+                    Database     = $db
+                } | Select-DefaultView -ExcludeProperty Database
+            } else {
+                $db.Refresh()
+                if ($null -eq $warn) {
+                    # we avoid reenumerating properties
+                    $newstate = $db_status
+                } else {
+                    $newstate = Get-DbState -databaseName $db.Name -dbStatuses $dbStatuses[$server]
+                }
+
+                [PSCustomObject]@{
+                    ComputerName = $server.ComputerName
+                    InstanceName = $server.ServiceName
+                    SqlInstance  = $server.DomainInstanceName
+                    DatabaseName = $db.Name
+                    RW           = $newstate.RW
+                    Status       = $newstate.Status
+                    Access       = $newstate.Access
+                    Notes        = $warn
+                    Database     = $db
+                } | Select-DefaultView -ExcludeProperty Database
+            }
+        }
+
     }
-    try {
-        $sql = "EXEC master.dbo.sp_detach_db N'$($db.Name)'"
-        Write-Message -Level System -Message $sql
-        $null = $server.Query($sql)
-        $db_status.Status = 'DETACHED'
-    } catch {
-        Stop-Function -Message "Failed to detach $db" -ErrorRecord $_ -Target $server -Continue
-        $warn += "Failed to detach"
+    end {
+        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Set-DbaDatabaseState
     }
-
-}
-
-}
-if ($warn) {
-    $warn = $warn | Get-Unique
-$warn = $warn -Join ';'
-} else {
-    $warn = $null
-}
-if ($Detached -eq $true) {
-    [PSCustomObject]@{
-        ComputerName = $server.ComputerName
-        InstanceName = $server.ServiceName
-        SqlInstance  = $server.DomainInstanceName
-        DatabaseName = $db.Name
-        RW           = $db_status.RW
-        Status       = $db_status.Status
-        Access       = $db_status.Access
-        Notes        = $warn
-        Database     = $db
-    } | Select-DefaultView -ExcludeProperty Database
-} else {
-    $db.Refresh()
-    if ($null -eq $warn) {
-        # we avoid reenumerating properties
-        $newstate = $db_status
-    } else {
-        $newstate = Get-DbState -databaseName $db.Name -dbStatuses $dbStatuses[$server]
-    }
-
-    [PSCustomObject]@{
-        ComputerName = $server.ComputerName
-        InstanceName = $server.ServiceName
-        SqlInstance  = $server.DomainInstanceName
-        DatabaseName = $db.Name
-        RW           = $newstate.RW
-        Status       = $newstate.Status
-        Access       = $newstate.Access
-        Notes        = $warn
-        Database     = $db
-    } | Select-DefaultView -ExcludeProperty Database
-}
-}
-
-}
-end {
-    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Set-DbaDatabaseState
-}
 }

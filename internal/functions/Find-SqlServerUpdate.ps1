@@ -47,18 +47,18 @@ function Find-SqlServerUpdate {
                 $file = Get-ChildItem -Path $folder -Filter $filter -File -Recurse -ErrorAction Stop
                 if ($file) {
                     return $file | Select-Object -First 1
+                }
             }
         }
+        $params = @{
+            ComputerName   = $ComputerName
+            Credential     = $Credential
+            Authentication = $Authentication
+            ScriptBlock    = $getFileScript
+            ArgumentList   = @($Path, $filter)
+            ErrorAction    = 'Stop'
+            Raw            = $true
+        }
+        Invoke-CommandWithFallback @params
     }
-    $params = @{
-        ComputerName   = $ComputerName
-        Credential     = $Credential
-        Authentication = $Authentication
-        ScriptBlock    = $getFileScript
-        ArgumentList   = @($Path, $filter)
-        ErrorAction    = 'Stop'
-        Raw            = $true
-    }
-    Invoke-CommandWithFallback @params
-}
 }

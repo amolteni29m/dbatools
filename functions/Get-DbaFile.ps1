@@ -144,71 +144,71 @@ function Get-DbaFile {
             # build the query string based on how many directories they want to enumerate
             $sql = $q1
             $sql += $($PathList | Where-Object { $_ -ne '' } | ForEach-Object { "$([System.Environment]::Newline)$($q2 -Replace 'dirname', $_)" })
-    $sql += $query_files_sql
-    #Write-Message -Level Debug -Message $sql
-    return $sql
-}
-
-function Format-Path {
-    param ($path)
-    $path = $path.Trim()
-    #Thank you windows 2000
-    $path = $path -replace '[^A-Za-z0-9 _\.\-\\:]', '__'
-    return $path
-}
-
-if ($FileType) {
-    $FileTypeComparison = $FileType | ForEach-Object { $_.ToLower() } | Where-Object { $_ } | Sort-Object | Get-Unique
-}
-}
-
-process {
-    foreach ($instance in $SqlInstance) {
-
-        #Variable marked as unused by PSScriptAnalyzer
-        #$paths = @()
-        try {
-            $server = Connect-SqlInstance -SqlInstance $instance -SqlCredential $sqlcredential
-        } catch {
-            Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $instance -Continue
+            $sql += $query_files_sql
+            #Write-Message -Level Debug -Message $sql
+            return $sql
         }
 
-        # Get the default data and log directories from the instance
-        if (-not (Test-Bound -ParameterName Path)) { $Path = (Get-DbaDefaultPath -SqlInstance $server).Data }
+        function Format-Path {
+            param ($path)
+            $path = $path.Trim()
+            #Thank you windows 2000
+            $path = $path -replace '[^A-Za-z0-9 _\.\-\\:]', '__'
+            return $path
+        }
 
-        Write-Message -Level Verbose -Message "Adding paths"
-        $sql = Get-SQLDirTreeQuery $Path
-        Write-Message -Level Debug -Message $sql
+        if ($FileType) {
+            $FileTypeComparison = $FileType | ForEach-Object { $_.ToLower() } | Where-Object { $_ } | Sort-Object | Get-Unique
+        }
+    }
 
-        # This should remain as not .Query() to be compat with a PSProvider Chrissy is working on
-        $datatable = $server.ConnectionContext.ExecuteWithResults($sql).Tables.Rows
+    process {
+        foreach ($instance in $SqlInstance) {
 
-        Write-Message -Level Verbose -Message "$($datatable.Rows.Count) files found."
-        if ($FileTypeComparison) {
-            foreach ($row in $datatable) {
-                foreach ($type in $FileTypeComparison) {
-                    if ($row.filename.ToLower().EndsWith(".$type")) {
-                        [pscustomobject]@{
-                            ComputerName   = $server.ComputerName
-                            InstanceName   = $server.ServiceName
-                            SqlInstance    = $server.DomainInstanceName
-                            Filename       = $row.fullpath
-                            RemoteFilename = Join-AdminUnc -Servername $server.ComputerName -Filepath $row.fullpath
-                        } | Select-DefaultView -ExcludeProperty ComputerName, InstanceName, RemoteFilename
+            #Variable marked as unused by PSScriptAnalyzer
+            #$paths = @()
+            try {
+                $server = Connect-SqlInstance -SqlInstance $instance -SqlCredential $sqlcredential
+            } catch {
+                Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $instance -Continue
+            }
+
+            # Get the default data and log directories from the instance
+            if (-not (Test-Bound -ParameterName Path)) { $Path = (Get-DbaDefaultPath -SqlInstance $server).Data }
+
+            Write-Message -Level Verbose -Message "Adding paths"
+            $sql = Get-SQLDirTreeQuery $Path
+            Write-Message -Level Debug -Message $sql
+
+            # This should remain as not .Query() to be compat with a PSProvider Chrissy is working on
+            $datatable = $server.ConnectionContext.ExecuteWithResults($sql).Tables.Rows
+
+            Write-Message -Level Verbose -Message "$($datatable.Rows.Count) files found."
+            if ($FileTypeComparison) {
+                foreach ($row in $datatable) {
+                    foreach ($type in $FileTypeComparison) {
+                        if ($row.filename.ToLower().EndsWith(".$type")) {
+                            [pscustomobject]@{
+                                ComputerName   = $server.ComputerName
+                                InstanceName   = $server.ServiceName
+                                SqlInstance    = $server.DomainInstanceName
+                                Filename       = $row.fullpath
+                                RemoteFilename = Join-AdminUnc -Servername $server.ComputerName -Filepath $row.fullpath
+                            } | Select-DefaultView -ExcludeProperty ComputerName, InstanceName, RemoteFilename
+                        }
+                    }
+                }
+            } else {
+                foreach ($row in $datatable) {
+                    [pscustomobject]@{
+                        ComputerName   = $server.ComputerName
+                        InstanceName   = $server.ServiceName
+                        SqlInstance    = $server.DomainInstanceName
+                        Filename       = $row.fullpath
+                        RemoteFilename = Join-AdminUnc -Servername $server.ComputerName -Filepath $row.fullpath
+                    } | Select-DefaultView -ExcludeProperty ComputerName, InstanceName, RemoteFilename
                 }
             }
         }
-    } else {
-        foreach ($row in $datatable) {
-            [pscustomobject]@{
-                ComputerName   = $server.ComputerName
-                InstanceName   = $server.ServiceName
-                SqlInstance    = $server.DomainInstanceName
-                Filename       = $row.fullpath
-                RemoteFilename = Join-AdminUnc -Servername $server.ComputerName -Filepath $row.fullpath
-            } | Select-DefaultView -ExcludeProperty ComputerName, InstanceName, RemoteFilename
     }
-}
-}
-}
 }

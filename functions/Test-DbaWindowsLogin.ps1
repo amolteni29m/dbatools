@@ -123,166 +123,166 @@ function Test-DbaWindowsLogin {
             # we can only validate AD logins
             $allWindowsLoginsGroups = $server.Logins | Where-Object { $_.LoginType -in ('WindowsUser', 'WindowsGroup') }
 
-        # we cannot validate local users
-        $allWindowsLoginsGroups = $allWindowsLoginsGroups | Where-Object { $_.Name.StartsWith("NT ") -eq $false -and $_.Name.StartsWith($server.ComputerName) -eq $false -and $_.Name.StartsWith("BUILTIN") -eq $false }
-    if ($Login) {
-        $allWindowsLoginsGroups = $allWindowsLoginsGroups | Where-Object Name -In $Login
-}
-if ($ExcludeLogin) {
-    $allWindowsLoginsGroups = $allWindowsLoginsGroups | Where-Object Name -NotIn $ExcludeLogin
-}
-switch ($FilterBy) {
-    "LoginsOnly" {
-        Write-Message -Message "Search restricted to logins." -Level Verbose
-        $windowsLogins = $allWindowsLoginsGroups | Where-Object LoginType -eq 'WindowsUser'
-}
-"GroupsOnly" {
-    Write-Message -Message "Search restricted to groups." -Level Verbose
-    $windowsGroups = $allWindowsLoginsGroups | Where-Object LoginType -eq 'WindowsGroup'
-}
-"None" {
-    Write-Message -Message "Search both logins and groups." -Level Verbose
-    $windowsLogins = $allWindowsLoginsGroups | Where-Object LoginType -eq 'WindowsUser'
-$windowsGroups = $allWindowsLoginsGroups | Where-Object LoginType -eq 'WindowsGroup'
-}
-}
-foreach ($login in $windowsLogins) {
-    $adLogin = $login.Name
-    $loginSid = $login.Sid -join ''
-    $domain, $username = $adLogin.Split("\")
-    if ($domain.ToUpper() -in $IgnoreDomainsNormalized) {
-        Write-Message -Message "Skipping Login $adLogin." -Level Verbose
-        continue
-    }
-    Write-Message -Message "Parsing Login $adLogin." -Level Verbose
-    $exists = $false
-    try {
-        $u = Get-DbaADObject -ADObject $adLogin -Type User -EnableException
-        if ($null -eq $u -and $adLogin -like '*$') {
-            Write-Message -Message "Parsing Login as computer" -Level Verbose
-            $u = Get-DbaADObject -ADObject $adLogin -Type Computer -EnableException
-            $adType = 'Computer'
-        } else {
-            $adType = 'User'
+            # we cannot validate local users
+            $allWindowsLoginsGroups = $allWindowsLoginsGroups | Where-Object { $_.Name.StartsWith("NT ") -eq $false -and $_.Name.StartsWith($server.ComputerName) -eq $false -and $_.Name.StartsWith("BUILTIN") -eq $false }
+            if ($Login) {
+                $allWindowsLoginsGroups = $allWindowsLoginsGroups | Where-Object Name -In $Login
+            }
+            if ($ExcludeLogin) {
+                $allWindowsLoginsGroups = $allWindowsLoginsGroups | Where-Object Name -NotIn $ExcludeLogin
+            }
+            switch ($FilterBy) {
+                "LoginsOnly" {
+                    Write-Message -Message "Search restricted to logins." -Level Verbose
+                    $windowsLogins = $allWindowsLoginsGroups | Where-Object LoginType -eq 'WindowsUser'
+                }
+                "GroupsOnly" {
+                    Write-Message -Message "Search restricted to groups." -Level Verbose
+                    $windowsGroups = $allWindowsLoginsGroups | Where-Object LoginType -eq 'WindowsGroup'
+                }
+                "None" {
+                    Write-Message -Message "Search both logins and groups." -Level Verbose
+                    $windowsLogins = $allWindowsLoginsGroups | Where-Object LoginType -eq 'WindowsUser'
+                    $windowsGroups = $allWindowsLoginsGroups | Where-Object LoginType -eq 'WindowsGroup'
+                }
+            }
+            foreach ($login in $windowsLogins) {
+                $adLogin = $login.Name
+                $loginSid = $login.Sid -join ''
+                $domain, $username = $adLogin.Split("\")
+                if ($domain.ToUpper() -in $IgnoreDomainsNormalized) {
+                    Write-Message -Message "Skipping Login $adLogin." -Level Verbose
+                    continue
+                }
+                Write-Message -Message "Parsing Login $adLogin." -Level Verbose
+                $exists = $false
+                try {
+                    $u = Get-DbaADObject -ADObject $adLogin -Type User -EnableException
+                    if ($null -eq $u -and $adLogin -like '*$') {
+                        Write-Message -Message "Parsing Login as computer" -Level Verbose
+                        $u = Get-DbaADObject -ADObject $adLogin -Type Computer -EnableException
+                        $adType = 'Computer'
+                    } else {
+                        $adType = 'User'
+                    }
+                    $foundUser = $u.GetUnderlyingObject()
+                    $foundSid = $foundUser.ObjectSid.Value -join ''
+                    if ($foundUser) {
+                        $exists = $true
+                    }
+                    if ($foundSid -ne $loginSid) {
+                        Write-Message -Message "SID mismatch detected for $adLogin." -Level Warning
+                        Write-Message -Message "SID mismatch detected for $adLogin (MSSQL: $loginSid, AD: $foundSid)." -Level Debug
+                        $exists = $false
+                    }
+                } catch {
+                    Write-Message -Message "AD Searcher Error for $username." -Level Warning
+                }
+
+                $uac = $foundUser.Properties.UserAccountControl
+
+                $additionalProps = @{
+                    AccountNotDelegated               = $null
+                    AllowReversiblePasswordEncryption = $null
+                    CannotChangePassword              = $null
+                    PasswordExpired                   = $null
+                    LockedOut                         = $null
+                    Enabled                           = $null
+                    PasswordNeverExpires              = $null
+                    PasswordNotRequired               = $null
+                    SmartcardLogonRequired            = $null
+                    TrustedForDelegation              = $null
+                }
+                if ($uac) {
+                    $additionalProps = @{
+                        AccountNotDelegated               = [bool]($uac.Value -band $mappingRaw['NOT_DELEGATED'])
+                        AllowReversiblePasswordEncryption = [bool]($uac.Value -band $mappingRaw['ENCRYPTED_TEXT_PASSWORD_ALLOWED'])
+                        CannotChangePassword              = [bool]($uac.Value -band $mappingRaw['PASSWD_CANT_CHANGE'])
+                        PasswordExpired                   = [bool]($uac.Value -band $mappingRaw['PASSWORD_EXPIRED'])
+                        LockedOut                         = [bool]($uac.Value -band $mappingRaw['LOCKOUT'])
+                        Enabled                           = !($uac.Value -band $mappingRaw['ACCOUNTDISABLE'])
+                        PasswordNeverExpires              = [bool]($uac.Value -band $mappingRaw['DONT_EXPIRE_PASSWD'])
+                        PasswordNotRequired               = [bool]($uac.Value -band $mappingRaw['PASSWD_NOTREQD'])
+                        SmartcardLogonRequired            = [bool]($uac.Value -band $mappingRaw['SMARTCARD_REQUIRED'])
+                        TrustedForDelegation              = [bool]($uac.Value -band $mappingRaw['TRUSTED_FOR_DELEGATION'])
+                        UserAccountControl                = $uac.Value
+                    }
+                }
+                $rtn = [PSCustomObject]@{
+                    Server                            = $server.DomainInstanceName
+                    Domain                            = $domain
+                    Login                             = $username
+                    Type                              = $adType
+                    Found                             = $exists
+                    DisabledInSQLServer               = $login.IsDisabled
+                    AccountNotDelegated               = $additionalProps.AccountNotDelegated
+                    AllowReversiblePasswordEncryption = $additionalProps.AllowReversiblePasswordEncryption
+                    CannotChangePassword              = $additionalProps.CannotChangePassword
+                    PasswordExpired                   = $additionalProps.PasswordExpired
+                    LockedOut                         = $additionalProps.LockedOut
+                    Enabled                           = $additionalProps.Enabled
+                    PasswordNeverExpires              = $additionalProps.PasswordNeverExpires
+                    PasswordNotRequired               = $additionalProps.PasswordNotRequired
+                    SmartcardLogonRequired            = $additionalProps.SmartcardLogonRequired
+                    TrustedForDelegation              = $additionalProps.TrustedForDelegation
+                    UserAccountControl                = $additionalProps.UserAccountControl
+                }
+
+                Select-DefaultView -InputObject $rtn -ExcludeProperty AccountNotDelegated, AllowReversiblePasswordEncryption, CannotChangePassword, PasswordNeverExpires, SmartcardLogonRequired, TrustedForDelegation, UserAccountControl
+
+            }
+
+            foreach ($login in $windowsGroups) {
+                $adLogin = $login.Name
+                $loginSid = $login.Sid -join ''
+                $domain, $groupName = $adLogin.Split("\")
+                if ($domain.ToUpper() -in $IgnoreDomainsNormalized) {
+                    Write-Message -Message "Skipping Login $adLogin." -Level Verbose
+                    continue
+                }
+                Write-Message -Message "Parsing Login $adLogin on $server." -Level Verbose
+                $exists = $false
+                try {
+                    $u = Get-DbaADObject -ADObject $adLogin -Type Group -EnableException
+                    $foundUser = $u.GetUnderlyingObject()
+                    $foundSid = $foundUser.objectSid.Value -join ''
+                    if ($foundUser) {
+                        $exists = $true
+                    }
+                    if ($foundSid -ne $loginSid) {
+                        Write-Message -Message "SID mismatch detected for $adLogin." -Level Warning
+                        Write-Message -Message "SID mismatch detected for $adLogin (MSSQL: $loginSid, AD: $foundSid)." -Level Debug
+                        $exists = $false
+                    }
+                } catch {
+                    Write-Message -Message "AD Searcher Error for $groupName on $server" -Level Warning
+                }
+                $rtn = [PSCustomObject]@{
+                    Server                            = $server.DomainInstanceName
+                    Domain                            = $domain
+                    Login                             = $groupName
+                    Type                              = "Group"
+                    Found                             = $exists
+                    DisabledInSQLServer               = $login.IsDisabled
+                    AccountNotDelegated               = $null
+                    AllowReversiblePasswordEncryption = $null
+                    CannotChangePassword              = $null
+                    PasswordExpired                   = $null
+                    LockedOut                         = $null
+                    Enabled                           = $null
+                    PasswordNeverExpires              = $null
+                    PasswordNotRequired               = $null
+                    SmartcardLogonRequired            = $null
+                    TrustedForDelegation              = $null
+                    UserAccountControl                = $null
+                }
+
+                Select-DefaultView -InputObject $rtn -ExcludeProperty AccountNotDelegated, AllowReversiblePasswordEncryption, CannotChangePassword, PasswordNeverExpires, SmartcardLogonRequired, TrustedForDelegation, UserAccountControl
+
+            }
         }
-        $foundUser = $u.GetUnderlyingObject()
-        $foundSid = $foundUser.ObjectSid.Value -join ''
-        if ($foundUser) {
-            $exists = $true
-        }
-        if ($foundSid -ne $loginSid) {
-            Write-Message -Message "SID mismatch detected for $adLogin." -Level Warning
-            Write-Message -Message "SID mismatch detected for $adLogin (MSSQL: $loginSid, AD: $foundSid)." -Level Debug
-            $exists = $false
-        }
-    } catch {
-        Write-Message -Message "AD Searcher Error for $username." -Level Warning
     }
-
-    $uac = $foundUser.Properties.UserAccountControl
-
-    $additionalProps = @{
-        AccountNotDelegated               = $null
-        AllowReversiblePasswordEncryption = $null
-        CannotChangePassword              = $null
-        PasswordExpired                   = $null
-        LockedOut                         = $null
-        Enabled                           = $null
-        PasswordNeverExpires              = $null
-        PasswordNotRequired               = $null
-        SmartcardLogonRequired            = $null
-        TrustedForDelegation              = $null
+    end {
+        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Test-DbaValidLogin
     }
-    if ($uac) {
-        $additionalProps = @{
-            AccountNotDelegated               = [bool]($uac.Value -band $mappingRaw['NOT_DELEGATED'])
-            AllowReversiblePasswordEncryption = [bool]($uac.Value -band $mappingRaw['ENCRYPTED_TEXT_PASSWORD_ALLOWED'])
-            CannotChangePassword              = [bool]($uac.Value -band $mappingRaw['PASSWD_CANT_CHANGE'])
-            PasswordExpired                   = [bool]($uac.Value -band $mappingRaw['PASSWORD_EXPIRED'])
-            LockedOut                         = [bool]($uac.Value -band $mappingRaw['LOCKOUT'])
-            Enabled                           = !($uac.Value -band $mappingRaw['ACCOUNTDISABLE'])
-            PasswordNeverExpires              = [bool]($uac.Value -band $mappingRaw['DONT_EXPIRE_PASSWD'])
-            PasswordNotRequired               = [bool]($uac.Value -band $mappingRaw['PASSWD_NOTREQD'])
-            SmartcardLogonRequired            = [bool]($uac.Value -band $mappingRaw['SMARTCARD_REQUIRED'])
-            TrustedForDelegation              = [bool]($uac.Value -band $mappingRaw['TRUSTED_FOR_DELEGATION'])
-            UserAccountControl                = $uac.Value
-        }
-    }
-    $rtn = [PSCustomObject]@{
-        Server                            = $server.DomainInstanceName
-        Domain                            = $domain
-        Login                             = $username
-        Type                              = $adType
-        Found                             = $exists
-        DisabledInSQLServer               = $login.IsDisabled
-        AccountNotDelegated               = $additionalProps.AccountNotDelegated
-        AllowReversiblePasswordEncryption = $additionalProps.AllowReversiblePasswordEncryption
-        CannotChangePassword              = $additionalProps.CannotChangePassword
-        PasswordExpired                   = $additionalProps.PasswordExpired
-        LockedOut                         = $additionalProps.LockedOut
-        Enabled                           = $additionalProps.Enabled
-        PasswordNeverExpires              = $additionalProps.PasswordNeverExpires
-        PasswordNotRequired               = $additionalProps.PasswordNotRequired
-        SmartcardLogonRequired            = $additionalProps.SmartcardLogonRequired
-        TrustedForDelegation              = $additionalProps.TrustedForDelegation
-        UserAccountControl                = $additionalProps.UserAccountControl
-    }
-
-    Select-DefaultView -InputObject $rtn -ExcludeProperty AccountNotDelegated, AllowReversiblePasswordEncryption, CannotChangePassword, PasswordNeverExpires, SmartcardLogonRequired, TrustedForDelegation, UserAccountControl
-
-}
-
-foreach ($login in $windowsGroups) {
-    $adLogin = $login.Name
-    $loginSid = $login.Sid -join ''
-    $domain, $groupName = $adLogin.Split("\")
-    if ($domain.ToUpper() -in $IgnoreDomainsNormalized) {
-        Write-Message -Message "Skipping Login $adLogin." -Level Verbose
-        continue
-    }
-    Write-Message -Message "Parsing Login $adLogin on $server." -Level Verbose
-    $exists = $false
-    try {
-        $u = Get-DbaADObject -ADObject $adLogin -Type Group -EnableException
-        $foundUser = $u.GetUnderlyingObject()
-        $foundSid = $foundUser.objectSid.Value -join ''
-        if ($foundUser) {
-            $exists = $true
-        }
-        if ($foundSid -ne $loginSid) {
-            Write-Message -Message "SID mismatch detected for $adLogin." -Level Warning
-            Write-Message -Message "SID mismatch detected for $adLogin (MSSQL: $loginSid, AD: $foundSid)." -Level Debug
-            $exists = $false
-        }
-    } catch {
-        Write-Message -Message "AD Searcher Error for $groupName on $server" -Level Warning
-    }
-    $rtn = [PSCustomObject]@{
-        Server                            = $server.DomainInstanceName
-        Domain                            = $domain
-        Login                             = $groupName
-        Type                              = "Group"
-        Found                             = $exists
-        DisabledInSQLServer               = $login.IsDisabled
-        AccountNotDelegated               = $null
-        AllowReversiblePasswordEncryption = $null
-        CannotChangePassword              = $null
-        PasswordExpired                   = $null
-        LockedOut                         = $null
-        Enabled                           = $null
-        PasswordNeverExpires              = $null
-        PasswordNotRequired               = $null
-        SmartcardLogonRequired            = $null
-        TrustedForDelegation              = $null
-        UserAccountControl                = $null
-    }
-
-    Select-DefaultView -InputObject $rtn -ExcludeProperty AccountNotDelegated, AllowReversiblePasswordEncryption, CannotChangePassword, PasswordNeverExpires, SmartcardLogonRequired, TrustedForDelegation, UserAccountControl
-
-}
-}
-}
-end {
-    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Test-DbaValidLogin
-}
 }

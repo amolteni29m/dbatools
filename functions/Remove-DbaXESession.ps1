@@ -127,13 +127,13 @@ function Remove-DbaXESession {
                 # Filter xeSessions based on parameters
                 if ($Session) {
                     $xeSessions = $xeSessions | Where-Object { $_.Name -in $Session }
-            } elseif ($AllSessions) {
-                $systemSessions = @('AlwaysOn_health', 'system_health', 'telemetry_xevents')
-                $xeSessions = $xeSessions | Where-Object { $_.Name -notin $systemSessions }
-        }
+                } elseif ($AllSessions) {
+                    $systemSessions = @('AlwaysOn_health', 'system_health', 'telemetry_xevents')
+                    $xeSessions = $xeSessions | Where-Object { $_.Name -notin $systemSessions }
+                }
 
-        Remove-XESessions $xeSessions
+                Remove-XESessions $xeSessions
+            }
+        }
     }
-}
-}
 }

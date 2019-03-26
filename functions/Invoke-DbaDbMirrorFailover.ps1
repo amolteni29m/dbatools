@@ -83,13 +83,13 @@ function Invoke-DbaDbMirrorFailover {
             if ($Force) {
                 if ($Pscmdlet.ShouldProcess($db.Parent.Name, "Forcing failover of $db and allowing data loss")) {
                     $db | Set-DbaDbMirror -State ForceFailoverAndAllowDataLoss
+                }
+            } else {
+                if ($Pscmdlet.ShouldProcess($db.Parent.Name, "Setting safety level to full and failing over $db to partner server")) {
+                    $db | Set-DbaDbMirror -SafetyLevel Full
+                    $db | Set-DbaDbMirror -State Failover
+                }
             }
-        } else {
-            if ($Pscmdlet.ShouldProcess($db.Parent.Name, "Setting safety level to full and failing over $db to partner server")) {
-                $db | Set-DbaDbMirror -SafetyLevel Full
-            $db | Set-DbaDbMirror -State Failover
+        }
     }
-}
-}
-}
 }

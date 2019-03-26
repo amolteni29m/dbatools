@@ -89,43 +89,43 @@ function Stop-DbaAgentJob {
 
             if ($Job) {
                 $InputObject = $InputObject | Where-Object Name -In $Job
-        }
-        if ($ExcludeJob) {
-            $InputObject = $InputObject | Where-Object Name -NotIn $ExcludeJob
-    }
-}
-
-foreach ($currentjob in $InputObject) {
-
-    $server = $currentjob.Parent.Parent
-    $status = $currentjob.CurrentRunStatus
-
-    if ($status -eq 'Idle') {
-        Stop-Function -Message "$currentjob on $server is idle ($status)" -Target $currentjob -Continue
-    }
-
-    If ($Pscmdlet.ShouldProcess($server, "Stopping job $currentjob")) {
-        $null = $currentjob.Stop()
-        Start-Sleep -Milliseconds 300
-        $currentjob.Refresh()
-
-        $waits = 0
-        while ($currentjob.CurrentRunStatus -ne 'Idle' -and $waits++ -lt 10) {
-            Start-Sleep -Milliseconds 100
-            $currentjob.Refresh()
-        }
-
-        if ($wait) {
-            while ($currentjob.CurrentRunStatus -ne 'Idle') {
-                Write-Message -Level Verbose -Message "$currentjob is $($currentjob.CurrentRunStatus)"
-                Start-Sleep -Seconds 3
-                $currentjob.Refresh()
             }
-            $currentjob
-        } else {
-            $currentjob
+            if ($ExcludeJob) {
+                $InputObject = $InputObject | Where-Object Name -NotIn $ExcludeJob
+            }
+        }
+
+        foreach ($currentjob in $InputObject) {
+
+            $server = $currentjob.Parent.Parent
+            $status = $currentjob.CurrentRunStatus
+
+            if ($status -eq 'Idle') {
+                Stop-Function -Message "$currentjob on $server is idle ($status)" -Target $currentjob -Continue
+            }
+
+            If ($Pscmdlet.ShouldProcess($server, "Stopping job $currentjob")) {
+                $null = $currentjob.Stop()
+                Start-Sleep -Milliseconds 300
+                $currentjob.Refresh()
+
+                $waits = 0
+                while ($currentjob.CurrentRunStatus -ne 'Idle' -and $waits++ -lt 10) {
+                    Start-Sleep -Milliseconds 100
+                    $currentjob.Refresh()
+                }
+
+                if ($wait) {
+                    while ($currentjob.CurrentRunStatus -ne 'Idle') {
+                        Write-Message -Level Verbose -Message "$currentjob is $($currentjob.CurrentRunStatus)"
+                        Start-Sleep -Seconds 3
+                        $currentjob.Refresh()
+                    }
+                    $currentjob
+                } else {
+                    $currentjob
+                }
+            }
         }
     }
-}
-}
 }

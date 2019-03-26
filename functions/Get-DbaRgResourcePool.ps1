@@ -73,19 +73,19 @@ function Get-DbaRgResourcePool {
                 $respool = $resourcegov.ExternalResourcePools
                 if ($respool) {
                     $respool | Add-Member -Force -MemberType NoteProperty -Name ComputerName -value $resourcegov.ComputerName
-                $respool | Add-Member -Force -MemberType NoteProperty -Name InstanceName -value $resourcegov.InstanceName
-            $respool | Add-Member -Force -MemberType NoteProperty -Name SqlInstance -value $resourcegov.SqlInstance
-        $respool | Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, Id, Name, CapCpuPercentage, IsSystemObject, MaximumCpuPercentage, MaximumIopsPerVolume, MaximumMemoryPercentage, MinimumCpuPercentage, MinimumIopsPerVolume, MinimumMemoryPercentage, WorkloadGroups
-}
-} else {
-    $respool = $resourcegov.ResourcePools
-    if ($respool) {
-        $respool | Add-Member -Force -MemberType NoteProperty -Name ComputerName -value $resourcegov.ComputerName
-    $respool | Add-Member -Force -MemberType NoteProperty -Name InstanceName -value $resourcegov.InstanceName
-$respool | Add-Member -Force -MemberType NoteProperty -Name SqlInstance -value $resourcegov.SqlInstance
-$respool | Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, Id, Name, CapCpuPercentage, IsSystemObject, MaximumCpuPercentage, MaximumIopsPerVolume, MaximumMemoryPercentage, MinimumCpuPercentage, MinimumIopsPerVolume, MinimumMemoryPercentage, WorkloadGroups
-}
-}
-}
-}
+                    $respool | Add-Member -Force -MemberType NoteProperty -Name InstanceName -value $resourcegov.InstanceName
+                    $respool | Add-Member -Force -MemberType NoteProperty -Name SqlInstance -value $resourcegov.SqlInstance
+                    $respool | Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, Id, Name, CapCpuPercentage, IsSystemObject, MaximumCpuPercentage, MaximumIopsPerVolume, MaximumMemoryPercentage, MinimumCpuPercentage, MinimumIopsPerVolume, MinimumMemoryPercentage, WorkloadGroups
+                }
+            } else {
+                $respool = $resourcegov.ResourcePools
+                if ($respool) {
+                    $respool | Add-Member -Force -MemberType NoteProperty -Name ComputerName -value $resourcegov.ComputerName
+                    $respool | Add-Member -Force -MemberType NoteProperty -Name InstanceName -value $resourcegov.InstanceName
+                    $respool | Add-Member -Force -MemberType NoteProperty -Name SqlInstance -value $resourcegov.SqlInstance
+                    $respool | Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, Id, Name, CapCpuPercentage, IsSystemObject, MaximumCpuPercentage, MaximumIopsPerVolume, MaximumMemoryPercentage, MinimumCpuPercentage, MinimumIopsPerVolume, MinimumMemoryPercentage, WorkloadGroups
+                }
+            }
+        }
+    }
 }

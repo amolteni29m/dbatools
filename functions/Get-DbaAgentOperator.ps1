@@ -86,37 +86,37 @@ function Get-DbaAgentOperator {
 
             if ($Operator) {
                 $operators = $server.JobServer.Operators | Where-Object Name -In $Operator
-        } elseif ($ExcludeOperator) {
-            $operators = $server.JobServer.Operators | Where-Object Name -NotIn $ExcludeOperator
-    } else {
-        $operators = $server.JobServer.Operators
-    }
+            } elseif ($ExcludeOperator) {
+                $operators = $server.JobServer.Operators | Where-Object Name -NotIn $ExcludeOperator
+            } else {
+                $operators = $server.JobServer.Operators
+            }
 
-    $alerts = $server.JobServer.alerts
+            $alerts = $server.JobServer.alerts
 
-    foreach ($operat in $operators) {
+            foreach ($operat in $operators) {
 
-        $jobs = $server.JobServer.jobs | Where-Object { $_.OperatorToEmail, $_.OperatorToNetSend, $_.OperatorToPage -contains $operat.Name }
-    $lastemail = [dbadatetime]$operat.LastEmailDate
+                $jobs = $server.JobServer.jobs | Where-Object { $_.OperatorToEmail, $_.OperatorToNetSend, $_.OperatorToPage -contains $operat.Name }
+                $lastemail = [dbadatetime]$operat.LastEmailDate
 
-    $operatAlerts = @()
-    foreach ($alert in $alerts) {
-        $dtAlert = $alert.EnumNotifications($operat.Name)
-        if ($dtAlert.Rows.Count -gt 0) {
-            $operatAlerts += $alert.Name
-            $alertlastemail = [dbadatetime]$alert.LastOccurrenceDate
+                $operatAlerts = @()
+                foreach ($alert in $alerts) {
+                    $dtAlert = $alert.EnumNotifications($operat.Name)
+                    if ($dtAlert.Rows.Count -gt 0) {
+                        $operatAlerts += $alert.Name
+                        $alertlastemail = [dbadatetime]$alert.LastOccurrenceDate
+                    }
+                }
+
+                Add-Member -Force -InputObject $operat -MemberType NoteProperty -Name ComputerName -Value $server.ComputerName
+                Add-Member -Force -InputObject $operat -MemberType NoteProperty -Name InstanceName -Value $server.ServiceName
+                Add-Member -Force -InputObject $operat -MemberType NoteProperty -Name SqlInstance -Value $server.DomainInstanceName
+                Add-Member -Force -InputObject $operat -MemberType NoteProperty -Name RelatedJobs -Value $jobs
+                Add-Member -Force -InputObject $operat -MemberType NoteProperty -Name LastEmail -Value $lastemail
+                Add-Member -Force -InputObject $operat -MemberType NoteProperty -Name RelatedAlerts -Value $operatAlerts
+                Add-Member -Force -InputObject $operat -MemberType NoteProperty -Name AlertLastEmail -Value $alertlastemail
+                Select-DefaultView -InputObject $operat -Property $defaults
+            }
         }
     }
-
-    Add-Member -Force -InputObject $operat -MemberType NoteProperty -Name ComputerName -Value $server.ComputerName
-    Add-Member -Force -InputObject $operat -MemberType NoteProperty -Name InstanceName -Value $server.ServiceName
-    Add-Member -Force -InputObject $operat -MemberType NoteProperty -Name SqlInstance -Value $server.DomainInstanceName
-    Add-Member -Force -InputObject $operat -MemberType NoteProperty -Name RelatedJobs -Value $jobs
-    Add-Member -Force -InputObject $operat -MemberType NoteProperty -Name LastEmail -Value $lastemail
-    Add-Member -Force -InputObject $operat -MemberType NoteProperty -Name RelatedAlerts -Value $operatAlerts
-    Add-Member -Force -InputObject $operat -MemberType NoteProperty -Name AlertLastEmail -Value $alertlastemail
-    Select-DefaultView -InputObject $operat -Property $defaults
-}
-}
-}
 }

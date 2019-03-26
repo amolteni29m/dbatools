@@ -169,257 +169,257 @@ function Invoke-DbaPfRelog {
         [switch]$EnableException
     )
     begin {
-
-
+        
+        
         if (Test-Bound -ParameterName BeginTime) {
             $script:beginstring = ($BeginTime -f 'M/d/yyyy hh:mm:ss' | Out-String).Trim()
-    }
-    if (Test-Bound -ParameterName EndTime) {
-        $script:endstring = ($EndTime -f 'M/d/yyyy hh:mm:ss' | Out-String).Trim()
-}
-
-$allpaths = @()
-$allpaths += $Path
-
-# to support multithreading
-if (Test-Bound -ParameterName Destination) {
-    $script:destinationset = $true
-    $originaldestination = $Destination
-} else {
-    $script:destinationset = $false
-}
-}
-process {
-    if ($Append -and $Type -ne "bin") {
-        Stop-Function -Message "Append can only be used with -Type bin." -Target $Path
-        return
-    }
-
-    if ($InputObject) {
-        foreach ($object in $InputObject) {
-            # DataCollectorSet
-            if ($object.OutputLocation -and $object.RemoteOutputLocation) {
-                $instance = [dbainstance]$object.ComputerName
-
-                if (-not $AllTime) {
-                    if ($instance.IsLocalHost) {
-                        $allpaths += (Get-ChildItem -Recurse -Path $object.LatestOutputLocation -Include *.blg -ErrorAction SilentlyContinue).FullName
-                    } else {
-                        $allpaths += (Get-ChildItem -Recurse -Path $object.RemoteLatestOutputLocation -Include *.blg -ErrorAction SilentlyContinue).FullName
-                    }
-                } else {
-                    if ($instance.IsLocalHost) {
-                        $allpaths += (Get-ChildItem -Recurse -Path $object.OutputLocation -Include *.blg -ErrorAction SilentlyContinue).FullName
-                    } else {
-                        $allpaths += (Get-ChildItem -Recurse -Path $object.RemoteOutputLocation -Include *.blg -ErrorAction SilentlyContinue).FullName
-                    }
-                }
-
-
-                $script:perfmonobject = $true
-            }
-            # DataCollector
-            if ($object.LatestOutputLocation -and $object.RemoteLatestOutputLocation) {
-                $instance = [dbainstance]$object.ComputerName
-
-                if (-not $AllTime) {
-                    if ($instance.IsLocalHost) {
-                        $allpaths += (Get-ChildItem -Recurse -Path $object.LatestOutputLocation -Include *.blg -ErrorAction SilentlyContinue).FullName
-                    } else {
-                        $allpaths += (Get-ChildItem -Recurse -Path $object.RemoteLatestOutputLocation -Include *.blg -ErrorAction SilentlyContinue).FullName
-                    }
-                } else {
-                    if ($instance.IsLocalHost) {
-                        $allpaths += (Get-ChildItem -Recurse -Path (Split-Path $object.LatestOutputLocation) -Include *.blg -ErrorAction SilentlyContinue).FullName
-                    } else {
-                        $allpaths += (Get-ChildItem -Recurse -Path (Split-Path $object.RemoteLatestOutputLocation) -Include *.blg -ErrorAction SilentlyContinue).FullName
-                    }
-                }
-                $script:perfmonobject = $true
-            }
         }
-    }
-}
-
-# Gotta collect all the paths first then process them otherwise there may be duplicates
-end {
-    $allpaths = $allpaths | Where-Object { $_ -match '.blg' } | Select-Object -Unique
-
-if (-not $allpaths) {
-    Stop-Function -Message "Could not find matching .blg files" -Target $file -Continue
-    return
-}
-
-$scriptblock = {
-    if ($args) {
-        $file = $args
-    } else {
-        $file = $psitem
-    }
-    $item = Get-ChildItem -Path $file -ErrorAction SilentlyContinue
-
-    if ($null -eq $item) {
-        Stop-Function -Message "$file does not exist." -Target $file -Continue
-        return
-    }
-
-    if (-not $script:destinationset -and $file -match "C\:\\.*Admin.*") {
-        $null = Test-ElevationRequirement -ComputerName $env:COMPUTERNAME -Continue
-    }
-
-    if ($script:destinationset -eq $false -and -not $Append) {
-        $Destination = Join-Path (Split-Path $file) $item.BaseName
-    }
-
-    if ($Destination -and $Destination -notmatch "\." -and -not $Append -and $script:perfmonobject) {
-        # if destination is set, then it needs a different name
-        if ($script:destinationset -eq $true) {
-            if ($file -match "\:") {
-                $computer = $env:COMPUTERNAME
-            } else {
-                $computer = $file.Split("\")[2]
-            }
-            # Avoid naming conflicts
-            $timestamp = Get-Date -format yyyyMMddHHmmfff
-            $Destination = Join-Path $originaldestination "$computer - $($item.BaseName) - $timestamp"
+        if (Test-Bound -ParameterName EndTime) {
+            $script:endstring = ($EndTime -f 'M/d/yyyy hh:mm:ss' | Out-String).Trim()
         }
-    }
 
-    $params = @("`"$file`"")
+        $allpaths = @()
+        $allpaths += $Path
 
-    if ($Append) {
-        $params += "-a"
-    }
-
-    if ($PerformanceCounter) {
-        $parsedcounters = $PerformanceCounter -join " "
-        $params += "-c `"$parsedcounters`""
-    }
-
-    if ($PerformanceCounterPath) {
-        $params += "-cf `"$PerformanceCounterPath`""
-    }
-
-    $params += "-f $Type"
-
-    if ($Interval) {
-        $params += "-t $Interval"
-    }
-
-    if ($Destination) {
-        $params += "-o `"$Destination`""
-    }
-
-    if ($script:beginstring) {
-        $params += "-b $script:beginstring"
-    }
-
-    if ($script:endstring) {
-        $params += "-e $script:endstring"
-    }
-
-    if ($ConfigPath) {
-        $params += "-config $ConfigPath"
-    }
-
-    if ($Summary) {
-        $params += "-q"
-    }
-
-
-    if (-not ($Destination.StartsWith("DSN"))) {
-        $outputisfile = $true
-    } else {
-        $outputisfile = $false
-    }
-
-    if ($outputisfile) {
-        if ($Destination) {
-            $dir = Split-Path $Destination
-            if (-not (Test-Path -Path $dir)) {
-                try {
-                    $null = New-Item -ItemType Directory -Path $dir -ErrorAction Stop
-                } catch {
-                    Stop-Function -Message "Failure" -ErrorRecord $_ -Target $Destination -Continue
-                }
-            }
-
-            if ((Test-Path $Destination) -and -not $Append -and ((Get-Item $Destination) -isnot [System.IO.DirectoryInfo])) {
-                if ($AllowClobber) {
-                    try {
-                        Remove-Item -Path "$Destination" -ErrorAction Stop
-                    } catch {
-                        Stop-Function -Message "Failure" -ErrorRecord $_ -Continue
-                    }
-                } else {
-                    if ($Type -eq "bin") {
-                        Stop-Function -Message "$Destination exists. Use -AllowClobber to overwrite or -Append to append." -Continue
-                    } else {
-                        Stop-Function -Message "$Destination exists. Use -AllowClobber to overwrite." -Continue
-                    }
-                }
-            }
-
-            if ((Test-Path "$Destination.$type") -and -not $Append) {
-                if ($AllowClobber) {
-                    try {
-                        Remove-Item -Path "$Destination.$type" -ErrorAction Stop
-                    } catch {
-                        Stop-Function -Message "Failure" -ErrorRecord $_ -Continue
-                    }
-                } else {
-                    if ($Type -eq "bin") {
-                        Stop-Function -Message "$("$Destination.$type") exists. Use -AllowClobber to overwrite or -Append to append." -Continue
-                    } else {
-                        Stop-Function -Message "$("$Destination.$type") exists. Use -AllowClobber to overwrite." -Continue
-                    }
-                }
-            }
-        }
-    }
-
-    $arguments = ($params -join " ")
-
-    try {
-        if ($Raw) {
-            Write-Message -Level Output -Message "relog $arguments"
-            cmd.exe /c "relog $arguments"
+        # to support multithreading
+        if (Test-Bound -ParameterName Destination) {
+            $script:destinationset = $true
+            $originaldestination = $Destination
         } else {
-            Write-Message -Level Verbose -Message "relog $arguments"
-            $scriptblock = {
-                $output = (cmd.exe /c "relog $arguments" | Out-String).Trim()
+            $script:destinationset = $false
+        }
+    }
+    process {
+        if ($Append -and $Type -ne "bin") {
+            Stop-Function -Message "Append can only be used with -Type bin." -Target $Path
+            return
+        }
 
-            if ($output -notmatch "Success") {
-                Stop-Function -Continue -Message $output.Trim("Input")
-            } else {
-                Write-Message -Level Verbose -Message "$output"
-                $array = $output -Split [environment]::NewLine
-                $files = $array | Select-String "File:"
+        if ($InputObject) {
+            foreach ($object in $InputObject) {
+                # DataCollectorSet
+                if ($object.OutputLocation -and $object.RemoteOutputLocation) {
+                    $instance = [dbainstance]$object.ComputerName
 
-            foreach ($rawfile in $files) {
-                $rawfile = $rawfile.ToString().Replace("File:", "").Trim()
-                $gcierror = $null
-                Get-ChildItem $rawfile -ErrorAction SilentlyContinue -ErrorVariable gcierror | Add-Member -MemberType NoteProperty -Name RelogFile -Value $true -PassThru -ErrorAction Ignore
-            if ($gcierror) {
-                Write-Message -Level Verbose -Message "$gcierror"
+                    if (-not $AllTime) {
+                        if ($instance.IsLocalHost) {
+                            $allpaths += (Get-ChildItem -Recurse -Path $object.LatestOutputLocation -Include *.blg -ErrorAction SilentlyContinue).FullName
+                        } else {
+                            $allpaths += (Get-ChildItem -Recurse -Path $object.RemoteLatestOutputLocation -Include *.blg -ErrorAction SilentlyContinue).FullName
+                        }
+                    } else {
+                        if ($instance.IsLocalHost) {
+                            $allpaths += (Get-ChildItem -Recurse -Path $object.OutputLocation -Include *.blg -ErrorAction SilentlyContinue).FullName
+                        } else {
+                            $allpaths += (Get-ChildItem -Recurse -Path $object.RemoteOutputLocation -Include *.blg -ErrorAction SilentlyContinue).FullName
+                        }
+                    }
+
+
+                    $script:perfmonobject = $true
+                }
+                # DataCollector
+                if ($object.LatestOutputLocation -and $object.RemoteLatestOutputLocation) {
+                    $instance = [dbainstance]$object.ComputerName
+
+                    if (-not $AllTime) {
+                        if ($instance.IsLocalHost) {
+                            $allpaths += (Get-ChildItem -Recurse -Path $object.LatestOutputLocation -Include *.blg -ErrorAction SilentlyContinue).FullName
+                        } else {
+                            $allpaths += (Get-ChildItem -Recurse -Path $object.RemoteLatestOutputLocation -Include *.blg -ErrorAction SilentlyContinue).FullName
+                        }
+                    } else {
+                        if ($instance.IsLocalHost) {
+                            $allpaths += (Get-ChildItem -Recurse -Path (Split-Path $object.LatestOutputLocation) -Include *.blg -ErrorAction SilentlyContinue).FullName
+                        } else {
+                            $allpaths += (Get-ChildItem -Recurse -Path (Split-Path $object.RemoteLatestOutputLocation) -Include *.blg -ErrorAction SilentlyContinue).FullName
+                        }
+                    }
+                    $script:perfmonobject = $true
+                }
             }
         }
     }
-}
-Invoke-Command -ScriptBlock $scriptblock
-}
-} catch {
-    Stop-Function -Message "Failure" -ErrorRecord $_ -Target $path
-}
-}
 
-if ($Multithread) {
-    $allpaths | Invoke-Parallel -ImportVariables -ImportModules -ScriptBlock $scriptblock -ErrorAction SilentlyContinue -ErrorVariable parallelerror
-if ($parallelerror) {
-    Write-Message -Level Verbose -Message "$parallelerror"
-}
-} else {
-    foreach ($file in $allpaths) { Invoke-Command -ScriptBlock $scriptblock -ArgumentList $file }
-}
-}
+    # Gotta collect all the paths first then process them otherwise there may be duplicates
+    end {
+        $allpaths = $allpaths | Where-Object { $_ -match '.blg' } | Select-Object -Unique
+
+        if (-not $allpaths) {
+            Stop-Function -Message "Could not find matching .blg files" -Target $file -Continue
+            return
+        }
+
+        $scriptblock = {
+            if ($args) {
+                $file = $args
+            } else {
+                $file = $psitem
+            }
+            $item = Get-ChildItem -Path $file -ErrorAction SilentlyContinue
+
+            if ($null -eq $item) {
+                Stop-Function -Message "$file does not exist." -Target $file -Continue
+                return
+            }
+
+            if (-not $script:destinationset -and $file -match "C\:\\.*Admin.*") {
+                $null = Test-ElevationRequirement -ComputerName $env:COMPUTERNAME -Continue
+            }
+
+            if ($script:destinationset -eq $false -and -not $Append) {
+                $Destination = Join-Path (Split-Path $file) $item.BaseName
+            }
+
+            if ($Destination -and $Destination -notmatch "\." -and -not $Append -and $script:perfmonobject) {
+                # if destination is set, then it needs a different name
+                if ($script:destinationset -eq $true) {
+                    if ($file -match "\:") {
+                        $computer = $env:COMPUTERNAME
+                    } else {
+                        $computer = $file.Split("\")[2]
+                    }
+                    # Avoid naming conflicts
+                    $timestamp = Get-Date -format yyyyMMddHHmmfff
+                    $Destination = Join-Path $originaldestination "$computer - $($item.BaseName) - $timestamp"
+                }
+            }
+
+            $params = @("`"$file`"")
+
+            if ($Append) {
+                $params += "-a"
+            }
+
+            if ($PerformanceCounter) {
+                $parsedcounters = $PerformanceCounter -join " "
+                $params += "-c `"$parsedcounters`""
+            }
+
+            if ($PerformanceCounterPath) {
+                $params += "-cf `"$PerformanceCounterPath`""
+            }
+
+            $params += "-f $Type"
+
+            if ($Interval) {
+                $params += "-t $Interval"
+            }
+
+            if ($Destination) {
+                $params += "-o `"$Destination`""
+            }
+
+            if ($script:beginstring) {
+                $params += "-b $script:beginstring"
+            }
+
+            if ($script:endstring) {
+                $params += "-e $script:endstring"
+            }
+
+            if ($ConfigPath) {
+                $params += "-config $ConfigPath"
+            }
+
+            if ($Summary) {
+                $params += "-q"
+            }
+
+
+            if (-not ($Destination.StartsWith("DSN"))) {
+                $outputisfile = $true
+            } else {
+                $outputisfile = $false
+            }
+
+            if ($outputisfile) {
+                if ($Destination) {
+                    $dir = Split-Path $Destination
+                    if (-not (Test-Path -Path $dir)) {
+                        try {
+                            $null = New-Item -ItemType Directory -Path $dir -ErrorAction Stop
+                        } catch {
+                            Stop-Function -Message "Failure" -ErrorRecord $_ -Target $Destination -Continue
+                        }
+                    }
+
+                    if ((Test-Path $Destination) -and -not $Append -and ((Get-Item $Destination) -isnot [System.IO.DirectoryInfo])) {
+                        if ($AllowClobber) {
+                            try {
+                                Remove-Item -Path "$Destination" -ErrorAction Stop
+                            } catch {
+                                Stop-Function -Message "Failure" -ErrorRecord $_ -Continue
+                            }
+                        } else {
+                            if ($Type -eq "bin") {
+                                Stop-Function -Message "$Destination exists. Use -AllowClobber to overwrite or -Append to append." -Continue
+                            } else {
+                                Stop-Function -Message "$Destination exists. Use -AllowClobber to overwrite." -Continue
+                            }
+                        }
+                    }
+
+                    if ((Test-Path "$Destination.$type") -and -not $Append) {
+                        if ($AllowClobber) {
+                            try {
+                                Remove-Item -Path "$Destination.$type" -ErrorAction Stop
+                            } catch {
+                                Stop-Function -Message "Failure" -ErrorRecord $_ -Continue
+                            }
+                        } else {
+                            if ($Type -eq "bin") {
+                                Stop-Function -Message "$("$Destination.$type") exists. Use -AllowClobber to overwrite or -Append to append." -Continue
+                            } else {
+                                Stop-Function -Message "$("$Destination.$type") exists. Use -AllowClobber to overwrite." -Continue
+                            }
+                        }
+                    }
+                }
+            }
+
+            $arguments = ($params -join " ")
+
+            try {
+                if ($Raw) {
+                    Write-Message -Level Output -Message "relog $arguments"
+                    cmd /c "relog $arguments"
+                } else {
+                    Write-Message -Level Verbose -Message "relog $arguments"
+                    $scriptblock = {
+                        $output = (cmd /c "relog $arguments" | Out-String).Trim()
+
+                        if ($output -notmatch "Success") {
+                            Stop-Function -Continue -Message $output.Trim("Input")
+                        } else {
+                            Write-Message -Level Verbose -Message "$output"
+                            $array = $output -Split [environment]::NewLine
+                            $files = $array | Select-String "File:"
+
+                            foreach ($rawfile in $files) {
+                                $rawfile = $rawfile.ToString().Replace("File:", "").Trim()
+                                $gcierror = $null
+                                Get-ChildItem $rawfile -ErrorAction SilentlyContinue -ErrorVariable gcierror | Add-Member -MemberType NoteProperty -Name RelogFile -Value $true -PassThru -ErrorAction Ignore
+                                if ($gcierror) {
+                                    Write-Message -Level Verbose -Message "$gcierror"
+                                }
+                            }
+                        }
+                    }
+                    Invoke-Command -ScriptBlock $scriptblock
+                }
+            } catch {
+                Stop-Function -Message "Failure" -ErrorRecord $_ -Target $path
+            }
+        }
+
+        if ($Multithread) {
+            $allpaths | Invoke-Parallel -ImportVariables -ImportModules -ScriptBlock $scriptblock -ErrorAction SilentlyContinue -ErrorVariable parallelerror
+            if ($parallelerror) {
+                Write-Message -Level Verbose -Message "$parallelerror"
+            }
+        } else {
+            foreach ($file in $allpaths) { Invoke-Command -ScriptBlock $scriptblock -ArgumentList $file }
+        }
+    }
 }

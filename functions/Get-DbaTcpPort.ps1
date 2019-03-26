@@ -65,7 +65,7 @@ function Get-DbaTcpPort {
 
         Returns an object with server name, IPAddress (just ipv4), port and static ($true/$false) for every server listed in the Central Management Server on sql2014.
 
-    #>
+       #>
     [CmdletBinding()]
     param (
         [parameter(Mandatory, ValueFromPipeline)]
@@ -95,112 +95,112 @@ function Get-DbaTcpPort {
                         foreach ($servername in $wmi.ServerInstances) {
                             $instanceName = $servername.Name
                             $wmiinstance = $wmi.Services | Where-Object { $_.DisplayName -eq "SQL Server ($instanceName)" }
-                        $vsname = ($wmiinstance.AdvancedProperties | Where-Object { $_ -match 'VSNAME' }).Value
+                            $vsname = ($wmiinstance.AdvancedProperties | Where-Object { $_ -match 'VSNAME' }).Value
 
-                    if ($vsname.length -eq 0) {
-                        $vsname = "$instance\$instanceName"
+                            if ($vsname.length -eq 0) {
+                                $vsname = "$instance\$instanceName"
+                            }
+
+                            $vsname = $vsname.Replace("\MSSQLSERVER", "")
+
+                            try {
+                                $regroot = ($wmiinstance.AdvancedProperties | Where-Object { $_ -match 'REGROOT' }).Value
+                                $dacport = (Get-ItemProperty "HKLM:\$regroot\MSSQLServer\SuperSocketNetLib\AdminConnection\Tcp").TcpDynamicPorts
+
+                                [PsCustomObject]@{
+                                    ComputerName = $instance
+                                    InstanceName = $instanceName
+                                    SqlInstance  = $vsname
+                                    IPAddress    = "0.0.0.0"
+                                    Port         = $dacport
+                                    Static       = $false
+                                    Type         = "DAC"
+                                }
+                            } catch {
+                                # Shouldn't have an empty catch block
+                                # Use write-verbose becaues it's remote and write-message may note exist
+                                Write-Verbose -Message "it's just not our day"
+                            }
+
+                            $tcp = $servername.ServerProtocols | Where-Object Name -eq Tcp
+                            $ips = $tcp.IPAddresses
+
+                            # This is a remote command so do not use Write-message
+                            Write-Verbose "Parsing information for $($ips.count) IP addresses."
+                            foreach ($ip in $ips) {
+                                $props = $ip.IPAddressProperties | Where-Object { $_.Name -eq "TcpPort" -or $_.Name -eq "TcpDynamicPorts" }
+
+                                foreach ($prop in $props) {
+                                    if ([Microsoft.VisualBasic.Information]::IsNumeric($prop.value)) {
+                                        $port = $prop.value
+                                        if ($prop.name -eq 'TcpPort') {
+                                            $static = $true
+                                        } else {
+                                            $static = $false
+                                        }
+                                    }
+                                }
+                                [PsCustomObject]@{
+                                    ComputerName = $instance
+                                    InstanceName = $instanceName
+                                    SqlInstance  = $vsname
+                                    IPAddress    = $ip.IPAddress.IPAddressToString
+                                    Port         = $port
+                                    Static       = $static
+                                    Type         = "Normal"
+                                }
+                            }
+                        }
                     }
 
-                    $vsname = $vsname.Replace("\MSSQLSERVER", "")
+                    $computer = $instance.ComputerName
+                    $resolved = Resolve-DbaNetworkName -ComputerName $instance
+                    $computername = $resolved.FullComputerName
+                    $fqdn = $resolved.Fqdn
 
                     try {
-                        $regroot = ($wmiinstance.AdvancedProperties | Where-Object { $_ -match 'REGROOT' }).Value
-                    $dacport = (Get-ItemProperty "HKLM:\$regroot\MSSQLServer\SuperSocketNetLib\AdminConnection\Tcp").TcpDynamicPorts
-
-                    [PsCustomObject]@{
-                        ComputerName = $instance
-                        InstanceName = $instanceName
-                        SqlInstance  = $vsname
-                        IPAddress    = "0.0.0.0"
-                        Port         = $dacport
-                        Static       = $false
-                        Type         = "DAC"
+                        Write-Message -Level Verbose -Message "Trying with ComputerName ($computer)."
+                        $someIps = Invoke-ManagedComputerCommand -ComputerName $computer -Credential $Credential -ArgumentList $computer -ScriptBlock $scriptblock
+                    } catch {
+                        Write-Message -Level Verbose -Message "Trying with FullComputerName because ComputerName failed."
+                        $someIps = Invoke-ManagedComputerCommand -ComputerName $computername -Credential $Credential -ArgumentList $fqdn -ScriptBlock $scriptblock
                     }
                 } catch {
-                    # Shouldn't have an empty catch block
-                    # Use write-verbose becaues it's remote and write-message may note exist
-                    Write-Verbose -Message "it's just not our day"
+                    Stop-Function -Message "Could not get all information." -Target $instance -ErrorRecord $_
                 }
 
-                $tcp = $servername.ServerProtocols | Where-Object Name -eq Tcp
-            $ips = $tcp.IPAddresses
+                $results = $someIps | Sort-Object IPAddress
 
-            # This is a remote command so do not use Write-message
-            Write-Verbose "Parsing information for $($ips.count) IP addresses."
-            foreach ($ip in $ips) {
-                $props = $ip.IPAddressProperties | Where-Object { $_.Name -eq "TcpPort" -or $_.Name -eq "TcpDynamicPorts" }
-
-            foreach ($prop in $props) {
-                if ([Microsoft.VisualBasic.Information]::IsNumeric($prop.value)) {
-                    $port = $prop.value
-                    if ($prop.name -eq 'TcpPort') {
-                        $static = $true
-                    } else {
-                        $static = $false
-                    }
+                if ($ExcludeIpv6) {
+                    $octet = '(?:0?0?[0-9]|0?[1-9][0-9]|1[0-9]{2}|2[0-5][0-5]|2[0-4][0-9])'
+                    [regex]$ipv4 = "^(?:$octet\.){3}$octet$"
+                    $results = $results | Where-Object { $_.IPAddress -match $ipv4 }
                 }
+
+                $results
             }
-            [PsCustomObject]@{
-                ComputerName = $instance
-                InstanceName = $instanceName
-                SqlInstance  = $vsname
-                IPAddress    = $ip.IPAddress.IPAddressToString
-                Port         = $port
-                Static       = $static
-                Type         = "Normal"
+            #Default Execution of Get-DbaTcpPort
+            if (-not $All -or ($All -and ($null -eq $someIps))) {
+                try {
+                    $server = Connect-SqlInstance -SqlInstance "TCP:$instance" -SqlCredential $SqlCredential -MinimumVersion 9
+                } catch {
+                    Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target "TCP:$instance" -Continue
+                }
+
+                # WmiComputer can be unreliable :( Use T-SQL
+                $sql = "SELECT local_net_address,local_tcp_port FROM sys.dm_exec_connections WHERE session_id = @@SPID"
+                $port = $server.Query($sql)
+
+                [PsCustomObject]@{
+                    ComputerName = $server.ComputerName
+                    InstanceName = $server.ServiceName
+                    SqlInstance  = $server.DomainInstanceName
+                    IPAddress    = $port.local_net_address
+                    Port         = $port.local_tcp_port
+                    Static       = $true
+                    Type         = "Normal"
+                } | Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, IPAddress, Port
             }
         }
     }
-}
-
-$computer = $instance.ComputerName
-$resolved = Resolve-DbaNetworkName -ComputerName $instance
-$computername = $resolved.FullComputerName
-$fqdn = $resolved.Fqdn
-
-try {
-    Write-Message -Level Verbose -Message "Trying with ComputerName ($computer)."
-    $someIps = Invoke-ManagedComputerCommand -ComputerName $computer -Credential $Credential -ArgumentList $computer -ScriptBlock $scriptblock
-} catch {
-    Write-Message -Level Verbose -Message "Trying with FullComputerName because ComputerName failed."
-    $someIps = Invoke-ManagedComputerCommand -ComputerName $computername -Credential $Credential -ArgumentList $fqdn -ScriptBlock $scriptblock
-}
-} catch {
-    Stop-Function -Message "Could not get all information." -Target $instance -ErrorRecord $_
-}
-
-$results = $someIps | Sort-Object IPAddress
-
-if ($ExcludeIpv6) {
-    $octet = '(?:0?0?[0-9]|0?[1-9][0-9]|1[0-9]{2}|2[0-5][0-5]|2[0-4][0-9])'
-    [regex]$ipv4 = "^(?:$octet\.){3}$octet$"
-    $results = $results | Where-Object { $_.IPAddress -match $ipv4 }
-}
-
-$results
-}
-#Default Execution of Get-DbaTcpPort
-if (-not $All -or ($All -and ($null -eq $someIps))) {
-    try {
-        $server = Connect-SqlInstance -SqlInstance "TCP:$instance" -SqlCredential $SqlCredential -MinimumVersion 9
-    } catch {
-        Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target "TCP:$instance" -Continue
-    }
-
-    # WmiComputer can be unreliable :( Use T-SQL
-    $sql = "SELECT local_net_address,local_tcp_port FROM sys.dm_exec_connections WHERE session_id = @@SPID"
-    $port = $server.Query($sql)
-
-    [PsCustomObject]@{
-        ComputerName = $server.ComputerName
-        InstanceName = $server.ServiceName
-        SqlInstance  = $server.DomainInstanceName
-        IPAddress    = $port.local_net_address
-        Port         = $port.local_tcp_port
-        Static       = $true
-        Type         = "Normal"
-    } | Select-DefaultView -Property ComputerName, InstanceName, SqlInstance, IPAddress, Port
-}
-}
-}
 }

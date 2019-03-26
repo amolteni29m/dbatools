@@ -61,7 +61,7 @@ function Invoke-DbMirrorValidation {
 
             Do things
 
-    #>
+       #>
     [CmdletBinding()]
     param (
         [DbaInstanceParameter]$Primary,
@@ -95,120 +95,120 @@ function Invoke-DbMirrorValidation {
 
             $endpoints = @()
             $endpoints += Get-DbaEndpoint -SqlInstance $server | Where-Object EndpointType -eq DatabaseMirroring
-        $endpoints += Get-DbaEndpoint -SqlInstance $dest | Where-Object EndpointType -eq DatabaseMirroring
+            $endpoints += Get-DbaEndpoint -SqlInstance $dest | Where-Object EndpointType -eq DatabaseMirroring
 
-    if (Test-Bound -ParameterName Witness) {
-        try {
-            $witserver = Connect-DbaInstance -SqlInstance $Witness -SqlCredential $WitnessSqlCredential
-            $endpoints += Get-DbaEndpoint -SqlInstance $witserver | Where-Object EndpointType -eq DatabaseMirroring
-        $witdb = Get-DbaDatabase -SqlInstance $witserver -Database $db.Name
-        $wexists = $true
+            if (Test-Bound -ParameterName Witness) {
+                try {
+                    $witserver = Connect-DbaInstance -SqlInstance $Witness -SqlCredential $WitnessSqlCredential
+                    $endpoints += Get-DbaEndpoint -SqlInstance $witserver | Where-Object EndpointType -eq DatabaseMirroring
+                    $witdb = Get-DbaDatabase -SqlInstance $witserver -Database $db.Name
+                    $wexists = $true
 
-        if ($witdb.Status -ne 'Restoring') {
-            $canmirror = $false
+                    if ($witdb.Status -ne 'Restoring') {
+                        $canmirror = $false
+                    }
+
+                    if ($witdb) {
+                        $witexists = $true
+                    } else {
+                        Write-Message -Level Verbose -Message "Database ($dbname) exists on witness server"
+                        $canmirror = $false
+                        $witexists = $false
+                    }
+                } catch {
+                    $wexists = $false
+                    $canmirror = $false
+                }
+            }
+
+            if ($db.MirroringStatus -ne [Microsoft.SqlServer.Management.Smo.MirroringStatus]::None) {
+                Write-Message -Level Verbose -Message "Cannot setup mirroring on database ($dbname) due to its current mirroring state: $($db.MirroringStatus)"
+                $canmirror = $false
+            }
+
+            if ($db.Status -ne [Microsoft.SqlServer.Management.Smo.DatabaseStatus]::Normal) {
+                Write-Message -Level Verbose -Message "Cannot setup mirroring on database ($dbname) due to its current Status: $($db.Status)"
+                $canmirror = $false
+            }
+
+            if ($db.RecoveryModel -ne 'Full') {
+                Write-Message -Level Verbose -Message "Cannot setup mirroring on database ($dbname) due to its current recovery model: $($db.RecoveryModel)"
+                $canmirror = $false
+            }
+
+            $destdb = Get-DbaDatabase -SqlInstance $dest -Database $db.Name
+
+            if ($destdb.RecoveryModel -ne 'Full') {
+                $canmirror = $false
+            }
+
+            if ($destdb.Status -ne 'Restoring') {
+                $canmirror = $false
+            }
+
+            if ($destdb) {
+                $destdbexists = $true
+            } else {
+                Write-Message -Level Verbose -Message "Database ($dbname) does not exist on mirror server"
+                $canmirror = $false
+                $destdbexists = $false
+            }
+
+            if ((Test-Bound -ParameterName SharedPath) -and -not (Test-DbaPath -SqlInstance $dest -Path $SharedPath)) {
+                Write-Message -Level Verbose -Message "Cannot access $SharedPath from $($destdb.Parent.Name)"
+                $canmirror = $false
+                $nexists = $false
+            } else {
+                $nexists = $true
+            }
+
+            if ($server.EngineEdition -ne $dest.EngineEdition) {
+                Write-Message -Level Verbose -Message "This mirroring configuration is not supported. Because the principal server instance, $server, is $($server.EngineEdition) Edition, the mirror server instance must also be $($server.EngineEdition) Edition."
+                $canmirror = $false
+                $edition = $false
+            } else {
+                $edition = $true
+            }
+
+            # There's a better way to do this but I'm sleepy
+            if ((Test-Bound -ParameterName Witness)) {
+                if ($endpoints.Count -eq 3) {
+                    $endpointpass = $true
+                } else {
+                    $endpointpass = $false
+                }
+            } else {
+                if ($endpoints.Count -eq 2) {
+                    $endpointpass = $true
+                } else {
+                    $endpointpass = $false
+                }
+            }
+
+            $results = [pscustomobject]@{
+                Primary                 = $Primary
+                Mirror                  = $Mirror
+                Witness                 = $Witness
+                Database                = $db.Name
+                RecoveryModel           = $db.RecoveryModel
+                MirroringStatus         = $db.MirroringStatus
+                State                   = $db.Status
+                EndPoints               = $endpointpass
+                DatabaseExistsOnMirror  = $destdbexists
+                DatabaseExistsOnWitness = $witexists
+                OnlineWitness           = $wexists
+                EditionMatch            = $edition
+                AccessibleShare         = $nexists
+                DestinationDbStatus     = $destdb.Status
+                WitnessDbStatus         = $witdb.Status
+                ValidationPassed        = $canmirror
+            }
+
+            if ((Test-Bound -ParameterName Witness)) {
+                $results | Select-DefaultView -Property Primary, Mirror, Witness, Database, RecoveryModel, MirroringStatus, State, EndPoints, DatabaseExistsOnMirror, OnlineWitness, DatabaseExistsOnWitness, EditionMatch, AccessibleShare, DestinationDbStatus, WitnessDbStatus, ValidationPassed
+            } else {
+                $results | Select-DefaultView -Property Primary, Mirror, Database, RecoveryModel, MirroringStatus, State, EndPoints, DatabaseExistsOnMirror, EditionMatch, AccessibleShare, DestinationDbStatus, ValidationPassed
+            }
         }
-
-        if ($witdb) {
-            $witexists = $true
-        } else {
-            Write-Message -Level Verbose -Message "Database ($dbname) exists on witness server"
-            $canmirror = $false
-            $witexists = $false
-        }
-    } catch {
-        $wexists = $false
-        $canmirror = $false
     }
-}
-
-if ($db.MirroringStatus -ne [Microsoft.SqlServer.Management.Smo.MirroringStatus]::None) {
-    Write-Message -Level Verbose -Message "Cannot setup mirroring on database ($dbname) due to its current mirroring state: $($db.MirroringStatus)"
-    $canmirror = $false
-}
-
-if ($db.Status -ne [Microsoft.SqlServer.Management.Smo.DatabaseStatus]::Normal) {
-    Write-Message -Level Verbose -Message "Cannot setup mirroring on database ($dbname) due to its current Status: $($db.Status)"
-    $canmirror = $false
-}
-
-if ($db.RecoveryModel -ne 'Full') {
-    Write-Message -Level Verbose -Message "Cannot setup mirroring on database ($dbname) due to its current recovery model: $($db.RecoveryModel)"
-    $canmirror = $false
-}
-
-$destdb = Get-DbaDatabase -SqlInstance $dest -Database $db.Name
-
-if ($destdb.RecoveryModel -ne 'Full') {
-    $canmirror = $false
-}
-
-if ($destdb.Status -ne 'Restoring') {
-    $canmirror = $false
-}
-
-if ($destdb) {
-    $destdbexists = $true
-} else {
-    Write-Message -Level Verbose -Message "Database ($dbname) does not exist on mirror server"
-    $canmirror = $false
-    $destdbexists = $false
-}
-
-if ((Test-Bound -ParameterName SharedPath) -and -not (Test-DbaPath -SqlInstance $dest -Path $SharedPath)) {
-    Write-Message -Level Verbose -Message "Cannot access $SharedPath from $($destdb.Parent.Name)"
-    $canmirror = $false
-    $nexists = $false
-} else {
-    $nexists = $true
-}
-
-if ($server.EngineEdition -ne $dest.EngineEdition) {
-    Write-Message -Level Verbose -Message "This mirroring configuration is not supported. Because the principal server instance, $server, is $($server.EngineEdition) Edition, the mirror server instance must also be $($server.EngineEdition) Edition."
-    $canmirror = $false
-    $edition = $false
-} else {
-    $edition = $true
-}
-
-# There's a better way to do this but I'm sleepy
-if ((Test-Bound -ParameterName Witness)) {
-    if ($endpoints.Count -eq 3) {
-        $endpointpass = $true
-    } else {
-        $endpointpass = $false
-    }
-} else {
-    if ($endpoints.Count -eq 2) {
-        $endpointpass = $true
-    } else {
-        $endpointpass = $false
-    }
-}
-
-$results = [pscustomobject]@{
-    Primary                 = $Primary
-    Mirror                  = $Mirror
-    Witness                 = $Witness
-    Database                = $db.Name
-    RecoveryModel           = $db.RecoveryModel
-    MirroringStatus         = $db.MirroringStatus
-    State                   = $db.Status
-    EndPoints               = $endpointpass
-    DatabaseExistsOnMirror  = $destdbexists
-    DatabaseExistsOnWitness = $witexists
-    OnlineWitness           = $wexists
-    EditionMatch            = $edition
-    AccessibleShare         = $nexists
-    DestinationDbStatus     = $destdb.Status
-    WitnessDbStatus         = $witdb.Status
-    ValidationPassed        = $canmirror
-}
-
-if ((Test-Bound -ParameterName Witness)) {
-    $results | Select-DefaultView -Property Primary, Mirror, Witness, Database, RecoveryModel, MirroringStatus, State, EndPoints, DatabaseExistsOnMirror, OnlineWitness, DatabaseExistsOnWitness, EditionMatch, AccessibleShare, DestinationDbStatus, WitnessDbStatus, ValidationPassed
-} else {
-    $results | Select-DefaultView -Property Primary, Mirror, Database, RecoveryModel, MirroringStatus, State, EndPoints, DatabaseExistsOnMirror, EditionMatch, AccessibleShare, DestinationDbStatus, ValidationPassed
-}
-}
-}
 }

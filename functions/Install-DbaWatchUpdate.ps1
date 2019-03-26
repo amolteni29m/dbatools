@@ -58,7 +58,7 @@ function Install-DbaWatchUpdate {
                 # create a task, check every 3 hours
                 $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-NoProfile -NoLogo -NonInteractive -WindowStyle Hidden Watch-DbaUpdate'
                 $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).Date -RepetitionInterval (New-TimeSpan -Hours 1)
-                $principal = New-ScheduledTaskPrincipal -LogonType S4U -UserId (whoami.exe)
+                $principal = New-ScheduledTaskPrincipal -LogonType S4U -UserId (whoami)
                 $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([timespan]::Zero) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -RunOnlyIfNetworkAvailable -DontStopOnIdleEnd
                 #Variable $Task marked as unused by PSScriptAnalyzer replaced with $null for catching output
                 $null = Register-ScheduledTask -Principal $principal -TaskName 'dbatools version check' -Action $action -Trigger $trigger -Settings $settings -ErrorAction Stop

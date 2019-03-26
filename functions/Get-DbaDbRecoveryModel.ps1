@@ -50,7 +50,7 @@ function Get-DbaDbRecoveryModel {
 
         Gets recovery model information for TestDB. If TestDB does not exist on the instance nothing is returned.
 
-    #>
+       #>
     [CmdletBinding()]
     param (
         [parameter(Mandatory, ValueFromPipeline)]
@@ -79,8 +79,8 @@ function Get-DbaDbRecoveryModel {
 
         if ($RecoveryModel) {
             Get-DbaDatabase @params | Where-Object RecoveryModel -in $RecoveryModel | Where-Object IsAccessible | Select-DefaultView -Property $defaults
-} else {
-    Get-DbaDatabase @params | Select-DefaultView -Property $defaults
-}
-}
+        } else {
+            Get-DbaDatabase @params | Select-DefaultView -Property $defaults
+        }
+    }
 }

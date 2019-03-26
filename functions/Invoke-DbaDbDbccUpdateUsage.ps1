@@ -130,66 +130,66 @@ function Invoke-DbaDbDbccUpdateUsage {
             $dbs = $server.Databases
 
             if (Test-Bound -ParameterName Database) {
-                $dbs = $dbs | Where-Object { ($_.Name -In $Database) -or ($_.ID -In $Database) }
-        }
-
-        foreach ($db in $dbs) {
-            Write-Message -Level Verbose -Message "Processing $db on $instance"
-
-            if ($db.IsAccessible -eq $false) {
-                Stop-Function -Message "The database $db is not accessible. Skipping." -Continue
+                $dbs = $dbs | Where-Object {($_.Name -In $Database) -or ($_.ID -In $Database) }
             }
 
-            try {
-                $query = $StringBuilder.ToString()
-                if (Test-Bound -ParameterName Table) {
-                    if (Test-Bound -ParameterName Index) {
-                        if ($Table -match '^\d+$') {
-                            if ($Index -match '^\d+$') {
-                                $query = $query.Replace('#options#', "'$($db.name)', $Table, $Index")
+            foreach ($db in $dbs) {
+                Write-Message -Level Verbose -Message "Processing $db on $instance"
+
+                if ($db.IsAccessible -eq $false) {
+                    Stop-Function -Message "The database $db is not accessible. Skipping." -Continue
+                }
+
+                try {
+                    $query = $StringBuilder.ToString()
+                    if (Test-Bound -ParameterName Table) {
+                        if (Test-Bound -ParameterName Index) {
+                            if ($Table -match '^\d+$') {
+                                if ($Index -match '^\d+$') {
+                                    $query = $query.Replace('#options#', "'$($db.name)', $Table, $Index")
+                                } else {
+                                    $query = $query.Replace('#options#', "'$($db.name)', $Table, '$Index'")
+                                }
                             } else {
-                                $query = $query.Replace('#options#', "'$($db.name)', $Table, '$Index'")
+                                if ($Index -match '^\d+$') {
+                                    $query = $query.Replace('#options#', "'$($db.name)', '$Table', $Index")
+                                } else {
+                                    $query = $query.Replace('#options#', "'$($db.name)', '$Table', '$Index'")
+                                }
                             }
                         } else {
-                            if ($Index -match '^\d+$') {
-                                $query = $query.Replace('#options#', "'$($db.name)', '$Table', $Index")
+                            if ($Table -match '^\d+$') {
+                                $query = $query.Replace('#options#', "'$($db.name)', $Table")
                             } else {
-                                $query = $query.Replace('#options#', "'$($db.name)', '$Table', '$Index'")
+                                $query = $query.Replace('#options#', "'$($db.name)', '$Table'")
                             }
                         }
                     } else {
-                        if ($Table -match '^\d+$') {
-                            $query = $query.Replace('#options#', "'$($db.name)', $Table")
-                        } else {
-                            $query = $query.Replace('#options#', "'$($db.name)', '$Table'")
-                        }
+                        $query = $query.Replace('#options#', "'$($db.name)'")
                     }
-                } else {
-                    $query = $query.Replace('#options#', "'$($db.name)'")
+
+                    if ($Pscmdlet.ShouldProcess($server.Name, "Execute the command $query against $instance")) {
+                        Write-Message -Message "Query to run: $query" -Level Verbose
+                        $results = $server | Invoke-DbaQuery  -Query $query -MessagesToOutput
+                        Write-Message -Message "$($results.Count)" -Level Verbose
+                    }
+                } catch {
+                    Stop-Function -Message "Error capturing data on $db" -Target $instance -ErrorRecord $_ -Exception $_.Exception -Continue
                 }
 
-                if ($Pscmdlet.ShouldProcess($server.Name, "Execute the command $query against $instance")) {
-                    Write-Message -Message "Query to run: $query" -Level Verbose
-                    $results = $server | Invoke-DbaQuery  -Query $query -MessagesToOutput
-                Write-Message -Message "$($results.Count)" -Level Verbose
-            }
-        } catch {
-            Stop-Function -Message "Error capturing data on $db" -Target $instance -ErrorRecord $_ -Exception $_.Exception -Continue
-        }
-
-        foreach ($row in $results) {
-            if ($Pscmdlet.ShouldProcess("console", "Outputting object")) {
-                [PSCustomObject]@{
-                    ComputerName = $server.ComputerName
-                    InstanceName = $server.ServiceName
-                    SqlInstance  = $server.DomainInstanceName
-                    Database     = $db.name
-                    Cmd          = $query.ToString()
-                    Output       = $results
+                foreach ($row in $results) {
+                    if ($Pscmdlet.ShouldProcess("console", "Outputting object")) {
+                        [PSCustomObject]@{
+                            ComputerName = $server.ComputerName
+                            InstanceName = $server.ServiceName
+                            SqlInstance  = $server.DomainInstanceName
+                            Database     = $db.name
+                            Cmd          = $query.ToString()
+                            Output       = $results
+                        }
+                    }
                 }
             }
         }
     }
-}
-}
 }

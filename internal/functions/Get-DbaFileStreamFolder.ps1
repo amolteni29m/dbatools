@@ -38,7 +38,7 @@ function Get-DbaFileStreamFolder {
     Website: https://dbatools.io
     Copyright: (c) 2018 by dbatools, licensed under MIT
     License: MIT https://opensource.org/licenses/MIT
-    #>
+       #>
     param (
         [Alias("ServerInstance", "SqlServer")]
         [DbaInstanceParameter]$SqlInstance,
@@ -67,16 +67,16 @@ function Get-DbaFileStreamFolder {
         }
 
         $results = $server.ConnectionContext.ExecuteWithResults($sql).Tables.Rows | Select-Object * -ExcludeProperty  RowError, Rowstate, table, itemarray, haserrors
-    foreach ($result in $results) {
-        [PsCustomObject]@{
-            ServerInstance   = $SqlInstance
-            Database         = $result.dbname
-            FileStreamFolder = $result.Physical_Name
+        foreach ($result in $results) {
+            [PsCustomObject]@{
+                ServerInstance   = $SqlInstance
+                Database         = $result.dbname
+                FileStreamFolder = $result.Physical_Name
+            }
         }
+
+
     }
 
-
-}
-
-END { }
+    END {}
 }

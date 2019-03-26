@@ -38,7 +38,7 @@ function Get-DbaPowerPlan {
 
         Gets the Power Plan settings for sql2017 using an alternative credential
 
-    #>
+       #>
     param (
         [parameter(Mandatory, ValueFromPipeline)]
         [Alias("ServerInstance", "SqlServer", "SqlInstance")]
@@ -72,27 +72,27 @@ function Get-DbaPowerPlan {
 
             try {
                 $powerPlans = Get-DbaCmObject @splatDbaCmObject -ClassName Win32_PowerPlan -Namespace "root\cimv2\power" | Select-Object ElementName, InstanceId, IsActive
-        } catch {
-            if ($_.Exception -match "namespace") {
-                Stop-Function -Message "Can't get Power Plan Info for $computer. Unsupported operating system." -Continue -ErrorRecord $_ -Target $computer
-            } else {
-                Stop-Function -Message "Can't get Power Plan Info for $computer. Check logs for more details." -Continue -ErrorRecord $_ -Target $computer
+            } catch {
+                if ($_.Exception -match "namespace") {
+                    Stop-Function -Message "Can't get Power Plan Info for $computer. Unsupported operating system." -Continue -ErrorRecord $_ -Target $computer
+                } else {
+                    Stop-Function -Message "Can't get Power Plan Info for $computer. Check logs for more details." -Continue -ErrorRecord $_ -Target $computer
+                }
             }
+
+            $powerPlan = $powerPlans | Where-Object IsActive -eq 'True' | Select-Object ElementName, InstanceID
+            $powerPlan.InstanceID = $powerPlan.InstanceID.Split('{')[1].Split('}')[0]
+
+            if ($null -eq $powerPlan.InstanceID) {
+                $powerPlan.ElementName = "Unknown"
+            }
+
+            [PSCustomObject]@{
+                ComputerName = $computer
+                InstanceId   = $powerPlan.InstanceID
+                PowerPlan    = $powerPlan.ElementName
+                Credential   = $Credential
+            } | Select-DefaultView -ExcludeProperty Credential, InstanceId
         }
-
-        $powerPlan = $powerPlans | Where-Object IsActive -eq 'True' | Select-Object ElementName, InstanceID
-$powerPlan.InstanceID = $powerPlan.InstanceID.Split('{')[1].Split('}')[0]
-
-if ($null -eq $powerPlan.InstanceID) {
-    $powerPlan.ElementName = "Unknown"
-}
-
-[PSCustomObject]@{
-    ComputerName = $computer
-    InstanceId   = $powerPlan.InstanceID
-    PowerPlan    = $powerPlan.ElementName
-    Credential   = $Credential
-} | Select-DefaultView -ExcludeProperty Credential, InstanceId
-}
-}
+    }
 }

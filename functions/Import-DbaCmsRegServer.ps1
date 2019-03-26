@@ -131,21 +131,21 @@ function Import-DbaCmsRegServer {
                                 $urnlist = $reggroup.RegisteredServers.Urn.Value
                                 $reggroup.Import($file.FullName)
                                 Get-DbaCmsRegServer -SqlInstance $instance -SqlCredential $SqlCredential | Where-Object { $_.Urn.Value -notin $urnlist }
-                        } catch {
-                            Stop-Function -Message "Failure attempting to import $file to $instance" -ErrorRecord $_ -Continue
+                            } catch {
+                                Stop-Function -Message "Failure attempting to import $file to $instance" -ErrorRecord $_ -Continue
+                            }
                         }
                     }
+                } else {
+                    if (-not $object.ServerName) {
+                        Stop-Function -Message "Property 'ServerName' not found in InputObject. No servers added." -Continue
+                    }
+                    Add-DbaCmsRegServer -SqlInstance $instance -SqlCredential $SqlCredential -Name $object.Name -ServerName $object.ServerName -Description $object.Description -Group $groupobject
                 }
-            } else {
-                if (-not $object.ServerName) {
-                    Stop-Function -Message "Property 'ServerName' not found in InputObject. No servers added." -Continue
-                }
-                Add-DbaCmsRegServer -SqlInstance $instance -SqlCredential $SqlCredential -Name $object.Name -ServerName $object.ServerName -Description $object.Description -Group $groupobject
             }
         }
     }
-}
-end {
-    Test-DbaDeprecation -DeprecatedOn "1.0.0" -Alias Import-DbaRegisteredServer
-}
+    end {
+        Test-DbaDeprecation -DeprecatedOn "1.0.0" -Alias Import-DbaRegisteredServer
+    }
 }

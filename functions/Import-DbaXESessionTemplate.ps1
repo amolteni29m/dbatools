@@ -177,32 +177,32 @@ function Import-DbaXESessionTemplate {
 
                 # This could be done better but not today
                 $no2012 = ($metadata | Where-Object Compatibility -gt 2012).Name
-            $no2014 = ($metadata | Where-Object Compatibility -gt 2014).Name
+                $no2014 = ($metadata | Where-Object Compatibility -gt 2014).Name
 
-        if ($Name -in $no2012 -and $server.VersionMajor -eq 11) {
-            Stop-Function -Message "$Name is not supported in SQL Server 2012 ($server)" -Continue
-        }
+                if ($Name -in $no2012 -and $server.VersionMajor -eq 11) {
+                    Stop-Function -Message "$Name is not supported in SQL Server 2012 ($server)" -Continue
+                }
 
-        if ($Name -in $no2014 -and $server.VersionMajor -eq 12) {
-            Stop-Function -Message "$Name is not supported in SQL Server 2014 ($server)" -Continue
-        }
+                if ($Name -in $no2014 -and $server.VersionMajor -eq 12) {
+                    Stop-Function -Message "$Name is not supported in SQL Server 2014 ($server)" -Continue
+                }
 
-        if ((Get-DbaXESession -SqlInstance $server -Session $Name)) {
-            Stop-Function -Message "$Name already exists on $instance" -Continue
-        }
+                if ((Get-DbaXESession -SqlInstance $server -Session $Name)) {
+                    Stop-Function -Message "$Name already exists on $instance" -Continue
+                }
 
-        try {
-            Write-Message -Level Verbose -Message "Importing $file as $Name "
-            $session = $store.CreateSessionFromTemplate($Name, $file)
-            $session.Create()
-            if ($file -eq $tempfile) {
-                Remove-Item $tempfile -ErrorAction SilentlyContinue
+                try {
+                    Write-Message -Level Verbose -Message "Importing $file as $Name "
+                    $session = $store.CreateSessionFromTemplate($Name, $file)
+                    $session.Create()
+                    if ($file -eq $tempfile) {
+                        Remove-Item $tempfile -ErrorAction SilentlyContinue
+                    }
+                    Get-DbaXESession -SqlInstance $server -Session $session.Name
+                } catch {
+                    Stop-Function -Message "Failure" -ErrorRecord $_ -Target $store -Continue
+                }
             }
-            Get-DbaXESession -SqlInstance $server -Session $session.Name
-        } catch {
-            Stop-Function -Message "Failure" -ErrorRecord $_ -Target $store -Continue
         }
     }
-}
-}
 }

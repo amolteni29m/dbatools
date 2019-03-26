@@ -39,7 +39,7 @@ function Invoke-DbaAsync {
 
         .PARAMETER EnableException
         By default, when something goes wrong we try to catch it, interpret it and give you a friendly warning message.
-    #>
+       #>
 
     param (
         [Alias('Connection', 'Conn')]
@@ -81,7 +81,7 @@ function Invoke-DbaAsync {
                         Write-Message -Level Verbose -Message "SQL Error:  $Err"
                     } #Shiyang, add the verbose output of exception
                     switch ($ErrorActionPreference.ToString()) {
-                        { 'SilentlyContinue', 'Ignore' -contains $_ } { }
+                        { 'SilentlyContinue', 'Ignore' -contains $_ } {   }
                         'Stop' { throw $Err }
                         'Continue' { throw $Err }
                         Default { Throw $Err }
@@ -157,137 +157,137 @@ function Invoke-DbaAsync {
 
         # Only execute non-empty statements
         $Pieces = $Pieces | Where-Object { $_.Trim().Length -gt 0 }
-    foreach ($piece in $Pieces) {
-        $cmd = New-Object system.Data.SqlClient.SqlCommand($piece, $conn)
-        $cmd.CommandTimeout = $QueryTimeout
+        foreach ($piece in $Pieces) {
+            $cmd = New-Object system.Data.SqlClient.SqlCommand($piece, $conn)
+            $cmd.CommandTimeout = $QueryTimeout
 
-        if ($null -ne $SqlParameters) {
-            $SqlParameters.GetEnumerator() |
-                ForEach-Object {
+            if ($null -ne $SqlParameters) {
+                $SqlParameters.GetEnumerator() |
+                    ForEach-Object {
                     if ($null -ne $_.Value) {
                         $cmd.Parameters.AddWithValue($_.Key, $_.Value)
                     } else {
                         $cmd.Parameters.AddWithValue($_.Key, [DBNull]::Value)
                     }
                 } > $null
-        }
+            }
 
-        $ds = New-Object system.Data.DataSet
-        $da = New-Object system.Data.SqlClient.SqlDataAdapter($cmd)
+            $ds = New-Object system.Data.DataSet
+            $da = New-Object system.Data.SqlClient.SqlDataAdapter($cmd)
 
-        if ($MessagesToOutput) {
-            $defaultrunspace = [System.Management.Automation.Runspaces.Runspace]::DefaultRunspace
-            $pool = [RunspaceFactory]::CreateRunspacePool(1, [int]$env:NUMBER_OF_PROCESSORS + 1)
-            $pool.ApartmentState = "MTA"
-            $pool.Open()
-            $runspaces = @()
-            $scriptblock = {
-                param ($da, $ds, $conn, $queue )
-                $conn.FireInfoMessageEventOnUserErrors = $false
-                $handler = [System.Data.SqlClient.SqlInfoMessageEventHandler] { $queue.Enqueue($_) }
-                $conn.add_InfoMessage($handler)
-                $Err = $null
+            if ($MessagesToOutput) {
+                $defaultrunspace = [System.Management.Automation.Runspaces.Runspace]::DefaultRunspace
+                $pool = [RunspaceFactory]::CreateRunspacePool(1, [int]$env:NUMBER_OF_PROCESSORS + 1)
+                $pool.ApartmentState = "MTA"
+                $pool.Open()
+                $runspaces = @()
+                $scriptblock = {
+                    param ($da, $ds, $conn, $queue )
+                    $conn.FireInfoMessageEventOnUserErrors = $false
+                    $handler = [System.Data.SqlClient.SqlInfoMessageEventHandler] { $queue.Enqueue($_) }
+                    $conn.add_InfoMessage($handler)
+                    $Err = $null
+                    try {
+                        [void]$da.fill($ds)
+                    } catch {
+                        $Err = $_
+                    } finally {
+                        $conn.remove_InfoMessage($handler)
+                    }
+                    return $Err
+                }
+                $queue = New-Object System.Collections.Concurrent.ConcurrentQueue[string]
+                $runspace = [PowerShell]::Create()
+                $null = $runspace.AddScript($scriptblock)
+                $null = $runspace.AddArgument($da)
+                $null = $runspace.AddArgument($ds)
+                $null = $runspace.AddArgument($Conn)
+                $null = $runspace.AddArgument($queue)
+                $runspace.RunspacePool = $pool
+                $runspaces += [PSCustomObject]@{ Pipe = $runspace; Status = $runspace.BeginInvoke() }
+                # While streaming ...
+                while ($runspaces.Status.IsCompleted -notcontains $true) {
+                    $item = $null
+                    if ($queue.TryDequeue([ref]$item)) {
+                        "$item"
+                    }
+                }
+                # Drain the stream as the runspace is closed, just to be safe
+                if ($queue.IsEmpty -ne $true) {
+                    $item = $null
+                    while ($queue.TryDequeue([ref]$item)) {
+                        "$item"
+                    }
+                }
+                foreach ($runspace in $runspaces) {
+                    $results = $runspace.Pipe.EndInvoke($runspace.Status)
+                    $runspace.Pipe.Dispose()
+                    if ($null -ne $results) {
+                        Resolve-SqlError $results[0]
+                    }
+                }
+                $pool.Close()
+                $pool.Dispose()
+                [System.Management.Automation.Runspaces.Runspace]::DefaultRunspace = $defaultrunspace
+            } else {
+                #Following EventHandler is used for PRINT and RAISERROR T-SQL statements. Executed when -Verbose parameter specified by caller and no -MessageToOutput
+                if ($PSBoundParameters.Verbose) {
+                    $conn.FireInfoMessageEventOnUserErrors = $false
+                    $handler = [System.Data.SqlClient.SqlInfoMessageEventHandler] { Write-Verbose -Message "$($_)" }
+                    $conn.add_InfoMessage($handler)
+                }
                 try {
                     [void]$da.fill($ds)
                 } catch {
                     $Err = $_
                 } finally {
-                    $conn.remove_InfoMessage($handler)
+                    if ($PSBoundParameters.Verbose) {
+                        $conn.remove_InfoMessage($handler)
+                    }
                 }
-                return $Err
+                Resolve-SqlError $Err
             }
-            $queue = New-Object System.Collections.Concurrent.ConcurrentQueue[string]
-            $runspace = [PowerShell]::Create()
-            $null = $runspace.AddScript($scriptblock)
-            $null = $runspace.AddArgument($da)
-            $null = $runspace.AddArgument($ds)
-            $null = $runspace.AddArgument($Conn)
-            $null = $runspace.AddArgument($queue)
-            $runspace.RunspacePool = $pool
-            $runspaces += [PSCustomObject]@{ Pipe = $runspace; Status = $runspace.BeginInvoke() }
-            # While streaming ...
-            while ($runspaces.Status.IsCompleted -notcontains $true) {
-                $item = $null
-                if ($queue.TryDequeue([ref]$item)) {
-                    "$item"
-                }
-            }
-            # Drain the stream as the runspace is closed, just to be safe
-            if ($queue.IsEmpty -ne $true) {
-                $item = $null
-                while ($queue.TryDequeue([ref]$item)) {
-                    "$item"
-                }
-            }
-            foreach ($runspace in $runspaces) {
-                $results = $runspace.Pipe.EndInvoke($runspace.Status)
-                $runspace.Pipe.Dispose()
-                if ($null -ne $results) {
-                    Resolve-SqlError $results[0]
-                }
-            }
-            $pool.Close()
-            $pool.Dispose()
-            [System.Management.Automation.Runspaces.Runspace]::DefaultRunspace = $defaultrunspace
-        } else {
-            #Following EventHandler is used for PRINT and RAISERROR T-SQL statements. Executed when -Verbose parameter specified by caller and no -MessageToOutput
-            if ($PSBoundParameters.Verbose) {
-                $conn.FireInfoMessageEventOnUserErrors = $false
-                $handler = [System.Data.SqlClient.SqlInfoMessageEventHandler] { Write-Verbose -Message "$($_)" }
-                $conn.add_InfoMessage($handler)
-            }
-            try {
-                [void]$da.fill($ds)
-            } catch {
-                $Err = $_
-            } finally {
-                if ($PSBoundParameters.Verbose) {
-                    $conn.remove_InfoMessage($handler)
-                }
-            }
-            Resolve-SqlError $Err
-        }
-        if ($AppendServerInstance) {
-            #Basics from Chad Miller
-            $Column = New-Object Data.DataColumn
-            $Column.ColumnName = "ServerInstance"
+            if ($AppendServerInstance) {
+                #Basics from Chad Miller
+                $Column = New-Object Data.DataColumn
+                $Column.ColumnName = "ServerInstance"
 
-            if ($ds.Tables.Count -ne 0) {
-                $ds.Tables[0].Columns.Add($Column)
-                Foreach ($row in $ds.Tables[0]) {
-                    $row.ServerInstance = $SQLConnection.ServerInstance
-                }
-            }
-        }
-
-        switch ($As) {
-            'DataSet' {
-                $ds
-            }
-            'DataTable' {
-                $ds.Tables
-            }
-            'DataRow' {
                 if ($ds.Tables.Count -ne 0) {
-                    $ds.Tables[0]
-                }
-            }
-            'PSObject' {
-                if ($ds.Tables.Count -ne 0) {
-                    #Scrub DBNulls - Provides convenient results you can use comparisons with
-                    #Introduces overhead (e.g. ~2000 rows w/ ~80 columns went from .15 Seconds to .65 Seconds - depending on your data could be much more!)
-                    foreach ($row in $ds.Tables[0].Rows) {
-                        [DBNullScrubber]::DataRowToPSObject($row)
+                    $ds.Tables[0].Columns.Add($Column)
+                    Foreach ($row in $ds.Tables[0]) {
+                        $row.ServerInstance = $SQLConnection.ServerInstance
                     }
                 }
             }
-            'SingleValue' {
-                if ($ds.Tables.Count -ne 0) {
-                    $ds.Tables[0] | Select-Object -ExpandProperty $ds.Tables[0].Columns[0].ColumnName
-            }
-        }
-    }
-} #foreach ($piece in $Pieces)
 
-}
+            switch ($As) {
+                'DataSet' {
+                    $ds
+                }
+                'DataTable' {
+                    $ds.Tables
+                }
+                'DataRow' {
+                    if ($ds.Tables.Count -ne 0) {
+                        $ds.Tables[0]
+                    }
+                }
+                'PSObject' {
+                    if ($ds.Tables.Count -ne 0) {
+                        #Scrub DBNulls - Provides convenient results you can use comparisons with
+                        #Introduces overhead (e.g. ~2000 rows w/ ~80 columns went from .15 Seconds to .65 Seconds - depending on your data could be much more!)
+                        foreach ($row in $ds.Tables[0].Rows) {
+                            [DBNullScrubber]::DataRowToPSObject($row)
+                        }
+                    }
+                }
+                'SingleValue' {
+                    if ($ds.Tables.Count -ne 0) {
+                        $ds.Tables[0] | Select-Object -ExpandProperty $ds.Tables[0].Columns[0].ColumnName
+                    }
+                }
+            }
+        } #foreach ($piece in $Pieces)
+
+    }
 }

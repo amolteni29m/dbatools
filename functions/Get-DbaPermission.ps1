@@ -229,27 +229,27 @@ function Get-DbaPermission {
 
             if ($Database) {
                 $dbs = $dbs | Where-Object Name -In $Database
-        }
+            }
 
-        if ($ExcludeDatabase) {
-            $dbs = $dbs | Where-Object Name -NotIn $ExcludeDatabase
+            if ($ExcludeDatabase) {
+                $dbs = $dbs | Where-Object Name -NotIn $ExcludeDatabase
+            }
+
+            foreach ($db in $dbs) {
+                Write-Message -Level Verbose -Message "Processing $db on $instance."
+
+                if ($db.IsAccessible -eq $false) {
+                    Write-Message -Level Warning -Message "The database $db is not accessible. Skipping database."
+                    Continue
+                }
+
+                Write-Message -Level Debug -Message "T-SQL: $DBPermsql"
+                try {
+                    $db.ExecuteWithResults($DBPermsql).Tables.Rows
+                } catch {
+                    Stop-Function -Message "Failure executing against $($db.Name) on $instance" -ErrorRecord $_ -Continue
+                }
+            }
+        }
     }
-
-    foreach ($db in $dbs) {
-        Write-Message -Level Verbose -Message "Processing $db on $instance."
-
-        if ($db.IsAccessible -eq $false) {
-            Write-Message -Level Warning -Message "The database $db is not accessible. Skipping database."
-            Continue
-        }
-
-        Write-Message -Level Debug -Message "T-SQL: $DBPermsql"
-        try {
-            $db.ExecuteWithResults($DBPermsql).Tables.Rows
-        } catch {
-            Stop-Function -Message "Failure executing against $($db.Name) on $instance" -ErrorRecord $_ -Continue
-        }
-    }
-}
-}
 }

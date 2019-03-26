@@ -91,50 +91,50 @@ function Get-DbaDbIdentity {
 
             if ($Database) {
                 $dbs = $dbs | Where-Object Name -In $Database
-        }
-
-        foreach ($db in $dbs) {
-            Write-Message -Level Verbose -Message "Processing $db on $instance"
-
-            if ($db.IsAccessible -eq $false) {
-                Stop-Function -Message "The database $db is not accessible. Skipping." -Continue
             }
 
-            foreach ($tbl in $Table) {
-                try {
-                    $query = $StringBuilder.ToString()
-                    $query = $query.Replace('#options#', "'$($tbl)'")
+            foreach ($db in $dbs) {
+                Write-Message -Level Verbose -Message "Processing $db on $instance"
 
-                    if ($Pscmdlet.ShouldProcess($server.Name, "Execute the command $query against $instance")) {
-                        Write-Message -Message "Query to run: $query" -Level Verbose
-                        $results = $server | Invoke-DbaQuery  -Query $query -Database $db.Name -MessagesToOutput
-                    if ($null -ne $results) {
-                        $words = $results.Split(" ")
-                        $identityValue = $words[6].Replace("'", "").Replace(",", "")
-                        $columnValue = $words[10].Replace("'", "").Replace(".", "")
-                    } else {
-                        $identityValue = $null
-                        $columnValue = $null
-                    }
+                if ($db.IsAccessible -eq $false) {
+                    Stop-Function -Message "The database $db is not accessible. Skipping." -Continue
                 }
-            } catch {
-                Stop-Function -Message "Error running  $query against $db" -Target $instance -ErrorRecord $_ -Exception $_.Exception -Continue
-            }
-            if ($Pscmdlet.ShouldProcess("console", "Outputting object")) {
-                [PSCustomObject]@{
-                    ComputerName  = $server.ComputerName
-                    InstanceName  = $server.ServiceName
-                    SqlInstance   = $server.DomainInstanceName
-                    Database      = $db.Name
-                    Table         = $tbl
-                    Cmd           = $query.ToString()
-                    IdentityValue = $identityValue
-                    ColumnValue   = $columnValue
-                    Output        = $results
+
+                foreach ($tbl in $Table) {
+                    try {
+                        $query = $StringBuilder.ToString()
+                        $query = $query.Replace('#options#', "'$($tbl)'")
+
+                        if ($Pscmdlet.ShouldProcess($server.Name, "Execute the command $query against $instance")) {
+                            Write-Message -Message "Query to run: $query" -Level Verbose
+                            $results = $server | Invoke-DbaQuery  -Query $query -Database $db.Name -MessagesToOutput
+                            if ($null -ne $results) {
+                                $words = $results.Split(" ")
+                                $identityValue = $words[6].Replace("'", "").Replace(",", "")
+                                $columnValue = $words[10].Replace("'", "").Replace(".", "")
+                            } else {
+                                $identityValue = $null
+                                $columnValue = $null
+                            }
+                        }
+                    } catch {
+                        Stop-Function -Message "Error running  $query against $db" -Target $instance -ErrorRecord $_ -Exception $_.Exception -Continue
+                    }
+                    if ($Pscmdlet.ShouldProcess("console", "Outputting object")) {
+                        [PSCustomObject]@{
+                            ComputerName  = $server.ComputerName
+                            InstanceName  = $server.ServiceName
+                            SqlInstance   = $server.DomainInstanceName
+                            Database      = $db.Name
+                            Table         = $tbl
+                            Cmd           = $query.ToString()
+                            IdentityValue = $identityValue
+                            ColumnValue   = $columnValue
+                            Output        = $results
+                        }
+                    }
                 }
             }
         }
     }
-}
-}
 }

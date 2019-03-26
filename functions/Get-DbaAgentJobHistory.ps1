@@ -186,121 +186,121 @@ function Get-DbaAgentJobHistory {
                     } elseif ($tok -eq 'JOBID') {
                         # convert(binary(16), ?)
                         $repl = @('0x') + @($exec.JobID.ToByteArray() | ForEach-Object -Process { $_.ToString('X2') }) -join ''
-                    $repl = Resolve-TokenEscape -method $EscMethod -value $repl
-                    $outfile = $outfile.Replace($x.Value, $repl)
-                } elseif ($tok -eq 'STRTDT') {
-                    $repl = Resolve-TokenEscape -method $EscMethod -value $outcome.RunDate.toString('yyyyMMdd')
-                    $outfile = $outfile.Replace($x.Value, $repl)
-                } elseif ($tok -eq 'STRTTM') {
-                    $repl = Resolve-TokenEscape -method $EscMethod -value ([int]$outcome.RunDate.toString('HHmmss')).toString()
-                    $outfile = $outfile.Replace($x.Value, $repl)
-                } elseif ($tok -eq 'DATE') {
-                    $repl = Resolve-TokenEscape -method $EscMethod -value $exec.RunDate.toString('yyyyMMdd')
-                    $outfile = $outfile.Replace($x.Value, $repl)
-                } elseif ($tok -eq 'TIME') {
-                    $repl = Resolve-TokenEscape -method $EscMethod -value ([int]$exec.RunDate.toString('HHmmss')).toString()
-                    $outfile = $outfile.Replace($x.Value, $repl)
+                        $repl = Resolve-TokenEscape -method $EscMethod -value $repl
+                        $outfile = $outfile.Replace($x.Value, $repl)
+                    } elseif ($tok -eq 'STRTDT') {
+                        $repl = Resolve-TokenEscape -method $EscMethod -value $outcome.RunDate.toString('yyyyMMdd')
+                        $outfile = $outfile.Replace($x.Value, $repl)
+                    } elseif ($tok -eq 'STRTTM') {
+                        $repl = Resolve-TokenEscape -method $EscMethod -value ([int]$outcome.RunDate.toString('HHmmss')).toString()
+                        $outfile = $outfile.Replace($x.Value, $repl)
+                    } elseif ($tok -eq 'DATE') {
+                        $repl = Resolve-TokenEscape -method $EscMethod -value $exec.RunDate.toString('yyyyMMdd')
+                        $outfile = $outfile.Replace($x.Value, $repl)
+                    } elseif ($tok -eq 'TIME') {
+                        $repl = Resolve-TokenEscape -method $EscMethod -value ([int]$exec.RunDate.toString('HHmmss')).toString()
+                        $outfile = $outfile.Replace($x.Value, $repl)
+                    }
                 }
+                return $outfile
             }
-            return $outfile
+            try {
+                Write-Message -Message "Attempting to get job history from $instance" -Level Verbose
+                if ($Job) {
+                    foreach ($currentjob in $Job) {
+                        $filter.JobName = $currentjob
+                        $executions += $server.JobServer.EnumJobHistory($filter)
+                    }
+                } else {
+                    $executions = $server.JobServer.EnumJobHistory($filter)
+                }
+                if ($ExcludeJobSteps) {
+                    $executions = $executions | Where-Object { $_.StepID -eq 0 }
+                }
+
+                if ($WithOutputFile) {
+                    $outmap = @{}
+                    $outfiles = Get-DbaAgentJobOutputFile -SqlInstance $Server -SqlCredential $SqlCredential -Job $Job
+
+                    foreach ($out in $outfiles) {
+                        if (!$outmap.ContainsKey($out.Job)) {
+                            $outmap[$out.Job] = @{}
+                        }
+                        $outmap[$out.Job][$out.StepId] = $out.OutputFileName
+                    }
+                }
+                $outcome = [pscustomobject]@{}
+                foreach ($execution in $executions) {
+                    $status = switch ($execution.RunStatus) {
+                        0 { "Failed" }
+                        1 { "Succeeded" }
+                        2 { "Retry" }
+                        3 { "Canceled" }
+                    }
+
+                    Add-Member -Force -InputObject $execution -MemberType NoteProperty -Name ComputerName -value $server.ComputerName
+                    Add-Member -Force -InputObject $execution -MemberType NoteProperty -Name InstanceName -value $server.ServiceName
+                    Add-Member -Force -InputObject $execution -MemberType NoteProperty -Name SqlInstance -value $server.DomainInstanceName
+                    $DurationInSeconds = ($execution.RunDuration % 100) + [math]::floor( ($execution.RunDuration % 10000 ) / 100 ) * 60 + [math]::floor( ($execution.RunDuration % 1000000 ) / 10000 ) * 60 * 60
+                    Add-Member -Force -InputObject $execution -MemberType NoteProperty -Name StartDate -value ([dbadatetime]$execution.RunDate)
+                    Add-Member -Force -InputObject $execution -MemberType NoteProperty -Name EndDate -value ([dbadatetime]$execution.RunDate.AddSeconds($DurationInSeconds))
+                    Add-Member -Force -InputObject $execution -MemberType NoteProperty -Name Duration -value ([prettytimespan](New-TimeSpan -Seconds $DurationInSeconds))
+                    Add-Member -Force -InputObject $execution -MemberType NoteProperty -Name Status -value $status
+                    if ($WithOutputFile) {
+                        if ($execution.StepID -eq 0) {
+                            $outcome = $execution
+                        }
+                        try {
+                            $outname = $outmap[$execution.JobName][$execution.StepID]
+                            $outname = Resolve-JobToken -exec $execution -outcome $outcome -outfile $outname
+                            $outremote = Join-AdminUNC $Server.ComputerName $outname
+                        } catch {
+                            $outname = ''
+                            $outremote = ''
+                        }
+                        Add-Member -Force -InputObject $execution -MemberType NoteProperty -Name OutputFileName -value $outname
+                        Add-Member -Force -InputObject $execution -MemberType NoteProperty -Name RemoteOutputFileName -value $outremote
+                        # Add this in for easier ConvertTo-DbaTimeline Support
+                        Add-Member -Force -InputObject $execution -MemberType NoteProperty -Name TypeName -value AgentJobHistory
+                        Select-DefaultView -InputObject $execution -Property ComputerName, InstanceName, SqlInstance, 'JobName as Job', StepName, RunDate, StartDate, EndDate, Duration, Status, OperatorEmailed, Message, OutputFileName, RemoteOutputFileName -TypeName AgentJobHistory
+                    } else {
+                        Add-Member -Force -InputObject $execution -MemberType NoteProperty -Name TypeName -value AgentJobHistory
+                        Select-DefaultView -InputObject $execution -Property ComputerName, InstanceName, SqlInstance, 'JobName as Job', StepName, RunDate, StartDate, EndDate, Duration, Status, OperatorEmailed, Message -TypeName AgentJobHistory
+                    }
+
+                }
+            } catch {
+                Stop-Function -Message "Could not get Agent Job History from $instance" -Target $instance -Continue
+            }
         }
-        try {
-            Write-Message -Message "Attempting to get job history from $instance" -Level Verbose
-            if ($Job) {
-                foreach ($currentjob in $Job) {
-                    $filter.JobName = $currentjob
-                    $executions += $server.JobServer.EnumJobHistory($filter)
+    }
+
+    process {
+
+        if (Test-FunctionInterrupt) { return }
+
+        if ($JobCollection) {
+            foreach ($currentjob in $JobCollection) {
+                Get-JobHistory -Server $currentjob.Parent.Parent -Job $currentjob.Name -WithOutputFile:$WithOutputFile
+            }
+        }
+
+        foreach ($instance in $SqlInstance) {
+            try {
+                $server = Connect-SqlInstance -SqlInstance $instance -SqlCredential $SqlCredential
+            } catch {
+                Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $instance -Continue
+            }
+
+
+            if ($ExcludeJob) {
+                $jobs = $server.JobServer.Jobs.Name | Where-Object { $_ -notin $ExcludeJob }
+                foreach ($currentjob in $jobs) {
+                    Get-JobHistory -Server $server -Job $currentjob -WithOutputFile:$WithOutputFile
                 }
             } else {
-                $executions = $server.JobServer.EnumJobHistory($filter)
+                Get-JobHistory -Server $server -Job $Job -WithOutputFile:$WithOutputFile
             }
-            if ($ExcludeJobSteps) {
-                $executions = $executions | Where-Object { $_.StepID -eq 0 }
-        }
-
-        if ($WithOutputFile) {
-            $outmap = @{ }
-            $outfiles = Get-DbaAgentJobOutputFile -SqlInstance $Server -SqlCredential $SqlCredential -Job $Job
-
-            foreach ($out in $outfiles) {
-                if (!$outmap.ContainsKey($out.Job)) {
-                    $outmap[$out.Job] = @{ }
-                }
-                $outmap[$out.Job][$out.StepId] = $out.OutputFileName
-            }
-        }
-        $outcome = [pscustomobject]@{ }
-        foreach ($execution in $executions) {
-            $status = switch ($execution.RunStatus) {
-                0 { "Failed" }
-                1 { "Succeeded" }
-                2 { "Retry" }
-                3 { "Canceled" }
-            }
-
-            Add-Member -Force -InputObject $execution -MemberType NoteProperty -Name ComputerName -value $server.ComputerName
-            Add-Member -Force -InputObject $execution -MemberType NoteProperty -Name InstanceName -value $server.ServiceName
-            Add-Member -Force -InputObject $execution -MemberType NoteProperty -Name SqlInstance -value $server.DomainInstanceName
-            $DurationInSeconds = ($execution.RunDuration % 100) + [math]::floor( ($execution.RunDuration % 10000 ) / 100 ) * 60 + [math]::floor( ($execution.RunDuration % 1000000 ) / 10000 ) * 60 * 60
-            Add-Member -Force -InputObject $execution -MemberType NoteProperty -Name StartDate -value ([dbadatetime]$execution.RunDate)
-            Add-Member -Force -InputObject $execution -MemberType NoteProperty -Name EndDate -value ([dbadatetime]$execution.RunDate.AddSeconds($DurationInSeconds))
-            Add-Member -Force -InputObject $execution -MemberType NoteProperty -Name Duration -value ([prettytimespan](New-TimeSpan -Seconds $DurationInSeconds))
-            Add-Member -Force -InputObject $execution -MemberType NoteProperty -Name Status -value $status
-            if ($WithOutputFile) {
-                if ($execution.StepID -eq 0) {
-                    $outcome = $execution
-                }
-                try {
-                    $outname = $outmap[$execution.JobName][$execution.StepID]
-                    $outname = Resolve-JobToken -exec $execution -outcome $outcome -outfile $outname
-                    $outremote = Join-AdminUNC $Server.ComputerName $outname
-                } catch {
-                    $outname = ''
-                    $outremote = ''
-                }
-                Add-Member -Force -InputObject $execution -MemberType NoteProperty -Name OutputFileName -value $outname
-                Add-Member -Force -InputObject $execution -MemberType NoteProperty -Name RemoteOutputFileName -value $outremote
-                # Add this in for easier ConvertTo-DbaTimeline Support
-                Add-Member -Force -InputObject $execution -MemberType NoteProperty -Name TypeName -value AgentJobHistory
-                Select-DefaultView -InputObject $execution -Property ComputerName, InstanceName, SqlInstance, 'JobName as Job', StepName, RunDate, StartDate, EndDate, Duration, Status, OperatorEmailed, Message, OutputFileName, RemoteOutputFileName -TypeName AgentJobHistory
-            } else {
-                Add-Member -Force -InputObject $execution -MemberType NoteProperty -Name TypeName -value AgentJobHistory
-                Select-DefaultView -InputObject $execution -Property ComputerName, InstanceName, SqlInstance, 'JobName as Job', StepName, RunDate, StartDate, EndDate, Duration, Status, OperatorEmailed, Message -TypeName AgentJobHistory
-            }
-
-        }
-    } catch {
-        Stop-Function -Message "Could not get Agent Job History from $instance" -Target $instance -Continue
-    }
-}
-}
-
-process {
-
-    if (Test-FunctionInterrupt) { return }
-
-    if ($JobCollection) {
-        foreach ($currentjob in $JobCollection) {
-            Get-JobHistory -Server $currentjob.Parent.Parent -Job $currentjob.Name -WithOutputFile:$WithOutputFile
         }
     }
-
-    foreach ($instance in $SqlInstance) {
-        try {
-            $server = Connect-SqlInstance -SqlInstance $instance -SqlCredential $SqlCredential
-        } catch {
-            Stop-Function -Message "Error occurred while establishing connection to $instance" -Category ConnectionError -ErrorRecord $_ -Target $instance -Continue
-        }
-
-
-        if ($ExcludeJob) {
-            $jobs = $server.JobServer.Jobs.Name | Where-Object { $_ -notin $ExcludeJob }
-        foreach ($currentjob in $jobs) {
-            Get-JobHistory -Server $server -Job $currentjob -WithOutputFile:$WithOutputFile
-        }
-    } else {
-        Get-JobHistory -Server $server -Job $Job -WithOutputFile:$WithOutputFile
-    }
-}
-}
 }

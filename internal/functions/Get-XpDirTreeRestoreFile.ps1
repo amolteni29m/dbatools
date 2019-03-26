@@ -68,15 +68,15 @@ function Get-XpDirTreeRestoreFile {
     $queryResult = $server.Query($sql)
     Write-Message -Level Debug -Message $sql
     $dirs = $queryResult | Where-Object file -eq 0
-$Results = @()
-$Results += $queryResult | Where-Object file -eq 1 | Select-Object @{ Name = "FullName"; Expression = { $path + $_.subdirectory } }
+    $Results = @()
+    $Results += $queryResult | Where-Object file -eq 1 | Select-Object @{ Name = "FullName"; Expression = { $path + $_.subdirectory } }
 
-if ($True -ne $NoRecurse) {
-    foreach ($d in $dirs) {
-        $fullpath = $path + $d.subdirectory
-        Write-Message -Level Verbose -Message "Enumerating subdirectory '$fullpath'"
-        $Results += Get-XpDirTreeRestoreFile -Path $fullpath -SqlInstance $server
+    if ($True -ne $NoRecurse) {
+        foreach ($d in $dirs) {
+            $fullpath = $path + $d.subdirectory
+            Write-Message -Level Verbose -Message "Enumerating subdirectory '$fullpath'"
+            $Results += Get-XpDirTreeRestoreFile -Path $fullpath -SqlInstance $server
+        }
     }
-}
-return $Results
+    return $Results
 }

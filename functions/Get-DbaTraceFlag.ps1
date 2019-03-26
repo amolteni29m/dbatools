@@ -78,19 +78,19 @@ function Get-DbaTraceFlag {
 
             if ($TraceFlag) {
                 $tflags = $tflags | Where-Object TraceFlag -In $TraceFlag
-        }
+            }
 
-        foreach ($tflag in $tflags) {
-            [pscustomobject]@{
-                ComputerName = $server.ComputerName
-                InstanceName = $server.ServiceName
-                SqlInstance  = $server.DomainInstanceName
-                TraceFlag    = $tflag.TraceFlag
-                Global       = $tflag.Global
-                Session      = $tflag.Session
-                Status       = $tflag.Status
-            } | Select-DefaultView -ExcludeProperty 'Session'
+            foreach ($tflag in $tflags) {
+                [pscustomobject]@{
+                    ComputerName = $server.ComputerName
+                    InstanceName = $server.ServiceName
+                    SqlInstance  = $server.DomainInstanceName
+                    TraceFlag    = $tflag.TraceFlag
+                    Global       = $tflag.Global
+                    Session      = $tflag.Session
+                    Status       = $tflag.Status
+                } | Select-DefaultView -ExcludeProperty 'Session'
+            }
+        }
     }
-}
-}
 }

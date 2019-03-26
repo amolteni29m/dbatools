@@ -121,9 +121,9 @@ function New-DbaXESmartReplay {
                     $replay
                 } catch {
                     $message = $_.Exception.InnerException.InnerException | Out-String
-                Stop-Function -Message $message -Target "XESmartTarget" -Continue
+                    Stop-Function -Message $message -Target "XESmartTarget" -Continue
+                }
             }
         }
     }
-}
 }

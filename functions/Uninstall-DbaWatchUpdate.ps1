@@ -44,30 +44,30 @@ function Uninstall-DbaWatchUpdate {
                     Write-Message -Level Output -Message "Removing Scheduled Task 'dbatools version check'."
                     $task | Unregister-ScheduledTask -Confirm:$false -ErrorAction Stop
 
-                Write-Message -Level Output -Message "Task removed"
+                    Write-Message -Level Output -Message "Task removed"
 
-                Start-Sleep -Seconds 2
+                    Start-Sleep -Seconds 2
+                }
+            } catch {
+                Write-Message -Level Warning -Message "Task could not be deleted. Please remove 'dbatools version check' manually."
             }
-        } catch {
-            Write-Message -Level Warning -Message "Task could not be deleted. Please remove 'dbatools version check' manually."
         }
+        # Needs admin credentials to remove the task because of the way it was setup
+
+        $task = Get-ScheduledTask -TaskName "dbatools version check" -ErrorAction SilentlyContinue
+
+        if ($null -eq $task) {
+            Write-Message -Level Warning -Message "dbatools update watcher is not installed."
+            return
+        }
+
+        if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
+            Write-Message -Level Warning -Message "Removal of this scheduled task requires elevated permissions."
+            Start-Process powershell -Verb runAs -ArgumentList Uninstall-DbaWatchUpdate -Wait
+        } else {
+            Invoke-Command -ScriptBlock $script
+        }
+
+        Write-Message -Level Output -Message "All done!"
     }
-    # Needs admin credentials to remove the task because of the way it was setup
-
-    $task = Get-ScheduledTask -TaskName "dbatools version check" -ErrorAction SilentlyContinue
-
-    if ($null -eq $task) {
-        Write-Message -Level Warning -Message "dbatools update watcher is not installed."
-        return
-    }
-
-    if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
-        Write-Message -Level Warning -Message "Removal of this scheduled task requires elevated permissions."
-        Start-Process powershell -Verb runAs -ArgumentList Uninstall-DbaWatchUpdate -Wait
-    } else {
-        Invoke-Command -ScriptBlock $script
-    }
-
-    Write-Message -Level Output -Message "All done!"
-}
 }

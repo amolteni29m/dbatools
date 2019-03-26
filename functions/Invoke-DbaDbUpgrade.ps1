@@ -130,151 +130,151 @@ function Invoke-DbaDbUpgrade {
                 Stop-Function -Message "Failed to process Instance $Instance" -ErrorRecord $_ -Target $instance -Continue
             }
             $InputObject += $server.Databases | Where-Object IsAccessible
-    }
-
-    $InputObject = $InputObject | Where-Object { $_.IsSystemObject -eq $false }
-if ($Database) {
-    $InputObject = $InputObject | Where-Object Name -In $Database
-}
-if ($ExcludeDatabase) {
-    $InputObject = $InputObject | Where-Object Name -NotIn $ExcludeDatabase
-}
-
-foreach ($db in $InputObject) {
-    # create objects to use in updates
-    $server = $db.Parent
-    $ServerVersion = $server.VersionMajor
-    Write-Message -Level Verbose -Message "SQL Server is using Version: $ServerVersion"
-
-    $ogcompat = $db.CompatibilityLevel
-    $dbname = $db.Name
-    $dbversion = switch ($db.CompatibilityLevel) {
-        "Version100" { 10 } # SQL Server 2008
-        "Version110" { 11 } # SQL Server 2012
-        "Version120" { 12 } # SQL Server 2014
-        "Version130" { 13 } # SQL Server 2016
-        "Version140" { 14 } # SQL Server 2017
-        default { 9 } # SQL Server 2005
-    }
-    if (-not $Force) {
-        # skip over databases at the correct level, unless -Force
-        if ($dbversion -ge $ServerVersion) {
-            Write-Message -Level VeryVerbose -Message "Skipping $db because compatibility is at the correct level. Use -Force if you want to run all the additional steps"
-            continue
         }
-    }
-    Write-Message -Level Verbose -Message "Updating $db compatibility to SQL Instance level"
-    if ($dbversion -lt $ServerVersion) {
-        If ($Pscmdlet.ShouldProcess($server, "Updating $db version on $server from $dbversion to $ServerVersion")) {
-            $Comp = $ServerVersion * 10
-            $tsqlComp = "ALTER DATABASE $db SET COMPATIBILITY_LEVEL = $Comp"
-            try {
-                $db.ExecuteNonQuery($tsqlComp)
-                $comResult = $Comp
-            } catch {
-                Write-Message -Level Warning -Message "Failed run Compatibility Upgrade" -ErrorRecord $_ -Target $instance
-                $comResult = "Fail"
+
+        $InputObject = $InputObject | Where-Object { $_.IsSystemObject -eq $false }
+        if ($Database) {
+            $InputObject = $InputObject | Where-Object Name -In $Database
+        }
+        if ($ExcludeDatabase) {
+            $InputObject = $InputObject | Where-Object Name -NotIn $ExcludeDatabase
+        }
+
+        foreach ($db in $InputObject) {
+            # create objects to use in updates
+            $server = $db.Parent
+            $ServerVersion = $server.VersionMajor
+            Write-Message -Level Verbose -Message "SQL Server is using Version: $ServerVersion"
+
+            $ogcompat = $db.CompatibilityLevel
+            $dbname = $db.Name
+            $dbversion = switch ($db.CompatibilityLevel) {
+                "Version100" { 10 } # SQL Server 2008
+                "Version110" { 11 } # SQL Server 2012
+                "Version120" { 12 } # SQL Server 2014
+                "Version130" { 13 } # SQL Server 2016
+                "Version140" { 14 } # SQL Server 2017
+                default { 9 } # SQL Server 2005
+            }
+            if (-not $Force) {
+                # skip over databases at the correct level, unless -Force
+                if ($dbversion -ge $ServerVersion) {
+                    Write-Message -Level VeryVerbose -Message "Skipping $db because compatibility is at the correct level. Use -Force if you want to run all the additional steps"
+                    continue
+                }
+            }
+            Write-Message -Level Verbose -Message "Updating $db compatibility to SQL Instance level"
+            if ($dbversion -lt $ServerVersion) {
+                If ($Pscmdlet.ShouldProcess($server, "Updating $db version on $server from $dbversion to $ServerVersion")) {
+                    $Comp = $ServerVersion * 10
+                    $tsqlComp = "ALTER DATABASE $db SET COMPATIBILITY_LEVEL = $Comp"
+                    try {
+                        $db.ExecuteNonQuery($tsqlComp)
+                        $comResult = $Comp
+                    } catch {
+                        Write-Message -Level Warning -Message "Failed run Compatibility Upgrade" -ErrorRecord $_ -Target $instance
+                        $comResult = "Fail"
+                    }
+                }
+            } else {
+                $comResult = "No change"
+            }
+
+            if (!($NoCheckDb)) {
+                Write-Message -Level Verbose -Message "Updating $db with DBCC CHECKDB DATA_PURITY"
+                If ($Pscmdlet.ShouldProcess($server, "Updating $db with DBCC CHECKDB DATA_PURITY")) {
+                    $tsqlCheckDB = "DBCC CHECKDB ('$dbname') WITH DATA_PURITY, NO_INFOMSGS"
+                    try {
+                        $db.ExecuteNonQuery($tsqlCheckDB)
+                        $DataPurityResult = "Success"
+                    } catch {
+                        Write-Message -Level Warning -Message "Failed run DBCC CHECKDB with DATA_PURITY on $db" -ErrorRecord $_ -Target $instance
+                        $DataPurityResult = "Fail"
+                    }
+                }
+            } else {
+                Write-Message -Level Verbose -Message "Ignoring CHECKDB DATA_PURITY"
+            }
+
+            if (!($NoUpdateUsage)) {
+                Write-Message -Level Verbose -Message "Updating $db with DBCC UPDATEUSAGE"
+                If ($Pscmdlet.ShouldProcess($server, "Updating $db with DBCC UPDATEUSAGE")) {
+                    $tsqlUpdateUsage = "DBCC UPDATEUSAGE ($db) WITH NO_INFOMSGS;"
+                    try {
+                        $db.ExecuteNonQuery($tsqlUpdateUsage)
+                        $UpdateUsageResult = "Success"
+                    } catch {
+                        Write-Message -Level Warning -Message "Failed to run DBCC UPDATEUSAGE on $db" -ErrorRecord $_ -Target $instance
+                        $UpdateUsageResult = "Fail"
+                    }
+                }
+            } else {
+                Write-Message -Level Verbose -Message "Ignore DBCC UPDATEUSAGE"
+                $UpdateUsageResult = "Skipped"
+            }
+
+            if (!($NoUpdatestats)) {
+                Write-Message -Level Verbose -Message "Updating $db statistics"
+                If ($Pscmdlet.ShouldProcess($server, "Updating $db statistics")) {
+                    $tsqlStats = "EXEC sp_updatestats;"
+                    try {
+                        $db.ExecuteNonQuery($tsqlStats)
+                        $UpdateStatsResult = "Success"
+                    } catch {
+                        Write-Message -Level Warning -Message "Failed to run sp_updatestats on $db" -ErrorRecord $_ -Target $instance
+                        $UpdateStatsResult = "Fail"
+                    }
+                }
+            } else {
+                Write-Message -Level Verbose -Message "Ignoring sp_updatestats"
+                $UpdateStatsResult = "Skipped"
+            }
+
+            if (!($NoRefreshView)) {
+                Write-Message -Level Verbose -Message "Refreshing $db Views"
+                $dbViews = $db.Views | Where-Object IsSystemObject -eq $false
+                $RefreshViewResult = "Success"
+                foreach ($dbview in $dbviews) {
+                    $viewName = $dbView.Name
+                    $viewSchema = $dbView.Schema
+                    $fullName = $viewSchema + "." + $viewName
+
+                    $tsqlupdateView = "EXECUTE sp_refreshview N'$fullName';  "
+
+                    If ($Pscmdlet.ShouldProcess($server, "Refreshing view $fullName on $db")) {
+                        try {
+                            $db.ExecuteNonQuery($tsqlupdateView)
+                        } catch {
+                            Write-Message -Level Warning -Message "Failed update view $fullName on $db" -ErrorRecord $_ -Target $instance
+                            $RefreshViewResult = "Fail"
+                        }
+                    }
+                }
+            } else {
+                Write-Message -Level Verbose -Message "Ignore View Refreshes"
+                $RefreshViewResult = "Skipped"
+            }
+
+            If ($Pscmdlet.ShouldProcess("console", "Outputting object")) {
+                $db.Refresh()
+
+                [PSCustomObject]@{
+                    ComputerName          = $server.ComputerName
+                    InstanceName          = $server.ServiceName
+                    SqlInstance           = $server.DomainInstanceName
+                    Database              = $db.name
+                    OriginalCompatibility = $ogcompat.ToString().Replace('Version', '')
+                    CurrentCompatibility  = $db.CompatibilityLevel.ToString().Replace('Version', '')
+                    Compatibility         = $comResult
+                    DataPurity            = $DataPurityResult
+                    UpdateUsage           = $UpdateUsageResult
+                    UpdateStats           = $UpdateStatsResult
+                    RefreshViews          = $RefreshViewResult
+                }
             }
         }
-    } else {
-        $comResult = "No change"
     }
-
-    if (!($NoCheckDb)) {
-        Write-Message -Level Verbose -Message "Updating $db with DBCC CHECKDB DATA_PURITY"
-        If ($Pscmdlet.ShouldProcess($server, "Updating $db with DBCC CHECKDB DATA_PURITY")) {
-            $tsqlCheckDB = "DBCC CHECKDB ('$dbname') WITH DATA_PURITY, NO_INFOMSGS"
-            try {
-                $db.ExecuteNonQuery($tsqlCheckDB)
-                $DataPurityResult = "Success"
-            } catch {
-                Write-Message -Level Warning -Message "Failed run DBCC CHECKDB with DATA_PURITY on $db" -ErrorRecord $_ -Target $instance
-                $DataPurityResult = "Fail"
-            }
-        }
-    } else {
-        Write-Message -Level Verbose -Message "Ignoring CHECKDB DATA_PURITY"
+    end {
+        Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Invoke-DbaDatabaseUpgrade
     }
-
-    if (!($NoUpdateUsage)) {
-        Write-Message -Level Verbose -Message "Updating $db with DBCC UPDATEUSAGE"
-        If ($Pscmdlet.ShouldProcess($server, "Updating $db with DBCC UPDATEUSAGE")) {
-            $tsqlUpdateUsage = "DBCC UPDATEUSAGE ($db) WITH NO_INFOMSGS;"
-            try {
-                $db.ExecuteNonQuery($tsqlUpdateUsage)
-                $UpdateUsageResult = "Success"
-            } catch {
-                Write-Message -Level Warning -Message "Failed to run DBCC UPDATEUSAGE on $db" -ErrorRecord $_ -Target $instance
-                $UpdateUsageResult = "Fail"
-            }
-        }
-    } else {
-        Write-Message -Level Verbose -Message "Ignore DBCC UPDATEUSAGE"
-        $UpdateUsageResult = "Skipped"
-    }
-
-    if (!($NoUpdatestats)) {
-        Write-Message -Level Verbose -Message "Updating $db statistics"
-        If ($Pscmdlet.ShouldProcess($server, "Updating $db statistics")) {
-            $tsqlStats = "EXEC sp_updatestats;"
-            try {
-                $db.ExecuteNonQuery($tsqlStats)
-                $UpdateStatsResult = "Success"
-            } catch {
-                Write-Message -Level Warning -Message "Failed to run sp_updatestats on $db" -ErrorRecord $_ -Target $instance
-                $UpdateStatsResult = "Fail"
-            }
-        }
-    } else {
-        Write-Message -Level Verbose -Message "Ignoring sp_updatestats"
-        $UpdateStatsResult = "Skipped"
-    }
-
-    if (!($NoRefreshView)) {
-        Write-Message -Level Verbose -Message "Refreshing $db Views"
-        $dbViews = $db.Views | Where-Object IsSystemObject -eq $false
-    $RefreshViewResult = "Success"
-    foreach ($dbview in $dbviews) {
-        $viewName = $dbView.Name
-        $viewSchema = $dbView.Schema
-        $fullName = $viewSchema + "." + $viewName
-
-        $tsqlupdateView = "EXECUTE sp_refreshview N'$fullName';  "
-
-        If ($Pscmdlet.ShouldProcess($server, "Refreshing view $fullName on $db")) {
-            try {
-                $db.ExecuteNonQuery($tsqlupdateView)
-            } catch {
-                Write-Message -Level Warning -Message "Failed update view $fullName on $db" -ErrorRecord $_ -Target $instance
-                $RefreshViewResult = "Fail"
-            }
-        }
-    }
-} else {
-    Write-Message -Level Verbose -Message "Ignore View Refreshes"
-    $RefreshViewResult = "Skipped"
-}
-
-If ($Pscmdlet.ShouldProcess("console", "Outputting object")) {
-    $db.Refresh()
-
-    [PSCustomObject]@{
-        ComputerName          = $server.ComputerName
-        InstanceName          = $server.ServiceName
-        SqlInstance           = $server.DomainInstanceName
-        Database              = $db.name
-        OriginalCompatibility = $ogcompat.ToString().Replace('Version', '')
-        CurrentCompatibility  = $db.CompatibilityLevel.ToString().Replace('Version', '')
-        Compatibility         = $comResult
-        DataPurity            = $DataPurityResult
-        UpdateUsage           = $UpdateUsageResult
-        UpdateStats           = $UpdateStatsResult
-        RefreshViews          = $RefreshViewResult
-    }
-}
-}
-}
-end {
-    Test-DbaDeprecation -DeprecatedOn "1.0.0" -EnableException:$false -Alias Invoke-DbaDatabaseUpgrade
-}
 }

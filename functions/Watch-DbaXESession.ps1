@@ -83,77 +83,77 @@ function Watch-DbaXESession {
             $XEStore = New-Object  Microsoft.SqlServer.Management.XEvent.XEStore $SqlStoreConnection
             Write-Message -Level Verbose -Message "Getting XEvents Sessions on $SqlInstance."
             $InputObject += $XEStore.sessions | Where-Object Name -eq $Session
-    }
-
-    foreach ($xesession in $InputObject) {
-        $server = $xesession.Parent
-        $sessionname = $xesession.Name
-        Write-Message -Level Verbose -Message "Watching $sessionname on $($server.Name)."
-
-        if (-not $xesession.IsRunning -and -not $xesession.IsRunning) {
-            Stop-Function -Message "$($xesession.Name) is not running on $($server.Name)" -Continue
         }
 
-        # Setup all columns for csv but do it in an order
-        $columns = @("name", "timestamp")
-        $newcolumns = @()
+        foreach ($xesession in $InputObject) {
+            $server = $xesession.Parent
+            $sessionname = $xesession.Name
+            Write-Message -Level Verbose -Message "Watching $sessionname on $($server.Name)."
 
-        $fields = ($xesession.Events.EventFields.Name | Select-Object -Unique)
-    foreach ($column in $fields) {
-        $newcolumns += $column.TrimStart("collect_")
-    }
+            if (-not $xesession.IsRunning -and -not $xesession.IsRunning) {
+                Stop-Function -Message "$($xesession.Name) is not running on $($server.Name)" -Continue
+            }
 
-    $actions = ($xesession.Events.Actions.Name | Select-Object -Unique)
-foreach ($action in $actions) {
-    $newcolumns += ($action -Split '\.')[-1]
-}
+            # Setup all columns for csv but do it in an order
+            $columns = @("name", "timestamp")
+            $newcolumns = @()
 
-$newcolumns = $newcolumns | Sort-Object
-$columns = ($columns += $newcolumns) | Select-Object -Unique
+            $fields = ($xesession.Events.EventFields.Name | Select-Object -Unique)
+            foreach ($column in $fields) {
+                $newcolumns += $column.TrimStart("collect_")
+            }
 
-try {
-    $xevent = New-Object -TypeName Microsoft.SqlServer.XEvent.Linq.QueryableXEventData(
-        ($server.ConnectionContext.ConnectionString),
-        ($xesession.Name),
-        [Microsoft.SqlServer.XEvent.Linq.EventStreamSourceOptions]::EventStream,
-        [Microsoft.SqlServer.XEvent.Linq.EventStreamCacheOptions]::DoNotCache
-    )
+            $actions = ($xesession.Events.Actions.Name | Select-Object -Unique)
+            foreach ($action in $actions) {
+                $newcolumns += ($action -Split '\.')[-1]
+            }
 
-    if ($raw) {
-        return $xevent
-    }
+            $newcolumns = $newcolumns | Sort-Object
+            $columns = ($columns += $newcolumns) | Select-Object -Unique
 
-    # Format output
-    foreach ($event in $xevent) {
-        $hash = [ordered]@{ }
+            try {
+                $xevent = New-Object -TypeName Microsoft.SqlServer.XEvent.Linq.QueryableXEventData(
+                    ($server.ConnectionContext.ConnectionString),
+                    ($xesession.Name),
+                    [Microsoft.SqlServer.XEvent.Linq.EventStreamSourceOptions]::EventStream,
+                    [Microsoft.SqlServer.XEvent.Linq.EventStreamCacheOptions]::DoNotCache
+                )
 
-        foreach ($column in $columns) {
-            $null = $hash.Add($column, $event.$column) # this basically adds name and timestamp then nulls
+                if ($raw) {
+                    return $xevent
+                }
+
+                # Format output
+                foreach ($event in $xevent) {
+                    $hash = [ordered]@{}
+
+                    foreach ($column in $columns) {
+                        $null = $hash.Add($column, $event.$column) # this basically adds name and timestamp then nulls
+                    }
+
+                    foreach ($action in $event.Actions) {
+                        $hash[$action.Name] = $action.Value
+                    }
+
+                    foreach ($field in $event.Fields) {
+                        $hash[$field.Name] = $field.Value
+                    }
+
+                    [PSCustomObject]($hash)
+                }
+            } catch {
+                Start-Sleep 1
+                $status = Get-DbaXESession -SqlInstance $server -Session $sessionname
+                if ($status.Status -ne "Running") {
+                    Stop-Function -Message "$($xesession.Name) was stopped."
+                } else {
+                    Stop-Function -Message "Failure" -ErrorRecord $_ -Target $sessionname
+                }
+            } finally {
+                if ($xevent -is [IDisposable]) {
+                    $xevent.Dispose()
+                }
+            }
         }
-
-        foreach ($action in $event.Actions) {
-            $hash[$action.Name] = $action.Value
-        }
-
-        foreach ($field in $event.Fields) {
-            $hash[$field.Name] = $field.Value
-        }
-
-        [PSCustomObject]($hash)
     }
-} catch {
-    Start-Sleep 1
-    $status = Get-DbaXESession -SqlInstance $server -Session $sessionname
-    if ($status.Status -ne "Running") {
-        Stop-Function -Message "$($xesession.Name) was stopped."
-    } else {
-        Stop-Function -Message "Failure" -ErrorRecord $_ -Target $sessionname
-    }
-} finally {
-    if ($xevent -is [IDisposable]) {
-        $xevent.Dispose()
-    }
-}
-}
-}
 }

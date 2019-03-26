@@ -191,63 +191,63 @@ function Get-DbaMaintenanceSolutionLog {
                         $datefile = [DateTime]::ParseExact($base, 'yyyyMMdd_HHmmss', $null)
                     } catch {
                         $datefile = Get-ItemProperty -Path $l | Select-Object -ExpandProperty CreationTime
-                }
-                if ($datefile -gt $since) {
-                    $filteredlogs += $l
-                }
-            }
-            $logfiles = $filteredlogs
-        }
-        if (! $logfiles.count -ge 1) {
-            Write-Message -Level Warning -Message "No log files returned from $computername"
-            Continue
-        }
-        $instanceinfo = @{ }
-        $instanceinfo['ComputerName'] = $server.ComputerName
-        $instanceinfo['InstanceName'] = $server.ServiceName
-        $instanceinfo['SqlInstance'] = $server.Name
-
-        foreach ($File in $logfiles) {
-            Write-Message -Level Verbose -Message "Reading $file"
-            $text = New-Object System.IO.StreamReader -ArgumentList "$File"
-            $block = New-Object System.Collections.ArrayList
-            $remember = @{ }
-            while ($line = $text.ReadLine()) {
-
-                $real = $line.Trim()
-                if ($real.Length -eq 0) {
-                    $processed = process-block $block
-                    if ('Procedure' -in $processed.Keys) {
-                        $block = New-Object System.Collections.ArrayList
-                        continue
                     }
-                    if ('Database' -in $processed.Keys) {
-                        Write-Message -Level Verbose -Message "Index and Stats Optimizations on Database $($processed.Database) on $computername"
-                        $processed.Remove('Is accessible')
-                        $processed.Remove('User access')
-                        $processed.Remove('Date and time')
-                        $processed.Remove('Standby')
-                        $processed.Remove('Recovery Model')
-                        $processed.Remove('Updateability')
-                        $processed['Database'] = $processed['Database'].Trim('[]')
-                        $remember = $processed.Clone()
-                    } else {
-                        foreach ($k in $processed.Keys) {
-                            $remember[$k] = $processed[$k]
+                    if ($datefile -gt $since) {
+                        $filteredlogs += $l
+                    }
+                }
+                $logfiles = $filteredlogs
+            }
+            if (! $logfiles.count -ge 1) {
+                Write-Message -Level Warning -Message "No log files returned from $computername"
+                Continue
+            }
+            $instanceinfo = @{ }
+            $instanceinfo['ComputerName'] = $server.ComputerName
+            $instanceinfo['InstanceName'] = $server.ServiceName
+            $instanceinfo['SqlInstance'] = $server.Name
+
+            foreach ($File in $logfiles) {
+                Write-Message -Level Verbose -Message "Reading $file"
+                $text = New-Object System.IO.StreamReader -ArgumentList "$File"
+                $block = New-Object System.Collections.ArrayList
+                $remember = @{}
+                while ($line = $text.ReadLine()) {
+
+                    $real = $line.Trim()
+                    if ($real.Length -eq 0) {
+                        $processed = process-block $block
+                        if ('Procedure' -in $processed.Keys) {
+                            $block = New-Object System.Collections.ArrayList
+                            continue
                         }
-                        $remember.Remove('Command')
-                        $remember['StartTime'] = [dbadatetime]([DateTime]::ParseExact($remember['Date and time'] , "yyyy-MM-dd HH:mm:ss", $null))
-                        $remember.Remove('Date and time')
-                        $remember['Duration'] = ($remember['Duration'] -as [timespan])
-                        [pscustomobject]$remember
+                        if ('Database' -in $processed.Keys) {
+                            Write-Message -Level Verbose -Message "Index and Stats Optimizations on Database $($processed.Database) on $computername"
+                            $processed.Remove('Is accessible')
+                            $processed.Remove('User access')
+                            $processed.Remove('Date and time')
+                            $processed.Remove('Standby')
+                            $processed.Remove('Recovery Model')
+                            $processed.Remove('Updateability')
+                            $processed['Database'] = $processed['Database'].Trim('[]')
+                            $remember = $processed.Clone()
+                        } else {
+                            foreach ($k in $processed.Keys) {
+                                $remember[$k] = $processed[$k]
+                            }
+                            $remember.Remove('Command')
+                            $remember['StartTime'] = [dbadatetime]([DateTime]::ParseExact($remember['Date and time'] , "yyyy-MM-dd HH:mm:ss", $null))
+                            $remember.Remove('Date and time')
+                            $remember['Duration'] = ($remember['Duration'] -as [timespan])
+                            [pscustomobject]$remember
+                        }
+                        $block = New-Object System.Collections.ArrayList
+                    } else {
+                        $null = $block.Add($real)
                     }
-                    $block = New-Object System.Collections.ArrayList
-                } else {
-                    $null = $block.Add($real)
                 }
+                $text.close()
             }
-            $text.close()
         }
     }
-}
 }

@@ -137,7 +137,7 @@ function Invoke-DbaDbDataMasking {
 
         $supportedFakerMaskingTypes = ($faker | Get-Member -MemberType Property | Select-Object Name -ExpandProperty Name)
 
-        $supportedFakerSubTypes = ($faker | Get-Member -MemberType Property) | ForEach-Object { ($faker.$($_.Name)) | Get-Member -MemberType Method | Where-Object {$_.Name -notlike 'To*' -and $_.Name -notlike 'Get*' -and $_.Name -notlike 'Trim*' -and $_.Name -notin 'Add', 'Equals', 'CompareTo', 'Clone', 'Contains', 'CopyTo', 'EndsWith', 'IndexOf', 'IndexOfAny', 'Insert', 'IsNormalized', 'LastIndexOf', 'LastIndexOfAny', 'Normalize', 'PadLeft', 'PadRight', 'Remove', 'Replace', 'Split', 'StartsWith', 'Substring', 'Letter', 'Lines', 'Paragraph', 'Paragraphs', 'Sentence', 'Sentences'} | Select-Object name -ExpandProperty Name }
+        $supportedFakerSubTypes = ($faker | Get-Member -MemberType Property) | ForEach-Object { ($faker.$($_.Name)) | Get-Member -MemberType Method | Where-Object { $_.Name -notlike 'To*' -and $_.Name -notlike 'Get*' -and $_.Name -notlike 'Trim*' -and $_.Name -notin 'Add', 'Equals', 'CompareTo', 'Clone', 'Contains', 'CopyTo', 'EndsWith', 'IndexOf', 'IndexOfAny', 'Insert', 'IsNormalized', 'LastIndexOf', 'LastIndexOfAny', 'Normalize', 'PadLeft', 'PadRight', 'Remove', 'Replace', 'Split', 'StartsWith', 'Substring', 'Letter', 'Lines', 'Paragraph', 'Paragraphs', 'Sentence', 'Sentences' } | Select-Object name -ExpandProperty Name }
 
         $supportedFakerSubTypes += "Date"
     }
@@ -176,7 +176,7 @@ function Invoke-DbaDbDataMasking {
             }
         }
 
-        $dictionary = @{}
+        $dictionary = @{ }
 
         foreach ($instance in $SqlInstance) {
             try {
@@ -213,7 +213,7 @@ function Invoke-DbaDbDataMasking {
                         Stop-Function -Message "Table $($tableobject.Name) is not present in $db" -Target $db -Continue
                     }
 
-                    $dbTable = $db.Tables | Where-Object {$_.Schema -eq $tableobject.Schema -and $_.Name -eq $tableobject.Name}
+                    $dbTable = $db.Tables | Where-Object { $_.Schema -eq $tableobject.Schema -and $_.Name -eq $tableobject.Name }
 
                     try {
                         if (-not (Test-Bound -ParameterName Query)) {
@@ -264,7 +264,13 @@ function Invoke-DbaDbDataMasking {
                                         $columnMaskInfo = $tableobject.Columns | Where-Object Name -eq $indexColumn.Name
 
                                         # Generate a new value
-                                        $newValue = $faker.$($columnMaskInfo.MaskingType).$($columnMaskInfo.SubType)()
+                                        $newValue = $null
+
+                                        if ($columnMaskInfo.SubType -in $supportedDataTypes) {
+                                            $newValue = Get-DbaRandomizedValue -DataType $columnMaskInfo.SubType -CharacterString $charstring -Locale $Locale
+                                        } else {
+                                            $newValue = Get-DbaRandomizedValue -RandomizerType $columnMaskInfo.MaskingType -RandomizerSubtype $columnMaskInfo.SubType -CharacterString $charstring -Locale $Locale
+                                        }
 
                                         # Check if the value is already present as a property
                                         if (($rowValue | Get-Member -MemberType NoteProperty).Name -notcontains $indexColumn.Name) {
